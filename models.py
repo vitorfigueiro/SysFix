@@ -20,9 +20,9 @@ class ColetaModel:
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO coletas (equipamento, tombamento, tecnico, data_coleta, origem, localizacao, problema, status, status_custo, valor_custo, laudado)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'Pendente', 'Sem Custo', 0.0, 'Não')
-            """, (equip_san, tomb_san, tec_san, data_validada, origem_san, loc_san, prob_san))
+            INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, localizacao, problema)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (equipamento, tombamento, tecnico, data_coleta, origem, localizacao, problema))
             conn.commit()
             return cursor.lastrowid
 

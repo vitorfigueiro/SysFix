@@ -4,24 +4,44 @@ from datetime import datetime
 
 class SecurityValidator:
     # Whitelist de localizações válidas (evita injeção de valores arbitrários)
-    LOCALIZACOES_PERMITIDAS = ["Almoxarifado", "Lab 01", "Lab 02", "Manutenção", "Recepção"]
+    LOCALIZACOES_PERMITIDAS = ["Bancada", "PlayLan", "Sede"]
 
     @staticmethod
-    def sanitize_text(text: str) -> str:
-        """Sanitiza strings para evitar XSS e caracteres maliciosos."""
-        if not text:
+    def sanitizar_texto(texto: str) -> str:
+        """Sanitiza e limpa entradas de texto genéricas."""
+        if not texto:
             return ""
-        clean_text = text.strip()
-        return html.escape(clean_text)
+        return html.escape(str(texto).strip())
 
     @staticmethod
-    def validate_date(date_str: str) -> bool:
-        """Garante que a data siga o formato seguro YYYY-MM-DD."""
-        try:
-            datetime.strptime(date_str, "%Y-%m-%d")
-            return True
-        except ValueError:
-            return False
+    def validate_location(location: str) -> str:
+        """Valida se a localização pertence à Whitelist."""
+        clean_loc = str(location).strip()
+        if clean_loc not in SecurityValidator.LOCALIZACOES_PERMITIDAS:
+            raise ValueError(
+                f"Localização inválida. Opções permitidas: {', '.join(SecurityValidator.LOCALIZACOES_PERMITIDAS)}"
+            )
+        return clean_loc
+
+    @staticmethod
+    def validar_data(data_str: str) -> str:
+        """Valida se a data enviada está no formato correto (DD/MM/AAAA ou AAAA-MM-DD)."""
+        if not data_str or not str(data_str).strip():
+            raise ValueError("A data não pode estar vazia.")
+
+        data_limpa = str(data_str).strip()
+
+        # Tenta validar no formato DD/MM/AAAA
+        for formato in ("%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                datetime.strptime(data_limpa, formato)
+                return data_limpa
+            except ValueError:
+                continue
+
+        raise ValueError(
+            f"Data '{data_limpa}' em formato inválido. Use o formato DD/MM/AAAA."
+        )
 
     @staticmethod
     def validate_cost(value_str: str) -> float:

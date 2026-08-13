@@ -1,24 +1,26 @@
-import sqlite3
 import os
+import psycopg2
 from dotenv import load_dotenv
 
+# Carrega as variáveis do arquivo .env
 load_dotenv()
 
-import os
-import sqlite3
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "coletas.db")
+# Obtém a URI de conexão com o PostgreSQL na nuvem
+# Exemplo no .env: DATABASE_URL="postgresql://usuario:senha@ep-exemplo.us-east-1.aws.neon.tech/nome_do_banco?sslmode=require"
+DATABASE_URL = os.getenv("DATABASE_URL","postgresql://neondb_owner:npg_Fn1uJ5SfclgP@ep-square-frog-ac27k813.sa-east-1.aws.neon.tech/neondb?sslmode=require")
 
 # Aumente este número sempre que fizer alterações na estrutura do banco (ex: criar colunas/tabelas)
-VERSAO_ATUAL_SCHEMA = 2
+VERSAO_ATUAL_SCHEMA = 3
 
 
 def get_connection():
-    """Conecta no banco e ativa diretivas de segurança."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA secure_delete = ON;")
-    conn.execute("PRAGMA foreign_keys = ON;")
+    """Conecta no banco PostgreSQL hospedado na nuvem."""
+    if not DATABASE_URL:
+        raise ValueError(
+            "A variável de ambiente DATABASE_URL não foi configurada no arquivo .env!"
+        )
+
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
 
 
@@ -31,53 +33,56 @@ def aplicar_migracoes(conn, versao_banco):
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS coletas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                equipamento TEXT NOT NULL,
-                tombamento TEXT NOT NULL,
-                tecnico_coleta TEXT NOT NULL,
-                data_coleta TEXT NOT NULL,
-                origem TEXT NOT NULL,
-                localizacao TEXT NOT NULL,
+                id SERIAL PRIMARY KEY,
+                equipamento VARCHAR(255) NOT NULL,
+                tombamento VARCHAR(255) NOT NULL,
+                tecnico_coleta VARCHAR(255) NOT NULL,
+                data_coleta VARCHAR(50) NOT NULL,
+                origem VARCHAR(255) NOT NULL,
+                localizacao VARCHAR(255) NOT NULL,
                 problema TEXT,
-                status TEXT DEFAULT 'Pendente',
-                status_custo TEXT DEFAULT 'Sem Custo',
-                valor_custo REAL DEFAULT 0.0,
+                status VARCHAR(50) DEFAULT 'Pendente',
+                status_custo VARCHAR(50) DEFAULT 'Sem Custo',
+                valor_custo NUMERIC(10, 2) DEFAULT 0.0,
                 resolucao TEXT,
-                tecnico_entrega TEXT,
-                laudado TEXT DEFAULT 'Não'
-            )
+                tecnico_entrega VARCHAR(255),
+                laudado VARCHAR(10) DEFAULT 'Não'
+            );
         """
         )
 
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS logs_auditoria (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                usuario TEXT NOT NULL,
-                acao TEXT NOT NULL,
+                id SERIAL PRIMARY KEY,
+                usuario VARCHAR(255) NOT NULL,
+                acao VARCHAR(255) NOT NULL,
                 detalhes TEXT,
-                data_hora DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
+                data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """
         )
 
-    # Migração para a Versão 2 (Exemplo: Ajustes de colunas ou tabelas futuras)
+    # Migração para a Versão 2
     if versao_banco < 2:
         try:
-            # Exemplo de atualização: garante a presença da coluna 'tecnico_coleta' se ela não existia
-            cursor.execute("ALTER TABLE coletas ADD COLUMN tecnico_coleta TEXT;")
-        except sqlite3.OperationalError:
-            pass  # Coluna já existe
+            cursor.execute(
+                "ALTER TABLE coletas ADD COLUMN IF NOT EXISTS tecnico_coleta VARCHAR(255);"
+            )
+        except Exception:
+            conn.rollback()  # Reseta a transação em caso de erro
 
     # Atualiza o número da versão registrada no banco
     cursor.execute(
-        "UPDATE schema_version SET versao = ?", (VERSAO_ATUAL_SCHEMA,)
+        "UPDATE schema_version SET versao = %s WHERE id = 1;",
+        (VERSAO_ATUAL_SCHEMA,),
     )
     conn.commit()
+    cursor.close()
 
 
 def init_db():
-    """Inicializa e atualiza o banco de dados automaticamente."""
+    """Inicializa e atualiza o banco de dados automaticamente na nuvem."""
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -87,17 +92,17 @@ def init_db():
         CREATE TABLE IF NOT EXISTS schema_version (
             id INTEGER PRIMARY KEY,
             versao INTEGER NOT NULL
-        )
+        );
     """
     )
 
-    cursor.execute("SELECT versao FROM schema_version WHERE id = 1")
+    cursor.execute("SELECT versao FROM schema_version WHERE id = 1;")
     row = cursor.fetchone()
 
     if row is None:
         versao_banco = 0
         cursor.execute(
-            "INSERT INTO schema_version (id, versao) VALUES (1, 0)"
+            "INSERT INTO schema_version (id, versao) VALUES (1, 0);"
         )
         conn.commit()
     else:
@@ -107,24 +112,42 @@ def init_db():
     if versao_banco < VERSAO_ATUAL_SCHEMA:
         aplicar_migracoes(conn, versao_banco)
 
+    cursor.close()
     conn.close()
 
-# Exemplo de consulta segura contra SQL Injection (OWASP)
+
+# Exemplo de consulta segura contra SQL Injection (OWASP) com PostgreSQL (%s)
 def buscar_por_tombamento(tombamento: str):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        # NUNCA use f-strings no SQL. Use sempre o placeholder (?)
-        cursor.execute("SELECT * FROM equipamentos WHERE tombamento = ?", (tombamento,))
-        return cursor.fetchone()
+    conn = get_connection()
+    cursor = conn.cursor()
+    # No PostgreSQL usamos %s em vez de ?
+    cursor.execute(
+        "SELECT * FROM coletas WHERE tombamento = %s;", (tombamento,)
+    )
+    resultado = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return resultado
 
 
 # Exemplo de remoção em conformidade com o Direito de Eliminação (LGPD)
 def deletar_registro_e_auditar(tombamento: str, usuario_atual: str):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM equipamentos WHERE tombamento = ?", (tombamento,))
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM coletas WHERE tombamento = %s;", (tombamento,))
         cursor.execute(
-            "INSERT INTO logs_auditoria (usuario, acao, detalhes) VALUES (?, ?, ?)",
-            (usuario_atual, "EXCLUSAO_REGISTRO", f"Tombamento removido: {tombamento}")
+            "INSERT INTO logs_auditoria (usuario, acao, detalhes) VALUES (%s, %s, %s);",
+            (
+                usuario_atual,
+                "EXCLUSAO_REGISTRO",
+                f"Tombamento removido: {tombamento}",
+            ),
         )
         conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()

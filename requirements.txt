@@ -1,1 +1,4 @@
 reportlab>=4.0.0
+psycopg2-binary
+python-dotenv
+cryptography

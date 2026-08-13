@@ -1,0 +1,14 @@
+# Cache do Python
+__pycache__/
+*.pyc
+
+# Builds e Executáveis
+build/
+dist/
+
+# Variáveis de Ambiente e Segurança
+.env
+
+# Banco de dados local
+*.db
+coletas.db

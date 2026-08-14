@@ -79,7 +79,7 @@ class ColetaModel:
                 "Informe o técnico responsável por realizar a entrega."
             )
 
-        val_custo = SecurityValidator.converter_valor_moeda(valor_custo)
+        val_custo = SecurityValidator.validate_cost(valor_custo)
         res_san = SecurityValidator.sanitizar_texto(resolucao)
         laudado_san = SecurityValidator.sanitizar_texto(laudado)
 

@@ -3,45 +3,64 @@ import sys
 import subprocess
 import requests
 
-# Versão atual do seu programa
-VERSAO_ATUAL_APP = "1.0.4"
+# Defina aqui a versão atual instalada localmente no código
+VERSAO_ATUAL = "1.0.4"
 
-# URL de um arquivo JSON público contendo a versão mais recente e o link do .exe (ex: GitHub Releases)
-URL_CHECAGEM_VERSAO = "https://raw.githubusercontent.com/seu-usuario/seu-repositorio/main/version.json"
-
+# URL pública da API do GitHub para pegar a última release
+GITHUB_RELEASE_URL = "https://github.com/vitorfigueiro/controle_equipamentos/releases/tag/v1.0.4"
 
 def verificar_e_atualizar():
-    """Verifica se há novas atualizações e substitui o executável automaticamente."""
+    """Verifica se há uma versão mais recente no GitHub e atualiza o .exe."""
+    # Garante que só executa o update se estiver rodando através do .exe compilado
+    if not getattr(sys, 'frozen', False):
+        print("Ambiente de desenvolvimento detectado. Pultando verificação de auto-update.")
+        return
+
     try:
-        response = requests.get(URL_CHECAGEM_VERSAO, timeout=5)
-        if response.status_code == 200:
-            dados = response.json()
-            nova_versao = dados.get("version")
-            download_url = dados.get("download_url")
+        response = requests.get(GITHUB_RELEASE_URL, timeout=5)
+        if response.status_code != 200:
+            return
 
-            if nova_versao > VERSAO_ATUAL_APP:
-                print(f"Nova versão encontrada: {nova_versao}. Baixando atualização...")
+        dados = response.json()
+        # Remove o 'v' do início da tag (ex: 'v1.0.4' vira '1.0.4')
+        versao_remota = dados.get("tag_name", "").replace("v", "").strip()
 
-                # Baixa o novo .exe com nome temporário
-                exe_temp = "update_temp.exe"
-                r = requests.get(download_url, stream=True)
-                with open(exe_temp, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
+        # Se a versão remota do GitHub for maior que a VERSAO_ATUAL local
+        if versao_remota > VERSAO_ATUAL:
+            for asset in dados.get("assets", []):
+                # Procura o arquivo .exe anexo na Release
+                if asset["name"].endswith(".exe"):
+                    download_url = asset["browser_download_url"]
+                    executar_troca_exe(download_url)
+                    break
+    except Exception as e:
+        print(f"Aviso: Não foi possível checar atualizações: {e}")
 
-                # Executa um script em lote (.bat) para substituir o .exe antigo e reiniciar a aplicação
-                exe_atual = sys.argv[0]
-                script_bat = "updater.bat"
+def executar_troca_exe(download_url):
+    """Baixa a nova versão e executa o script batch para substituir o executável atual."""
+    exe_atual = sys.executable
+    diretorio = os.path.dirname(exe_atual)
+    exe_novo = os.path.join(diretorio, "novo_app.exe")
+    bat_script = os.path.join(diretorio, "update_script.bat")
 
-                with open(script_bat, "w") as f:
-                    f.write(f"""@echo off
+    # 1. Faz o download do novo .exe
+    response = requests.get(download_url, stream=True)
+    with open(exe_novo, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+
+    # 2. Cria um arquivo .bat temporário para substituir o arquivo antigo
+    conteudo_bat = f"""@echo off
 timeout /t 2 /nobreak > nul
-move /y "{exe_temp}" "{exe_atual}"
+del /f /q "{exe_atual}"
+move /y "{exe_novo}" "{exe_atual}"
 start "" "{exe_atual}"
 del "%~f0"
-""")
+"""
 
-                subprocess.Popen([script_bat], shell=True)
-                sys.exit()  # Encerra a aplicação atual para permitir a substituição
-    except Exception as e:
-        print(f"Não foi possível verificar atualizações: {e}")
+    with open(bat_script, "w") as f:
+        f.write(conteudo_bat)
+
+    # 3. Dispara o .bat e fecha a aplicação atual
+    subprocess.Popen(["cmd.exe", "/c", bat_script], creationflags=subprocess.CREATE_NO_WINDOW)
+    sys.exit(0)

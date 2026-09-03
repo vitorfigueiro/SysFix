@@ -1,7 +1,8 @@
-from datetime import date, datetime
 import json
 import os
 import tkinter as tk
+
+from datetime import date, datetime
 from tkinter import filedialog, messagebox, simpledialog, ttk
 import zipfile
 
@@ -49,7 +50,10 @@ class BackupManager:
 
         # Como o banco PostgreSQL é remoto, geramos um arquivo de log/status de encerramento
         with zipfile.ZipFile(caminho_zip, "w", zipfile.ZIP_DEFLATED) as zipf:
-            info_text = f"Sessão encerrada em {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nBanco PostgreSQL gerenciado remotamente."
+            info_text = (
+                f"Sessão encerrada em {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"Banco PostgreSQL gerenciado remotamente."
+            )
             zipf.writestr("status_sessao.txt", info_text)
 
         return caminho_zip
@@ -275,8 +279,14 @@ class Application(tk.Tk):
         self.entry_origem.grid(row=4, column=1, pady=4, sticky="ew")
 
         ttk.Label(
-            tab_entrada, text="Localização:", font=("Segoe UI", 9, "bold")
+            tab_entrada, text="O.S de Coleta:", font=("Segoe UI", 9, "bold")
         ).grid(row=5, column=0, sticky="w", pady=4)
+        self.entry_os_coleta = ttk.Entry(tab_entrada, width=26)
+        self.entry_os_coleta.grid(row=5, column=1, pady=4, sticky="ew")
+
+        ttk.Label(
+            tab_entrada, text="Localização:", font=("Segoe UI", 9, "bold")
+        ).grid(row=6, column=0, sticky="w", pady=4)
         self.combo_localizacao = ttk.Combobox(
             tab_entrada,
             values=SecurityValidator.LOCALIZACOES_PERMITIDAS,
@@ -286,11 +296,11 @@ class Application(tk.Tk):
         self.combo_localizacao.set(
             SecurityValidator.LOCALIZACOES_PERMITIDAS[0]
         )
-        self.combo_localizacao.grid(row=5, column=1, pady=4, sticky="ew")
+        self.combo_localizacao.grid(row=6, column=1, pady=4, sticky="ew")
 
         ttk.Label(
             tab_entrada, text="Problema:", font=("Segoe UI", 9, "bold")
-        ).grid(row=6, column=0, sticky="nw", pady=4)
+        ).grid(row=7, column=0, sticky="nw", pady=4)
         self.text_problema = tk.Text(
             tab_entrada,
             width=20,
@@ -300,19 +310,19 @@ class Application(tk.Tk):
             bd=1,
             highlightbackground=self.colors["border"],
         )
-        self.text_problema.grid(row=6, column=1, pady=4, sticky="ew")
+        self.text_problema.grid(row=7, column=1, pady=4, sticky="ew")
 
         ttk.Button(
             tab_entrada,
             text="➕ Registrar Entrada",
             style="Primary.TButton",
             command=self.salvar_entrada,
-        ).grid(row=7, column=0, columnspan=2, pady=(12, 4), sticky="ew")
+        ).grid(row=8, column=0, columnspan=2, pady=(12, 4), sticky="ew")
         ttk.Button(
             tab_entrada,
             text="🔒 ✏️ Editar Dados Entrada (Resp.)",
             command=self.atualizar_entrada,
-        ).grid(row=8, column=0, columnspan=2, pady=2, sticky="ew")
+        ).grid(row=9, column=0, columnspan=2, pady=2, sticky="ew")
 
         # --- ABA SAÍDA ---
         tab_saida = ttk.Frame(self.notebook, style="Card.TFrame", padding=12)
@@ -335,17 +345,30 @@ class Application(tk.Tk):
         self.entry_tecnico_entrega.grid(row=1, column=1, pady=4, sticky="ew")
 
         ttk.Label(
-            tab_saida, text="Laudado?", font=("Segoe UI", 9, "bold")
+            tab_saida, text="O.S de Entrega:", font=("Segoe UI", 9, "bold")
         ).grid(row=2, column=0, sticky="w", pady=4)
+        self.entry_os_entrega = ttk.Entry(tab_saida, width=26)
+        self.entry_os_entrega.grid(row=2, column=1, pady=4, sticky="ew")
+
+        ttk.Label(
+            tab_saida, text="Data Entrega:", font=("Segoe UI", 9, "bold")
+        ).grid(row=3, column=0, sticky="w", pady=4)
+        self.entry_data_entrega = ttk.Entry(tab_saida, width=26)
+        self.entry_data_entrega.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.entry_data_entrega.grid(row=3, column=1, pady=4, sticky="ew")
+
+        ttk.Label(
+            tab_saida, text="Laudado?", font=("Segoe UI", 9, "bold")
+        ).grid(row=4, column=0, sticky="w", pady=4)
         self.combo_laudado = ttk.Combobox(
             tab_saida, values=["Não", "Sim"], state="readonly", width=24
         )
         self.combo_laudado.set("Não")
-        self.combo_laudado.grid(row=2, column=1, pady=4, sticky="ew")
+        self.combo_laudado.grid(row=4, column=1, pady=4, sticky="ew")
 
         ttk.Label(
             tab_saida, text="Status Custo:", font=("Segoe UI", 9, "bold")
-        ).grid(row=3, column=0, sticky="w", pady=4)
+        ).grid(row=5, column=0, sticky="w", pady=4)
         self.combo_status_saida = ttk.Combobox(
             tab_saida,
             values=["Sem Custo", "Com Custo"],
@@ -353,22 +376,22 @@ class Application(tk.Tk):
             width=24,
         )
         self.combo_status_saida.set("Sem Custo")
-        self.combo_status_saida.grid(row=3, column=1, pady=4, sticky="ew")
+        self.combo_status_saida.grid(row=5, column=1, pady=4, sticky="ew")
         self.combo_status_saida.bind(
             "<<ComboboxSelected>>", self.on_status_change
         )
 
         ttk.Label(
             tab_saida, text="Valor Custo (R$):", font=("Segoe UI", 9, "bold")
-        ).grid(row=4, column=0, sticky="w", pady=4)
+        ).grid(row=6, column=0, sticky="w", pady=4)
         self.entry_valor_custo = ttk.Entry(tab_saida, width=26)
         self.entry_valor_custo.insert(0, "0,00")
         self.entry_valor_custo.configure(state="disabled")
-        self.entry_valor_custo.grid(row=4, column=1, pady=4, sticky="ew")
+        self.entry_valor_custo.grid(row=6, column=1, pady=4, sticky="ew")
 
         ttk.Label(
             tab_saida, text="Resolução:", font=("Segoe UI", 9, "bold")
-        ).grid(row=5, column=0, sticky="nw", pady=4)
+        ).grid(row=7, column=0, sticky="nw", pady=4)
         self.text_resolucao = tk.Text(
             tab_saida,
             width=20,
@@ -378,14 +401,14 @@ class Application(tk.Tk):
             bd=1,
             highlightbackground=self.colors["border"],
         )
-        self.text_resolucao.grid(row=5, column=1, pady=4, sticky="ew")
+        self.text_resolucao.grid(row=7, column=1, pady=4, sticky="ew")
 
         ttk.Button(
             tab_saida,
             text="✅ Finalizar & Marcar Entregue",
             style="Primary.TButton",
             command=self.salvar_saida,
-        ).grid(row=6, column=0, columnspan=2, pady=12, sticky="ew")
+        ).grid(row=8, column=0, columnspan=2, pady=12, sticky="ew")
 
         # Botões de Ação Inferiores
         frame_acoes = ttk.Frame(left_panel, padding=(0, 6, 0, 0))
@@ -599,13 +622,13 @@ class Application(tk.Tk):
             except Exception:
                 data_br = str(raw_data)
 
-        valor_custo = float(reg[10]) if reg[10] is not None else 0.0
+        valor_custo = float(reg[10]) if len(reg) > 10 and reg[10] is not None else 0.0
         val_fmt = (
             f"R$ {valor_custo:,.2f}".replace(",", "X")
             .replace(".", ",")
             .replace("X", ".")
         )
-        status = reg[8]
+        status = reg[8] if len(reg) > 8 else "Pendente"
 
         card_header = tk.Frame(self.frame_ficha, bg="#FFFFFF", relief="flat")
         card_header.configure(
@@ -673,7 +696,7 @@ class Application(tk.Tk):
             row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8)
         )
         self._add_field(card_tech, 1, "🏷️ Tombamento:", str(reg[2]))
-        self._add_field(card_tech, 2, "📍 Localização:", str(reg[6]))
+        self._add_field(card_tech, 2, "📍 Localização:", str(reg[7]) if len(reg) > 7 else "N/A")
 
         card_entrada = tk.Frame(self.frame_ficha, bg="#FFFFFF", relief="flat")
         card_entrada.configure(
@@ -693,11 +716,12 @@ class Application(tk.Tk):
         self._add_field(card_entrada, 1, "👤 Técnico Coleta:", str(reg[3]))
         self._add_field(card_entrada, 2, "📅 Data da Coleta:", data_br)
         self._add_field(card_entrada, 3, "🏢 Unidade Origem:", str(reg[5]))
+        self._add_field(card_entrada, 4, "📑 O.S de Coleta:", str(reg[6]))
         self._add_field(
             card_entrada,
-            4,
+            5,
             "⚠️ Problema Relatado:",
-            reg[7] if reg[7] else "Nenhum defeito relatado",
+            reg[8] if len(reg) > 8 and reg[8] else "Nenhum defeito relatado",
             is_full_width=True,
         )
 
@@ -717,23 +741,26 @@ class Application(tk.Tk):
             row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8)
         )
         self._add_field(
-            card_saida, 1, "📄 Laudo Técnico:", reg[13] if reg[13] else "Não"
+            card_saida, 1, "📄 Laudo Técnico:", reg[14] if len(reg) > 14 and reg[14] else "Não"
         )
         self._add_field(
             card_saida,
             2,
             "👤 Téc. Resp. Entrega:",
-            reg[12] if reg[12] else "Pendente",
+            reg[11] if len(reg) > 11 and reg[11] else "Pendente",
         )
         self._add_field(
-            card_saida, 3, "💰 Status de Custo:", f"{reg[9]} ({val_fmt})"
+            card_saida, 3, "💰 Status de Custo:", f"{reg[15] if len(reg) > 15 else 'Sem Custo'} ({val_fmt})"
         )
         self._add_field(
             card_saida,
             4,
             "🛠️ Serviço / Resolução:",
-            reg[11] if reg[11] else "Em andamento / Aguardando manutenção",
+            reg[16] if len(reg) > 16 and reg[16] else "Em andamento / Aguardando manutenção",
             is_full_width=True,
+        )
+        self._add_field(
+            card_saida, 5, "📅 Data da Entrega:", str(reg[13]) if len(reg) > 13 and reg[13] else "N/A"
         )
 
     def exibir_detalhes_vazio(self):
@@ -805,33 +832,36 @@ class Application(tk.Tk):
         self.entry_origem.delete(0, tk.END)
         self.entry_origem.insert(0, str(reg[5]))
 
-        if reg[6] in SecurityValidator.LOCALIZACOES_PERMITIDAS:
-            self.combo_localizacao.set(reg[6])
+        self.entry_os_coleta.delete(0, tk.END)
+        self.entry_os_coleta.insert(0, str(reg[6]))
+
+        if len(reg) > 7 and reg[7] in SecurityValidator.LOCALIZACOES_PERMITIDAS:
+            self.combo_localizacao.set(reg[7])
 
         self.text_problema.delete("1.0", tk.END)
-        if reg[7]:
-            self.text_problema.insert("1.0", str(reg[7]))
+        if len(reg) > 8 and reg[8]:
+            self.text_problema.insert("1.0", str(reg[8]))
 
-        if reg[13] in ["Não", "Sim"]:
-            self.combo_laudado.set(reg[13])
+        if len(reg) > 14 and reg[14] in ["Não", "Sim"]:
+            self.combo_laudado.set(reg[14])
 
         st_custo = (
-            reg[9] if reg[9] in ["Sem Custo", "Com Custo"] else "Sem Custo"
+            reg[15] if len(reg) > 15 and reg[15] in ["Sem Custo", "Com Custo"] else "Sem Custo"
         )
         self.combo_status_saida.set(st_custo)
         self.on_status_change()
 
-        if st_custo == "Com Custo":
+        if st_custo == "Com Custo" and len(reg) > 10:
             self.entry_valor_custo.delete(0, tk.END)
             self.entry_valor_custo.insert(0, str(reg[10]))
 
         self.text_resolucao.delete("1.0", tk.END)
-        if reg[11]:
-            self.text_resolucao.insert("1.0", str(reg[11]))
+        if len(reg) > 16 and reg[16]:
+            self.text_resolucao.insert("1.0", str(reg[16]))
 
         self.entry_tecnico_entrega.delete(0, tk.END)
-        if reg[12]:
-            self.entry_tecnico_entrega.insert(0, str(reg[12]))
+        if len(reg) > 11 and reg[11]:
+            self.entry_tecnico_entrega.insert(0, str(reg[11]))
 
     def carregar_dados_tabela(self):
         for row in self.tree.get_children():
@@ -849,7 +879,7 @@ class Application(tk.Tk):
             self.todos_registros_cache = ColetaModel.buscar_todos()
 
         for reg in self.todos_registros_cache:
-            st_exibicao = reg[8] if reg[8] else "Pendente"
+            st_exibicao = reg[9] if len(reg) > 9 and reg[9] else "Pendente"
             self.tree.insert(
                 "", "end", values=(reg[0], reg[1], reg[2], st_exibicao)
             )
@@ -867,6 +897,7 @@ class Application(tk.Tk):
                 self.entry_tecnico.get(),
                 self.entry_data.get(),
                 self.entry_origem.get(),
+                self.entry_os_coleta.get(),
                 self.combo_localizacao.get(),
                 self.text_problema.get("1.0", tk.END).strip(),
             )
@@ -896,22 +927,19 @@ class Application(tk.Tk):
                 self.entry_tecnico.get(),
                 self.entry_data.get(),
                 self.entry_origem.get(),
+                self.entry_os_coleta.get(),
                 self.combo_localizacao.get(),
                 self.text_problema.get("1.0", tk.END).strip(),
             )
-            messagebox.showinfo(
-                "Sucesso",
-                f"Registro ID #{self.registro_selecionado_id} atualizado com sucesso!",
-            )
+            messagebox.showinfo("Sucesso", "Dados de entrada atualizados!")
             self.carregar_dados_tabela()
         except Exception as e:
-            messagebox.showerror("Erro na Edição", str(e))
+            messagebox.showerror("Erro na Atualização", str(e))
 
     def salvar_saida(self):
         if not self.registro_selecionado_id:
             messagebox.showwarning(
-                "Aviso",
-                "Selecione um equipamento na lista para registrar a saída.",
+                "Aviso", "Selecione um registro para registrar a saída."
             )
             return
 
@@ -919,25 +947,22 @@ class Application(tk.Tk):
             ColetaModel.registrar_saida(
                 self.registro_selecionado_id,
                 self.entry_tecnico_entrega.get(),
+                self.entry_os_entrega.get(),
+                self.entry_data_entrega.get(),
+                self.combo_laudado.get(),
                 self.combo_status_saida.get(),
                 self.entry_valor_custo.get(),
                 self.text_resolucao.get("1.0", tk.END).strip(),
-                self.combo_laudado.get(),
             )
-            messagebox.showinfo(
-                "Sucesso",
-                f"Equipamento ID #{self.registro_selecionado_id} marcado como ENTREGUE!",
-            )
+            messagebox.showinfo("Sucesso", "Saída/Entrega registrada com sucesso!")
             self.limpar_formularios()
             self.carregar_dados_tabela()
         except Exception as e:
-            messagebox.showerror("Erro na Saída", str(e))
+            messagebox.showerror("Erro ao registrar saída", str(e))
 
     def excluir_registro(self):
         if not self.registro_selecionado_id:
-            messagebox.showwarning(
-                "Aviso", "Selecione um registro para excluir."
-            )
+            messagebox.showwarning("Aviso", "Selecione um registro para excluir.")
             return
 
         if not self.autenticar_admin():
@@ -945,100 +970,92 @@ class Application(tk.Tk):
 
         if messagebox.askyesno(
             "Confirmar Exclusão",
-            f"Tem certeza que deseja excluir o registro ID #{self.registro_selecionado_id}?",
+            f"Tem certeza que deseja excluir o registro #{self.registro_selecionado_id}?",
         ):
-            ColetaModel.excluir(self.registro_selecionado_id)
-            messagebox.showinfo("Sucesso", "Registro excluído com sucesso!")
-            self.limpar_formularios()
-            self.carregar_dados_tabela()
+            try:
+                ColetaModel.excluir(self.registro_selecionado_id)
+                messagebox.showinfo("Sucesso", "Registro excluído com sucesso!")
+                self.limpar_formularios()
+                self.carregar_dados_tabela()
+            except Exception as e:
+                messagebox.showerror("Erro ao Excluir", str(e))
 
     def limpar_formularios(self):
         self.registro_selecionado_id = None
         self.lbl_item_selecionado.config(
-            text="⚠️ Nenhum item selecionado", foreground=self.colors["danger"]
+            text="⚠️ Nenhum item selecionado",
+            foreground=self.colors["danger"],
         )
 
+        # Entrada
         self.entry_equip.delete(0, tk.END)
         self.entry_tombamento.delete(0, tk.END)
         self.entry_tecnico.delete(0, tk.END)
-        self.entry_origem.delete(0, tk.END)
         self.entry_data.delete(0, tk.END)
         self.entry_data.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.entry_origem.delete(0, tk.END)
+        self.entry_os_coleta.delete(0, tk.END)
+        if SecurityValidator.LOCALIZACOES_PERMITIDAS:
+            self.combo_localizacao.set(SecurityValidator.LOCALIZACOES_PERMITIDAS[0])
         self.text_problema.delete("1.0", tk.END)
 
+        # Saída
         self.entry_tecnico_entrega.delete(0, tk.END)
+        self.entry_os_entrega.delete(0, tk.END)
+        self.entry_data_entrega.delete(0, tk.END)
+        self.entry_data_entrega.insert(0, datetime.now().strftime("%Y-%m-%d"))
         self.combo_laudado.set("Não")
         self.combo_status_saida.set("Sem Custo")
-        self.entry_valor_custo.delete(0, tk.END)
-        self.entry_valor_custo.insert(0, "0,00")
-        self.entry_valor_custo.configure(state="disabled")
+        self.on_status_change()
         self.text_resolucao.delete("1.0", tk.END)
 
         self.exibir_detalhes_vazio()
 
     def abrir_janela_relatorio(self):
-        win = tk.Toplevel(self)
-        win.title("Gerar Relatório Mensal")
-        win.geometry("320x180")
-        win.configure(bg=self.colors["bg_card"])
-        win.resizable(False, False)
-        win.grab_set()
+        ano_atual = datetime.now().year
+        mes_atual = datetime.now().month
 
-        ttk.Label(
-            win, text="Selecione o Mês e Ano:", font=("Segoe UI", 10, "bold")
-        ).pack(pady=15)
-
-        frame_sel = ttk.Frame(win, style="Card.TFrame")
-        frame_sel.pack(pady=5)
-
-        meses = [f"{i:02d}" for i in range(1, 13)]
-        cb_mes = ttk.Combobox(
-            frame_sel, values=meses, width=5, state="readonly"
+        mes = simpledialog.askinteger(
+            "Relatório Mensal",
+            "Mês do relatório (1-12):",
+            initialvalue=mes_atual,
+            minvalue=1,
+            maxvalue=12,
+            parent=self,
         )
-        cb_mes.set(datetime.now().strftime("%m"))
-        cb_mes.pack(side="left", padx=5)
+        if not mes:
+            return
 
-        anos = [str(a) for a in range(2024, datetime.now().year + 2)]
-        cb_ano = ttk.Combobox(
-            frame_sel, values=anos, width=8, state="readonly"
+        ano = simpledialog.askinteger(
+            "Relatório Mensal",
+            "Ano do relatório:",
+            initialvalue=ano_atual,
+            minvalue=2000,
+            maxvalue=2100,
+            parent=self,
         )
-        cb_ano.set(str(datetime.now().year))
-        cb_ano.pack(side="left", padx=5)
+        if not ano:
+            return
 
-        def gerar():
-            m = int(cb_mes.get())
-            a = int(cb_ano.get())
-            folder = filedialog.askdirectory(
-                title="Selecione onde salvar o PDF"
-            )
-            if folder:
-                try:
-                    caminho = PDFReportGenerator.relatorio_por_mes(
-                        folder, m, a
-                    )
-                    messagebox.showinfo(
-                        "Sucesso",
-                        f"Relatório gerado com sucesso!\n{caminho}",
-                    )
-                    win.destroy()
-                except Exception as e:
-                    messagebox.showerror("Erro", str(e))
+        caminho_salvar = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf")],
+            initialfile=f"Relatorio_{mes:02d}_{ano}.pdf",
+            title="Salvar Relatório PDF",
+        )
 
-        ttk.Button(
-            win,
-            text="📥 Gerar e Salvar PDF",
-            style="Primary.TButton",
-            command=gerar,
-        ).pack(pady=15)
+        if caminho_salvar:
+            try:
+                PDFReportGenerator.gerar_relatorio_mensal(mes, ano, caminho_salvar)
+                messagebox.showinfo(
+                    "Sucesso", f"Relatório gerado com sucesso em:\n{caminho_salvar}"
+                )
+            except Exception as e:
+                messagebox.showerror("Erro ao Gerar PDF", str(e))
 
 
 if __name__ == "__main__":
-    # 1. Tenta atualizar o programa antes de abrir
-    verificar_e_atualizar()
-
-    # 2. Roda as tabelas / verificações no banco PostgreSQL
     init_db()
-
-    # 3. Abre a interface gráfica
+    verificar_e_atualizar()
     app = Application()
     app.mainloop()

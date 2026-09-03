@@ -26,13 +26,13 @@ class ColetaModel:
 
         if not equip_san or not tomb_san or not tec_san or not origem_san:
             raise ValueError(
-                "Preencha todos os campos obrigatórios (Equipamento, Tombamento, Técnico e Origem)."
+                "Preencha todos os campos obrigatórios (Equipamento,"
+                " Tombamento, Técnico e Origem)."
             )
 
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            # RETURNING id é usado no PostgreSQL para retornar o ID inserido
             cursor.execute(
                 """
                 INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, localizacao, problema)
@@ -63,6 +63,8 @@ class ColetaModel:
     def registrar_saida(
         registro_id,
         tecnico_entrega,
+        data_entrega,
+        os_entrega,
         status_custo,
         valor_custo,
         resolucao,
@@ -82,6 +84,8 @@ class ColetaModel:
         val_custo = SecurityValidator.validate_cost(valor_custo)
         res_san = SecurityValidator.sanitizar_texto(resolucao)
         laudado_san = SecurityValidator.sanitizar_texto(laudado)
+        entrega_san = SecurityValidator.sanitizar_texto(data_entrega)
+        os_san = SecurityValidator.sanitizar_texto(os_entrega)
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -91,6 +95,8 @@ class ColetaModel:
                 UPDATE coletas 
                 SET status = 'Entregue', 
                     tecnico_entrega = %s,
+                    data_entrega = %s,
+                    os_entrega = %s,
                     status_custo = %s,
                     valor_custo = %s, 
                     resolucao = %s,
@@ -99,6 +105,8 @@ class ColetaModel:
             """,
                 (
                     tec_entrega_san,
+                    entrega_san,
+                    os_san,
                     status_custo,
                     val_custo,
                     res_san,
@@ -122,6 +130,7 @@ class ColetaModel:
         tecnico,
         data_coleta,
         origem,
+        os_coleta,
         localizacao,
         problema,
     ):
@@ -130,6 +139,7 @@ class ColetaModel:
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
         data_validada = SecurityValidator.validar_data(data_coleta)
         origem_san = SecurityValidator.sanitizar_texto(origem)
+        os_san = SecurityValidator.sanitizar_texto(os_coleta)
         loc_san = SecurityValidator.sanitizar_texto(localizacao)
         prob_san = SecurityValidator.sanitizar_texto(problema)
 
@@ -139,7 +149,14 @@ class ColetaModel:
             cursor.execute(
                 """
                 UPDATE coletas 
-                SET equipamento = %s, tombamento = %s, tecnico_coleta = %s, data_coleta = %s, origem = %s, localizacao = %s, problema = %s
+                SET equipamento = %s, 
+                    tombamento = %s, 
+                    tecnico_coleta = %s, 
+                    data_coleta = %s, 
+                    origem = %s, 
+                    os_coleta = %s, 
+                    localizacao = %s, 
+                    problema = %s
                 WHERE id = %s
             """,
                 (
@@ -148,6 +165,7 @@ class ColetaModel:
                     tec_san,
                     data_validada,
                     origem_san,
+                    os_san,
                     loc_san,
                     prob_san,
                     registro_id,
@@ -184,7 +202,10 @@ class ColetaModel:
 
         cursor.execute(
             """
-            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, origem, localizacao, problema, status, status_custo, valor_custo, resolucao, tecnico_entrega, laudado
+            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, 
+                   origem, os_coleta, localizacao, problema, status, 
+                   status_custo, valor_custo, os_entrega, resolucao, 
+                   tecnico_entrega, data_entrega, laudado
             FROM coletas
             WHERE data_coleta LIKE %s AND (status != 'Entregue' OR status IS NULL)
             ORDER BY id DESC
@@ -206,7 +227,10 @@ class ColetaModel:
 
         cursor.execute(
             """
-            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, origem, localizacao, problema, status, status_custo, valor_custo, resolucao, tecnico_entrega, laudado
+            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, 
+                   origem, os_coleta, localizacao, problema, status, 
+                   status_custo, valor_custo, os_entrega, resolucao, 
+                   tecnico_entrega, data_entrega, laudado
             FROM coletas
             WHERE data_coleta LIKE %s AND status = 'Entregue'
             ORDER BY id DESC
@@ -226,7 +250,10 @@ class ColetaModel:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, origem, localizacao, problema, status, status_custo, valor_custo, resolucao, tecnico_entrega, laudado
+            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, 
+                   origem, os_coleta, localizacao, problema, status, 
+                   status_custo, valor_custo, os_entrega, resolucao, 
+                   tecnico_entrega, data_entrega, laudado
             FROM coletas
             ORDER BY id DESC
         """)
@@ -244,7 +271,10 @@ class ColetaModel:
         try:
             cursor.execute(
                 """
-                SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, origem, localizacao, status, status_custo, valor_custo, resolucao, tecnico_entrega, laudado 
+                SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, 
+                       origem, os_coleta, localizacao, problema, status, 
+                       status_custo, valor_custo, os_entrega, resolucao, 
+                       tecnico_entrega, data_entrega, laudado 
                 FROM coletas 
                 WHERE data_coleta LIKE %s
                 ORDER BY id DESC

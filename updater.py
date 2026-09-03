@@ -4,7 +4,7 @@ import subprocess
 import requests
 
 # Versão atual do seu programa
-VERSAO_ATUAL_APP = "1.0.3"
+VERSAO_ATUAL_APP = "1.0.4"
 
 # URL de um arquivo JSON público contendo a versão mais recente e o link do .exe (ex: GitHub Releases)
 URL_CHECAGEM_VERSAO = "https://raw.githubusercontent.com/seu-usuario/seu-repositorio/main/version.json"

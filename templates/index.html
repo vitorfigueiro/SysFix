@@ -3,449 +3,331 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestão e Controle de Equipamentos</title>
-  <!-- Tailwind CSS via CDN -->
+  <title>Gestão de Equipamentos</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Inter e Plus Jakarta Sans -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
-          colors: {
-            pastel: {
-              bg: '#F8FAFC',
-              card: '#FFFFFF',
-              sidebar: '#F1F5F9',
-              primary: '#64748B',
-              accent: '#38BDF8',
-              accentBg: '#F0F9FF',
-              success: '#34D399',
-              successBg: '#ECFDF5',
-              warning: '#FBBF24',
-              warningBg: '#FFFBEB',
-              danger: '#F87171',
-              dangerBg: '#FEF2F2',
-              textDark: '#1E293B',
-              textMuted: '#64748B',
-              border: '#E2E8F0',
-            }
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    body { background-color: #F8FAFC; color: #1E293B; font-family: 'Plus Jakarta Sans', sans-serif; }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #F1F5F9; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
-  </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
 
-  <!-- BARRA DE NAVEGAÇÃO SUPERIOR -->
-  <header class="bg-white border-b border-pastel-border px-6 py-3.5 flex justify-between items-center shadow-sm z-10">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-        ⚙️
-      </div>
-      <div>
-        <h1 class="text-base font-bold text-slate-800 tracking-tight">Sistema de Gestão de Equipamentos</h1>
-        <p class="text-xs text-slate-500 font-medium">PostgreSQL Database System</p>
-      </div>
-    </div>
-    <div class="flex items-center gap-3">
-      <button onclick="abrirModalRelatorio()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 border border-slate-200">
-        📄 Exportar Relatório
+  <!-- Cabeçalho -->
+  <header class="bg-slate-900 text-white p-4 shadow-md">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold flex items-center gap-2">
+        <span>📦</span> Controle de Equipamentos
+      </h1>
+      <button onclick="abrirModalEntrada()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition shadow">
+        + Nova Entrada
       </button>
     </div>
   </header>
 
-  <!-- CORPO PRINCIPAL -->
-  <div class="flex-1 flex overflow-hidden">
-    
-    <!-- PAINEL ESQUERDO: FORMULÁRIOS (ENTRADA / SAÍDA) -->
-    <aside class="w-[410px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
+  <!-- Conteúdo Principal -->
+  <main class="max-w-7xl mx-auto p-6 space-y-6">
+
+    <!-- Barra de Filtros e Relatórios -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
       
-      <!-- TABS DE NAVEGAÇÃO DO FORMULÁRIO -->
-      <div class="grid grid-cols-2 p-3 gap-2 border-b border-pastel-border bg-slate-50">
-        <button id="btnTabEntrada" onclick="alternarTab('entrada')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200">
-          📥 Registrar Entrada
-        </button>
-        <button id="btnTabSaida" onclick="alternarTab('saida')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800">
-          📤 Dar Saída
-        </button>
+      <!-- Filtro de Registros -->
+      <div class="flex items-center gap-2">
+        <label for="filtroStatus" class="font-medium text-slate-600">Filtrar por:</label>
+        <select id="filtroStatus" onchange="carregarEquipamentos()" class="border border-slate-300 rounded-lg p-2 bg-white text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="nao_finalizados_mes">Não Finalizados (Mês Atual)</option>
+          <option value="finalizados_mes">Finalizados (Mês Atual)</option>
+          <option value="todos">Todos os Registros</option>
+        </select>
       </div>
 
-      <!-- FORMULÁRIO DE ENTRADA -->
-      <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Equipamento</label>
-          <input type="text" id="ent_equip" placeholder="Ex: Notebook Dell Vostro" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-        </div>
-        
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Tombamento</label>
-            <input type="text" id="ent_tomb" placeholder="Ex: 123456" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Coleta</label>
-            <input type="text" id="ent_tec" placeholder="Ex: Carlos Silva" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Data Coleta</label>
-            <input type="date" id="ent_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Origem</label>
-            <input type="text" id="ent_origem" placeholder="Ex: Setor Financeiro" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Coleta</label>
-            <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Localização</label>
-            <select id="ent_loc" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
-              <option value="Bancada TI">Bancada TI</option>
-              <option value="Estoque">Estoque</option>
-              <option value="Manutenção Externa">Manutenção Externa</option>
-              <option value="Aguardando Peça">Aguardando Peça</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Problema Relatado</label>
-          <textarea id="ent_prob" rows="3" placeholder="Descreva a falha..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
-        </div>
-
-        <div class="pt-2 space-y-2">
-          <button onclick="salvarEntrada()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
-            ➕ Registrar Entrada
-          </button>
-          <button onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
-            🔒 ✏️ Editar Entrada (Resp.)
-          </button>
-        </div>
-      </div>
-
-      <!-- FORMULÁRIO DE SAÍDA -->
-      <div id="formSaidaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4 hidden">
-        <div id="badgeStatusSelecao" class="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2">
-          ⚠️ Nenhum item selecionado na lista
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Entrega</label>
-            <input type="text" id="sai_tec" placeholder="Ex: Roberto Gomes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Entrega</label>
-            <input type="text" id="sai_os" placeholder="Ex: OS-2026-99" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Data Entrega</label>
-            <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Laudado?</label>
-            <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
-              <option value="Não">Não</option>
-              <option value="Sim">Sim</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Status Custo</label>
-            <select id="sai_status_custo" onchange="alternarCampoCusto()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
-              <option value="Sem Custo">Sem Custo</option>
-              <option value="Com Custo">Com Custo</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Valor (R$)</label>
-            <input type="number" step="0.01" id="sai_valor" value="0.00" disabled class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all">
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Serviço / Resolução</label>
-          <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
-        </div>
-
-        <button onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
-          ✅ Finalizar & Marcar Entregue
+      <!-- Formulário de Relatório Mensal PDF -->
+      <form onsubmit="event.preventDefault(); baixarRelatorio();" class="flex items-center gap-2">
+        <span class="font-medium text-slate-600">PDF Mensal:</span>
+        <input type="number" id="relatorioMes" min="1" max="12" value="9" class="w-16 border border-slate-300 rounded-lg p-2 text-center" title="Mês" required>
+        <input type="number" id="relatorioAno" min="2020" max="2030" value="2026" class="w-24 border border-slate-300 rounded-lg p-2 text-center" title="Ano" required>
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition shadow flex items-center gap-1">
+          📄 Baixar PDF
         </button>
-      </div>
+      </form>
 
-      <!-- BOTÕES DE AÇÕES -->
-      <div class="p-3 bg-slate-50 border-t border-pastel-border flex gap-2">
-        <button onclick="excluirRegistroAdmin()" class="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg transition-all border border-rose-200">
-          🗑️ Excluir
-        </button>
-        <button onclick="limparFormularios()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all">
-          🧹 Limpar
-        </button>
-      </div>
-    </aside>
+    </div>
 
-    <!-- PAINEL CENTRAL: LISTA DE EQUIPAMENTOS -->
-    <main class="w-[480px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
-      <div class="p-3 border-b border-pastel-border bg-slate-50 flex items-center justify-between">
-        <span class="text-xs font-bold text-slate-700">Equipamentos Cadastrados</span>
-        <div class="flex gap-1">
-          <button onclick="carregarLista('nao_finalizados_mes')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Pendentes</button>
-          <button onclick="carregarLista('finalizados_mes')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Entregues</button>
-          <button onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Todos</button>
-        </div>
-      </div>
-
-      <div class="flex-1 overflow-y-auto custom-scrollbar">
-        <table class="w-full text-left text-xs border-collapse">
-          <thead class="bg-slate-100 sticky top-0 text-slate-600 font-bold border-b border-pastel-border">
-            <tr>
-              <th class="p-2.5">ID</th>
-              <th class="p-2.5">Equipamento</th>
-              <th class="p-2.5">Tombamento</th>
-              <th class="p-2.5">Status</th>
+    <!-- Tabela de Registros do Banco de Dados -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-800 text-slate-200 text-sm font-semibold">
+              <th class="p-3 text-center">ID</th>
+              <th class="p-3">Equipamento</th>
+              <th class="p-3">Tombamento</th>
+              <th class="p-3">Téc. Coleta</th>
+              <th class="p-3">Data Entrada</th>
+              <th class="p-3">Origem</th>
+              <th class="p-3 text-center">Status</th>
+              <th class="p-3 text-center">Ações</th>
             </tr>
           </thead>
-          <tbody id="tabelaCorpo" class="divide-y divide-slate-100">
-            <!-- Linhas dinâmicas via JS -->
+          <tbody id="tabelaCorpo" class="divide-y divide-slate-200 text-sm">
+            <tr>
+              <td colspan="8" class="text-center p-6 text-slate-500">Carregando dados do banco...</td>
+            </tr>
           </tbody>
         </table>
       </div>
-    </main>
+    </div>
 
-    <!-- PAINEL DIREITO: FICHA TÉCNICA DETALHADA -->
-    <section class="flex-1 bg-slate-50 flex flex-col overflow-y-auto p-6 custom-scrollbar">
-      <div id="fichaVazia" class="flex-1 flex flex-col items-center justify-center text-slate-400">
-        <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl mb-3">📋</div>
-        <p class="text-xs font-medium">Selecione um equipamento na lista para carregar a ficha técnica.</p>
-      </div>
+  </main>
 
-      <div id="fichaConteudo" class="hidden space-y-4 max-w-2xl mx-auto w-full">
-        <!-- HEADER DA FICHA -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start">
-          <div>
-            <span id="f_id" class="text-xs font-bold text-sky-600 uppercase tracking-wider">REGISTRO #0</span>
-            <h2 id="f_equipamento" class="text-lg font-bold text-slate-800 mt-1">NOME DO EQUIPAMENTO</h2>
-            <p id="f_tombamento" class="text-xs text-slate-500 font-medium">Tombamento: ---</p>
-          </div>
-          <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-            ⏳ PENDENTE
-          </span>
+  <!-- MODAL: Nova Entrada -->
+  <div id="modalEntrada" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4">
+      <h2 class="text-lg font-bold text-slate-800">Registrar Entrada de Equipamento</h2>
+      <form id="formEntrada" onsubmit="event.preventDefault(); salvarEntrada();" class="space-y-3">
+        <input type="text" id="equipamento" placeholder="Equipamento (Ex: Notebook Dell)" class="w-full border p-2 rounded-lg" required>
+        <input type="text" id="tombamento" placeholder="Tombamento / Nº Série" class="w-full border p-2 rounded-lg" required>
+        
+        <div class="grid grid-cols-2 gap-2">
+          <input type="text" id="tecnico_coleta" placeholder="Técnico de Coleta" class="border p-2 rounded-lg" required>
+          <input type="date" id="data_coleta" class="border p-2 rounded-lg" required>
         </div>
 
-        <!-- DADOS DA ENTRADA -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📥 Dados de Entrada</h3>
-          <div class="grid grid-cols-2 gap-3 text-xs">
-            <div><span class="text-slate-400 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-700">---</span></div>
-          </div>
-          <div class="pt-2">
-            <span class="text-slate-400 font-medium block text-xs">Problema Relatado:</span>
-            <p id="f_problema" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
-          </div>
+        <input type="text" id="origem" placeholder="Origem / Setor" class="w-full border p-2 rounded-lg" required>
+        
+        <div class="grid grid-cols-2 gap-2">
+          <input type="text" id="os_coleta" placeholder="Nº O.S. Coleta" class="border p-2 rounded-lg">
+          <input type="text" id="localizacao" placeholder="Localização / Bancada" class="border p-2 rounded-lg">
         </div>
 
-        <!-- DADOS DA SAÍDA -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📤 Resolução & Entrega</h3>
-          <div class="grid grid-cols-2 gap-3 text-xs">
-            <div><span class="text-slate-400 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-700">---</span></div>
-          </div>
-          <div class="pt-2">
-            <span class="text-slate-400 font-medium block text-xs">Serviço Realizado:</span>
-            <p id="f_resolucao" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
-          </div>
+        <textarea id="problema" placeholder="Descrição do Problema" class="w-full border p-2 rounded-lg h-20"></textarea>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="fecharModais()" class="px-4 py-2 border rounded-lg text-slate-600 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar Entrada</button>
         </div>
-      </div>
-    </section>
+      </form>
+    </div>
   </div>
 
-  <!-- JAVASCRIPT DE INTERATIVIDADE -->
+  <!-- MODAL: Registrar Saída -->
+  <div id="modalSaida" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4">
+      <h2 class="text-lg font-bold text-slate-800">Registrar Saída do Equipamento <span id="saidaRegistroId" class="text-blue-600"></span></h2>
+      <form id="formSaida" onsubmit="event.preventDefault(); salvarSaida();" class="space-y-3">
+        <input type="hidden" id="saida_id">
+
+        <div class="grid grid-cols-2 gap-2">
+          <input type="text" id="tecnico_entrega" placeholder="Técnico de Entrega" class="border p-2 rounded-lg" required>
+          <input type="date" id="data_entrega" class="border p-2 rounded-lg" required>
+        </div>
+
+        <input type="text" id="os_entrega" placeholder="Nº O.S. de Saída" class="w-full border p-2 rounded-lg">
+
+        <div class="grid grid-cols-2 gap-2">
+          <select id="status_custo" class="border p-2 rounded-lg bg-white">
+            <option value="Sem Custo">Sem Custo</option>
+            <option value="Com Custo">Com Custo</option>
+          </select>
+          <input type="number" step="0.01" id="valor_custo" placeholder="Valor (0,00)" class="border p-2 rounded-lg">
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label for="laudado" class="text-sm font-medium text-slate-600">Possui Laudo?</label>
+          <select id="laudado" class="border p-2 rounded-lg bg-white">
+            <option value="Não">Não</option>
+            <option value="Sim">Sim</option>
+          </select>
+        </div>
+
+        <textarea id="resolucao" placeholder="Resolução / Solução do Serviço" class="w-full border p-2 rounded-lg h-20" required></textarea>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="fecharModais()" class="px-4 py-2 border rounded-lg text-slate-600 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Confirmar Saída</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- LÓGICA JAVASCRIPT / INTEGRAÇÃO COM BACKEND FASTAPI -->
   <script>
-    let registroSelecionadoId = null;
+    const API_URL = '/api';
 
-    document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById('ent_data').valueAsDate = new Date();
-      document.getElementById('sai_data').valueAsDate = new Date();
-      carregarLista('nao_finalizados_mes');
-    });
+    // 1. Buscar registros no PostgreSQL e preencher a tabela
+    async function carregarEquipamentos() {
+      const filtro = document.getElementById('filtroStatus').value;
+      const tabelaCorpo = document.getElementById('tabelaCorpo');
 
-    function alternarTab(tab) {
-      const isEntrada = tab === 'entrada';
-      document.getElementById('formEntradaContainer').classList.toggle('hidden', !isEntrada);
-      document.getElementById('formSaidaContainer').classList.toggle('hidden', isEntrada);
+      try {
+        const response = await fetch(`${API_URL}/equipamentos?filtro=${filtro}`);
+        if (!response.ok) throw new Error('Falha ao buscar dados.');
 
-      document.getElementById('btnTabEntrada').className = isEntrada 
-        ? "py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200" 
-        : "py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
+        const registros = await response.json();
+        tabelaCorpo.innerHTML = '';
 
-      document.getElementById('btnTabSaida').className = !isEntrada 
-        ? "py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200" 
-        : "py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
-    }
+        if (registros.length === 0) {
+          tabelaCorpo.innerHTML = `
+            <tr>
+              <td colspan="8" class="text-center p-6 text-slate-400">
+                Nenhum equipamento encontrado no banco de dados.
+              </td>
+            </tr>`;
+          return;
+        }
 
-    function alternarCampoCusto() {
-      const isComCusto = document.getElementById('sai_status_custo').value === "Com Custo";
-      const campo = document.getElementById('sai_valor');
-      campo.disabled = !isComCusto;
-      campo.className = isComCusto 
-        ? "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white text-slate-800"
-        : "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all";
-    }
+        registros.forEach(item => {
+          const isFinalizado = item.status === 'Finalizado';
 
-    async function carregarLista(filtro) {
-      const res = await fetch(`/api/equipamentos?filtro=${filtro}`);
-      const dados = await res.json();
-      const tbody = document.getElementById('tabelaCorpo');
-      tbody.innerHTML = '';
+          tabelaCorpo.innerHTML += `
+            <tr class="hover:bg-slate-50 border-b border-slate-200">
+              <td class="p-3 text-center font-mono font-bold">${item.id}</td>
+              <td class="p-3 font-medium text-slate-800">${item.equipamento}</td>
+              <td class="p-3 text-slate-600">${item.tombamento}</td>
+              <td class="p-3 text-slate-600">${item.tecnico_coleta}</td>
+              <td class="p-3 text-slate-600">${item.data_coleta || '-'}</td>
+              <td class="p-3 text-slate-600">${item.origem}</td>
+              <td class="p-3 text-center">
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${
+                  isFinalizado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }">
+                  ${item.status || 'Pendente'}
+                </span>
+              </td>
+              <td class="p-3 text-center">
+                ${
+                  !isFinalizado 
+                    ? `<button onclick="abrirModalSaida(${item.id})" class="bg-slate-800 text-white text-xs px-3 py-1.5 rounded hover:bg-slate-700 font-medium">Dar Saída</button>`
+                    : `<span class="text-xs text-slate-400 font-medium">Concluído</span>`
+                }
+              </td>
+            </tr>
+          `;
+        });
 
-      dados.forEach(item => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100";
-        tr.onclick = () => selecionarItem(item.id);
-        
-        const badge = item.status === "Entregue" 
-          ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>'
-          : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente</span>';
-
-        tr.innerHTML = `
-          <td class="p-2.5 font-bold text-slate-500">#${item.id}</td>
-          <td class="p-2.5 font-semibold text-slate-800">${item.equipamento}</td>
-          <td class="p-2.5 text-slate-600">${item.tombamento}</td>
-          <td class="p-2.5">${badge}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    async function selecionarItem(id) {
-      registroSelecionadoId = id;
-      const res = await fetch(`/api/equipamentos/${id}`);
-      const d = await res.json();
-
-      // Preencher formulários
-      document.getElementById('ent_equip').value = d.equipamento || '';
-      document.getElementById('ent_tomb').value = d.tombamento || '';
-      document.getElementById('ent_tec').value = d.tecnico_coleta || '';
-      document.getElementById('ent_data').value = d.data_coleta || '';
-      document.getElementById('ent_origem').value = d.origem || '';
-      document.getElementById('ent_os').value = d.os_coleta || '';
-      document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
-      document.getElementById('ent_prob').value = d.problema || '';
-
-      document.getElementById('badgeStatusSelecao').className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
-      document.getElementById('badgeStatusSelecao').innerText = `✔ Selecionado: #${d.id} - ${d.equipamento}`;
-
-      // Exibir Ficha Técnica
-      document.getElementById('fichaVazia').classList.add('hidden');
-      document.getElementById('fichaConteudo').classList.remove('hidden');
-
-      document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
-      document.getElementById('f_equipamento').innerText = d.equipamento;
-      document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento}`;
-      document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || 'N/A';
-      document.getElementById('f_data_coleta').innerText = d.data_coleta || 'N/A';
-      document.getElementById('f_origem').innerText = d.origem || 'N/A';
-      document.getElementById('f_localizacao').innerText = d.localizacao || 'N/A';
-      document.getElementById('f_problema').innerText = d.problema || 'Nenhum problema informado';
-
-      document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || 'Pendente';
-      document.getElementById('f_data_entrega').innerText = d.data_entrega || 'Pendente';
-      document.getElementById('f_custo').innerText = `${d.status_custo || 'Sem Custo'} (R$ ${d.valor_custo || '0.00'})`;
-      document.getElementById('f_laudado').innerText = d.laudado || 'Não';
-      document.getElementById('f_resolucao').innerText = d.resolucao || 'Em andamento';
-
-      const isEntregue = d.status === "Entregue";
-      document.getElementById('f_badge_status').className = isEntregue 
-        ? "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200"
-        : "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
-      document.getElementById('f_badge_status').innerText = isEntregue ? "✔ ENTREGUE" : "⏳ PENDENTE";
-    }
-
-    async function salvarEntrada() {
-      const formData = new FormData();
-      formData.append('equipamento', document.getElementById('ent_equip').value);
-      formData.append('tombamento', document.getElementById('ent_tomb').value);
-      formData.append('tecnico_coleta', document.getElementById('ent_tec').value);
-      formData.append('data_coleta', document.getElementById('ent_data').value);
-      formData.append('origem', document.getElementById('ent_origem').value);
-      formData.append('os_coleta', document.getElementById('ent_os').value);
-      formData.append('localizacao', document.getElementById('ent_loc').value);
-      formData.append('problema', document.getElementById('ent_prob').value);
-
-      const res = await fetch('/api/equipamentos/entrada', { method: 'POST', body: formData });
-      if (res.ok) {
-        alert("Entrada registrada!");
-        limparFormularios();
-        carregarLista('nao_finalizados_mes');
-      } else {
-        const err = await res.json();
-        alert("Erro: " + err.detail);
+      } catch (error) {
+        console.error('Erro na requisição:', error);
+        tabelaCorpo.innerHTML = `
+          <tr>
+            <td colspan="8" class="text-center p-6 text-red-500 font-medium">
+              Erro ao conectar ao servidor.
+            </td>
+          </tr>`;
       }
+    }
+
+    // 2. Salvar Nova Entrada
+    async function salvarEntrada() {
+      const payload = {
+        equipamento: document.getElementById('equipamento').value,
+        tombamento: document.getElementById('tombamento').value,
+        tecnico_coleta: document.getElementById('tecnico_coleta').value,
+        data_coleta: document.getElementById('data_coleta').value,
+        origem: document.getElementById('origem').value,
+        os_coleta: document.getElementById('os_coleta').value,
+        localizacao: document.getElementById('localizacao').value,
+        problema: document.getElementById('problema').value
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/equipamentos/entrada`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          fecharModais();
+          document.getElementById('formEntrada').reset();
+          carregarEquipamentos();
+        } else {
+          const erro = await res.json();
+          alert('Erro ao salvar entrada: ' + (erro.detail || 'Falha na operação'));
+        }
+      } catch (err) {
+        alert('Erro ao enviar dados para o servidor.');
+      }
+    }
+
+    // 3. Abrir e Salvar Registros de Saída
+    function abrirModalSaida(id) {
+      document.getElementById('saida_id').value = id;
+      document.getElementById('saidaRegistroId').textContent = `#${id}`;
+      document.getElementById('modalSaida').classList.remove('hidden');
+      document.getElementById('modalSaida').classList.add('flex');
     }
 
     async function salvarSaida() {
-      if (!registroSelecionadoId) return alert("Selecione um item primeiro!");
+      const registroId = document.getElementById('saida_id').value;
+      const payload = {
+        tecnico_entrega: document.getElementById('tecnico_entrega').value,
+        data_entrega: document.getElementById('data_entrega').value,
+        os_entrega: document.getElementById('os_entrega').value,
+        status_custo: document.getElementById('status_custo').value,
+        valor_custo: parseFloat(document.getElementById('valor_custo').value) || 0.0,
+        laudado: document.getElementById('laudado').value,
+        resolucao: document.getElementById('resolucao').value
+      };
 
-      const formData = new FormData();
-      formData.append('tecnico_entrega', document.getElementById('sai_tec').value);
-      formData.append('os_entrega', document.getElementById('sai_os').value);
-      formData.append('data_entrega', document.getElementById('sai_data').value);
-      formData.append('laudado', document.getElementById('sai_laudado').value);
-      formData.append('status_custo', document.getElementById('sai_status_custo').value);
-      formData.append('valor_custo', document.getElementById('sai_valor').value);
-      formData.append('resolucao', document.getElementById('sai_resolucao').value);
+      try {
+        const res = await fetch(`${API_URL}/equipamentos/${registroId}/saida`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-      const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/saida`, { method: 'POST', body: formData });
-      if (res.ok) {
-        alert("Saída registrada!");
-        limparFormularios();
-        carregarLista('nao_finalizados_mes');
-      } else {
-        const err = await res.json();
-        alert("Erro: " + err.detail);
+        if (res.ok) {
+          fecharModais();
+          document.getElementById('formSaida').reset();
+          carregarEquipamentos();
+        } else {
+          const erro = await res.json();
+          alert('Erro ao registrar saída: ' + (erro.detail || 'Falha na operação'));
+        }
+      } catch (err) {
+        alert('Erro ao enviar dados para o servidor.');
       }
     }
 
-    function limparFormularios() {
-      registroSelecionadoId = null;
-      document.querySelectorAll('input').forEach(i => i.value = '');
-      document.querySelectorAll('textarea').forEach(i => i.value = '');
-      document.getElementById('ent_data').valueAsDate = new Date();
-      document.getElementById('sai_data').valueAsDate = new Date();
-      document.getElementById('fichaVazia').classList.remove('hidden');
-      document.getElementById('fichaConteudo').classList.add('hidden');
-      document.getElementById('badgeStatusSelecao').className = "p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2";
-      document.getElementById('badgeStatusSelecao').innerText = "⚠️ Nenhum item selecionado na lista";
+    // 4. Baixar Relatório PDF
+    async function baixarRelatorio() {
+      const mes = parseInt(document.getElementById('relatorioMes').value);
+      const ano = parseInt(document.getElementById('relatorioAno').value);
+
+      try {
+        const res = await fetch(`${API_URL}/relatorios/mensal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mes, ano })
+        });
+
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `relatorio_coletas_${ano}_${String(mes).padStart(2, '0')}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } else {
+          alert('Erro ao gerar relatório PDF.');
+        }
+      } catch (err) {
+        alert('Erro de comunicação para download do arquivo.');
+      }
     }
+
+    // 5. Utilitários das Modais
+    function abrirModalEntrada() {
+      document.getElementById('modalEntrada').classList.remove('hidden');
+      document.getElementById('modalEntrada').classList.add('flex');
+    }
+
+    function fecharModais() {
+      document.getElementById('modalEntrada').classList.add('hidden');
+      document.getElementById('modalEntrada').classList.remove('flex');
+      document.getElementById('modalSaida').classList.add('hidden');
+      document.getElementById('modalSaida').classList.remove('flex');
+    }
+
+    // Carregar dados assim que a página for aberta
+    document.addEventListener('DOMContentLoaded', carregarEquipamentos);
   </script>
 </body>
 </html>

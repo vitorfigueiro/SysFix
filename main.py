@@ -1,21 +1,19 @@
 import json
 import os
+import threading
 import tkinter as tk
 from datetime import date, datetime
 from tkinter import filedialog, messagebox, simpledialog, ttk
-import zipfile
 
 from database import init_db
 from models import ColetaModel
-from reports import PDFReportGenerator
 from security import SecurityValidator
-from updater import verificar_e_atualizar
 
 CONFIG_FILE = "config.json"
 
 
 class ConfigManager:
-    """Gerencia as configurações persistentes da aplicação (ex: pasta de backup)"""
+    """Gerencia as configurações persistentes da aplicação"""
 
     @staticmethod
     def load_config():
@@ -36,10 +34,12 @@ class ConfigManager:
 
 
 class BackupManager:
-    """Gerencia a verificação/notificação de diretórios no modelo PostgreSQL"""
+    """Gerencia backups de forma leve e sob demanda"""
 
     @staticmethod
     def criar_backup(destino_dir) -> str:
+        import zipfile  # Importação lazy para acelerar o boot
+
         if not os.path.exists(destino_dir):
             os.makedirs(destino_dir, exist_ok=True)
 
@@ -62,17 +62,13 @@ class Application(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        self.title(
-            "Sistema de Gestão e Controle de Equipamentos (PostgreSQL)"
-        )
+        self.title("Sistema de Gestão e Controle de Equipamentos (PostgreSQL)")
         self.geometry("1480x850")
         self.minsize(1200, 700)
 
-        # Configurações do App
         self.config_data = ConfigManager.load_config()
         self.backup_dir = self.config_data.get("backup_dir", "")
 
-        # Paleta de Cores Profissional
         self.colors = {
             "bg_app": "#F0F4F8",
             "bg_card": "#FFFFFF",
@@ -101,7 +97,6 @@ class Application(tk.Tk):
         self.create_widgets()
         self.carregar_dados_tabela()
 
-        # Intercepta o fechamento
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def setup_styles(self):
@@ -109,10 +104,7 @@ class Application(tk.Tk):
         style.theme_use("clam")
 
         style.configure("TFrame", background=self.colors["bg_app"])
-        style.configure(
-            "Card.TFrame", background=self.colors["bg_card"], relief="flat"
-        )
-
+        style.configure("Card.TFrame", background=self.colors["bg_card"], relief="flat")
         style.configure(
             "TLabelframe",
             background=self.colors["bg_card"],
@@ -126,12 +118,7 @@ class Application(tk.Tk):
             foreground=self.colors["primary"],
             background=self.colors["bg_card"],
         )
-
-        style.configure(
-            "TLabel",
-            background=self.colors["bg_card"],
-            foreground=self.colors["text_main"],
-        )
+        style.configure("TLabel", background=self.colors["bg_card"], foreground=self.colors["text_main"])
         style.configure(
             "TEntry",
             fieldbackground="#FFFFFF",
@@ -139,7 +126,6 @@ class Application(tk.Tk):
             bordercolor=self.colors["border"],
         )
         style.map("TEntry", bordercolor=[("focus", self.colors["primary"])])
-
         style.configure(
             "TButton",
             font=("Segoe UI", 9, "bold"),
@@ -150,27 +136,10 @@ class Application(tk.Tk):
             foreground=self.colors["text_main"],
         )
         style.map("TButton", background=[("active", "#CBD5E1")])
-
-        style.configure(
-            "Primary.TButton",
-            background=self.colors["primary"],
-            foreground="white",
-        )
-        style.map(
-            "Primary.TButton",
-            background=[("active", self.colors["primary_hover"])],
-        )
-
-        style.configure(
-            "Danger.TButton",
-            background=self.colors["danger"],
-            foreground="white",
-        )
-        style.map(
-            "Danger.TButton",
-            background=[("active", self.colors["danger_hover"])],
-        )
-
+        style.configure("Primary.TButton", background=self.colors["primary"], foreground="white")
+        style.map("Primary.TButton", background=[("active", self.colors["primary_hover"])])
+        style.configure("Danger.TButton", background=self.colors["danger"], foreground="white")
+        style.map("Danger.TButton", background=[("active", self.colors["danger_hover"])])
         style.configure(
             "Treeview",
             font=("Segoe UI", 9),
@@ -187,17 +156,8 @@ class Application(tk.Tk):
             foreground=self.colors["primary"],
             relief="flat",
         )
-        style.map(
-            "Treeview",
-            background=[("selected", self.colors["primary"])],
-            foreground=[("selected", "#FFFFFF")],
-        )
-
-        style.configure(
-            "TNotebook",
-            background=self.colors["bg_app"],
-            tabmargins=[2, 5, 2, 0],
-        )
+        style.map("Treeview", background=[("selected", self.colors["primary"])], foreground=[("selected", "#FFFFFF")])
+        style.configure("TNotebook", background=self.colors["bg_app"], tabmargins=[2, 5, 2, 0])
         style.configure(
             "TNotebook.Tab",
             font=("Segoe UI", 9, "bold"),
@@ -205,11 +165,7 @@ class Application(tk.Tk):
             background="#94A3B8",
             foreground="#FFFFFF",
         )
-        style.map(
-            "TNotebook.Tab",
-            background=[("selected", self.colors["primary"])],
-            foreground=[("selected", "#FFFFFF")],
-        )
+        style.map("TNotebook.Tab", background=[("selected", self.colors["primary"])], foreground=[("selected", "#FFFFFF")])
 
     def autenticar_admin(self) -> bool:
         senha = simpledialog.askstring(
@@ -222,227 +178,138 @@ class Application(tk.Tk):
             return False
         if senha == self.ADMIN_PASSWORD:
             return True
-        else:
-            messagebox.showerror(
-                "Acesso Negado", "Senha incorreta! Operação cancelada."
-            )
-            return False
+        messagebox.showerror("Acesso Negado", "Senha incorreta! Operação cancelada.")
+        return False
 
     def create_widgets(self):
         main_container = ttk.Frame(self, padding=12)
         main_container.pack(fill="both", expand=True)
 
-        # PAINEL ESQUERDO: FORMULÁRIOS & PAINEL ADM
         left_panel = ttk.Frame(main_container, width=390)
         left_panel.pack(side="left", fill="y", padx=(0, 10))
 
         self.notebook = ttk.Notebook(left_panel)
         self.notebook.pack(fill="both", expand=True)
 
-        # --- ABA ENTRADA ---
-        tab_entrada = ttk.Frame(
-            self.notebook, style="Card.TFrame", padding=12
-        )
+        # TAB ENTRADA
+        tab_entrada = ttk.Frame(self.notebook, style="Card.TFrame", padding=12)
         self.notebook.add(tab_entrada, text="📥 Entrada")
 
-        ttk.Label(
-            tab_entrada, text="Equipamento:", font=("Segoe UI", 9, "bold")
-        ).grid(row=0, column=0, sticky="w", pady=4)
+        ttk.Label(tab_entrada, text="Equipamento:", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=4)
         self.entry_equip = ttk.Entry(tab_entrada, width=26)
         self.entry_equip.grid(row=0, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_entrada, text="Tombamento:", font=("Segoe UI", 9, "bold")
-        ).grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Label(tab_entrada, text="Tombamento:", font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=4)
         self.entry_tombamento = ttk.Entry(tab_entrada, width=26)
         self.entry_tombamento.grid(row=1, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_entrada, text="Técnico Coleta:", font=("Segoe UI", 9, "bold")
-        ).grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Label(tab_entrada, text="Técnico Coleta:", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, sticky="w", pady=4)
         self.entry_tecnico = ttk.Entry(tab_entrada, width=26)
         self.entry_tecnico.grid(row=2, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_entrada, text="Data Coleta:", font=("Segoe UI", 9, "bold")
-        ).grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Label(tab_entrada, text="Data Coleta:", font=("Segoe UI", 9, "bold")).grid(row=3, column=0, sticky="w", pady=4)
         self.entry_data = ttk.Entry(tab_entrada, width=26)
         self.entry_data.insert(0, datetime.now().strftime("%Y-%m-%d"))
         self.entry_data.grid(row=3, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_entrada, text="Origem:", font=("Segoe UI", 9, "bold")
-        ).grid(row=4, column=0, sticky="w", pady=4)
+        ttk.Label(tab_entrada, text="Origem:", font=("Segoe UI", 9, "bold")).grid(row=4, column=0, sticky="w", pady=4)
         self.entry_origem = ttk.Entry(tab_entrada, width=26)
         self.entry_origem.grid(row=4, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_entrada, text="O.S de Coleta:", font=("Segoe UI", 9, "bold")
-        ).grid(row=5, column=0, sticky="w", pady=4)
+        ttk.Label(tab_entrada, text="O.S de Coleta:", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, sticky="w", pady=4)
         self.entry_os_coleta = ttk.Entry(tab_entrada, width=26)
         self.entry_os_coleta.grid(row=5, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_entrada, text="Localização:", font=("Segoe UI", 9, "bold")
-        ).grid(row=6, column=0, sticky="w", pady=4)
+        ttk.Label(tab_entrada, text="Localização:", font=("Segoe UI", 9, "bold")).grid(row=6, column=0, sticky="w", pady=4)
         self.combo_localizacao = ttk.Combobox(
-            tab_entrada,
-            values=SecurityValidator.LOCALIZACOES_PERMITIDAS,
-            state="readonly",
-            width=24,
+            tab_entrada, values=SecurityValidator.LOCALIZACOES_PERMITIDAS, state="readonly", width=24
         )
-        self.combo_localizacao.set(
-            SecurityValidator.LOCALIZACOES_PERMITIDAS[0]
-        )
+        self.combo_localizacao.set(SecurityValidator.LOCALIZACOES_PERMITIDAS[0])
         self.combo_localizacao.grid(row=6, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_entrada, text="Problema:", font=("Segoe UI", 9, "bold")
-        ).grid(row=7, column=0, sticky="nw", pady=4)
+        ttk.Label(tab_entrada, text="Problema:", font=("Segoe UI", 9, "bold")).grid(row=7, column=0, sticky="nw", pady=4)
         self.text_problema = tk.Text(
-            tab_entrada,
-            width=20,
-            height=3,
-            font=("Segoe UI", 9),
-            relief="solid",
-            bd=1,
-            highlightbackground=self.colors["border"],
+            tab_entrada, width=20, height=3, font=("Segoe UI", 9), relief="solid", bd=1, highlightbackground=self.colors["border"]
         )
         self.text_problema.grid(row=7, column=1, pady=4, sticky="ew")
 
-        ttk.Button(
-            tab_entrada,
-            text="➕ Registrar Entrada",
-            style="Primary.TButton",
-            command=self.salvar_entrada,
-        ).grid(row=8, column=0, columnspan=2, pady=(12, 4), sticky="ew")
-        ttk.Button(
-            tab_entrada,
-            text="🔒 ✏️ Editar Dados Entrada (Resp.)",
-            command=self.atualizar_entrada,
-        ).grid(row=9, column=0, columnspan=2, pady=2, sticky="ew")
+        ttk.Button(tab_entrada, text="➕ Registrar Entrada", style="Primary.TButton", command=self.salvar_entrada).grid(
+            row=8, column=0, columnspan=2, pady=(12, 4), sticky="ew"
+        )
+        ttk.Button(tab_entrada, text="🔒 ✏️ Editar Dados Entrada (Resp.)", command=self.atualizar_entrada).grid(
+            row=9, column=0, columnspan=2, pady=2, sticky="ew"
+        )
 
-        # --- ABA SAÍDA ---
+        # TAB SAÍDA
         tab_saida = ttk.Frame(self.notebook, style="Card.TFrame", padding=12)
         self.notebook.add(tab_saida, text="📤 Saída")
 
         self.lbl_item_selecionado = ttk.Label(
-            tab_saida,
-            text="⚠️ Nenhum item selecionado",
-            font=("Segoe UI", 9, "bold"),
-            foreground=self.colors["danger"],
+            tab_saida, text="⚠️ Nenhum item selecionado", font=("Segoe UI", 9, "bold"), foreground=self.colors["danger"]
         )
-        self.lbl_item_selecionado.grid(
-            row=0, column=0, columnspan=2, pady=(0, 10), sticky="w"
-        )
+        self.lbl_item_selecionado.grid(row=0, column=0, columnspan=2, pady=(0, 10), sticky="w")
 
-        ttk.Label(
-            tab_saida, text="Técnico Entrega:", font=("Segoe UI", 9, "bold")
-        ).grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Label(tab_saida, text="Técnico Entrega:", font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=4)
         self.entry_tecnico_entrega = ttk.Entry(tab_saida, width=26)
         self.entry_tecnico_entrega.grid(row=1, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_saida, text="O.S de Entrega:", font=("Segoe UI", 9, "bold")
-        ).grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Label(tab_saida, text="O.S de Entrega:", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, sticky="w", pady=4)
         self.entry_os_entrega = ttk.Entry(tab_saida, width=26)
         self.entry_os_entrega.grid(row=2, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_saida, text="Data Entrega:", font=("Segoe UI", 9, "bold")
-        ).grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Label(tab_saida, text="Data Entrega:", font=("Segoe UI", 9, "bold")).grid(row=3, column=0, sticky="w", pady=4)
         self.entry_data_entrega = ttk.Entry(tab_saida, width=26)
         self.entry_data_entrega.insert(0, datetime.now().strftime("%Y-%m-%d"))
         self.entry_data_entrega.grid(row=3, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_saida, text="Laudado?", font=("Segoe UI", 9, "bold")
-        ).grid(row=4, column=0, sticky="w", pady=4)
-        self.combo_laudado = ttk.Combobox(
-            tab_saida, values=["Não", "Sim"], state="readonly", width=24
-        )
+        ttk.Label(tab_saida, text="Laudado?", font=("Segoe UI", 9, "bold")).grid(row=4, column=0, sticky="w", pady=4)
+        self.combo_laudado = ttk.Combobox(tab_saida, values=["Não", "Sim"], state="readonly", width=24)
         self.combo_laudado.set("Não")
         self.combo_laudado.grid(row=4, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_saida, text="Status Custo:", font=("Segoe UI", 9, "bold")
-        ).grid(row=5, column=0, sticky="w", pady=4)
-        self.combo_status_saida = ttk.Combobox(
-            tab_saida,
-            values=["Sem Custo", "Com Custo"],
-            state="readonly",
-            width=24,
-        )
+        ttk.Label(tab_saida, text="Status Custo:", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, sticky="w", pady=4)
+        self.combo_status_saida = ttk.Combobox(tab_saida, values=["Sem Custo", "Com Custo"], state="readonly", width=24)
         self.combo_status_saida.set("Sem Custo")
         self.combo_status_saida.grid(row=5, column=1, pady=4, sticky="ew")
-        self.combo_status_saida.bind(
-            "<<ComboboxSelected>>", self.on_status_change
-        )
+        self.combo_status_saida.bind("<<ComboboxSelected>>", self.on_status_change)
 
-        ttk.Label(
-            tab_saida, text="Valor Custo (R$):", font=("Segoe UI", 9, "bold")
-        ).grid(row=6, column=0, sticky="w", pady=4)
+        ttk.Label(tab_saida, text="Valor Custo (R$):", font=("Segoe UI", 9, "bold")).grid(row=6, column=0, sticky="w", pady=4)
         self.entry_valor_custo = ttk.Entry(tab_saida, width=26)
         self.entry_valor_custo.insert(0, "0,00")
         self.entry_valor_custo.configure(state="disabled")
         self.entry_valor_custo.grid(row=6, column=1, pady=4, sticky="ew")
 
-        ttk.Label(
-            tab_saida, text="Resolução:", font=("Segoe UI", 9, "bold")
-        ).grid(row=7, column=0, sticky="nw", pady=4)
+        ttk.Label(tab_saida, text="Resolução:", font=("Segoe UI", 9, "bold")).grid(row=7, column=0, sticky="nw", pady=4)
         self.text_resolucao = tk.Text(
-            tab_saida,
-            width=20,
-            height=3,
-            font=("Segoe UI", 9),
-            relief="solid",
-            bd=1,
-            highlightbackground=self.colors["border"],
+            tab_saida, width=20, height=3, font=("Segoe UI", 9), relief="solid", bd=1, highlightbackground=self.colors["border"]
         )
         self.text_resolucao.grid(row=7, column=1, pady=4, sticky="ew")
 
-        ttk.Button(
-            tab_saida,
-            text="✅ Finalizar & Marcar Entregue",
-            style="Primary.TButton",
-            command=self.salvar_saida,
-        ).grid(row=8, column=0, columnspan=2, pady=12, sticky="ew")
+        ttk.Button(tab_saida, text="✅ Finalizar & Marcar Entregue", style="Primary.TButton", command=self.salvar_saida).grid(
+            row=8, column=0, columnspan=2, pady=12, sticky="ew"
+        )
 
-        # Botões de Ação Inferiores
         frame_acoes = ttk.Frame(left_panel, padding=(0, 6, 0, 0))
         frame_acoes.pack(fill="x")
-        ttk.Button(
-            frame_acoes,
-            text="🔒 🗑️ Excluir (Resp.)",
-            style="Danger.TButton",
-            command=self.excluir_registro,
-        ).pack(side="left", expand=True, fill="x", padx=(0, 2))
-        ttk.Button(
-            frame_acoes, text="🧹 Limpar", command=self.limpar_formularios
-        ).pack(side="left", expand=True, fill="x", padx=(2, 0))
-
-        # --- SEÇÃO DE RELATÓRIOS E BACKUP ---
-        frame_reports = ttk.LabelFrame(
-            left_panel, text=" Exportação & Relatórios ", padding=8
+        ttk.Button(frame_acoes, text="🔒 🗑️ Excluir (Resp.)", style="Danger.TButton", command=self.excluir_registro).pack(
+            side="left", expand=True, fill="x", padx=(0, 2)
         )
+        ttk.Button(frame_acoes, text="🧹 Limpar", command=self.limpar_formularios).pack(
+            side="left", expand=True, fill="x", padx=(2, 0)
+        )
+
+        frame_reports = ttk.LabelFrame(left_panel, text=" Exportação & Relatórios ", padding=8)
         frame_reports.pack(fill="x", pady=(6, 0))
 
         ttk.Button(
-            frame_reports,
-            text="📄 Gerar Relatório Mensal (PDF)",
-            style="Primary.TButton",
-            command=self.abrir_janela_relatorio,
+            frame_reports, text="📄 Gerar Relatório Mensal (PDF)", style="Primary.TButton", command=self.abrir_janela_relatorio
         ).pack(fill="x", pady=(0, 4))
-        ttk.Button(
-            frame_reports,
-            text="💾 Gerar Arquivo de Backup Manual",
-            command=self.executar_backup_manual,
-        ).pack(fill="x", pady=2)
-        ttk.Button(
-            frame_reports,
-            text="⚙️ Selecionar Pasta de Backup",
-            command=self.configurar_pasta_backup,
-        ).pack(fill="x", pady=2)
+        ttk.Button(frame_reports, text="💾 Gerar Arquivo de Backup Manual", command=self.executar_backup_manual).pack(
+            fill="x", pady=2
+        )
+        ttk.Button(frame_reports, text="⚙️ Selecionar Pasta de Backup", command=self.configurar_pasta_backup).pack(
+            fill="x", pady=2
+        )
 
         self.lbl_backup_path = ttk.Label(
             frame_reports,
@@ -453,35 +320,24 @@ class Application(tk.Tk):
         )
         self.lbl_backup_path.pack(fill="x", pady=(4, 0))
 
-        # PAINEL CENTRAL: LISTA COMPACTA
-        list_panel = ttk.LabelFrame(
-            main_container, text=" Painel de Equipamentos ", padding=8
-        )
+        # LISTA CENTRAL
+        list_panel = ttk.LabelFrame(main_container, text=" Painel de Equipamentos ", padding=8)
         list_panel.pack(side="left", fill="both", padx=(0, 10))
 
         frame_filtros = ttk.Frame(list_panel)
         frame_filtros.pack(fill="x", pady=(0, 6))
-        ttk.Button(
-            frame_filtros,
-            text="⏳ Pendentes",
-            command=lambda: self.filtrar_tabela("nao_finalizados_mes"),
-        ).pack(side="left", expand=True, fill="x", padx=1)
-        ttk.Button(
-            frame_filtros,
-            text="✅ Finalizados",
-            command=lambda: self.filtrar_tabela("finalizados_mes"),
-        ).pack(side="left", expand=True, fill="x", padx=1)
-        ttk.Button(
-            frame_filtros,
-            text="📋 Todos",
-            command=lambda: self.filtrar_tabela("todos"),
-        ).pack(side="left", expand=True, fill="x", padx=1)
-
-        columns = ("id", "equipamento", "tombamento", "status")
-        self.tree = ttk.Treeview(
-            list_panel, columns=columns, show="headings", selectmode="browse"
+        ttk.Button(frame_filtros, text="⏳ Pendentes", command=lambda: self.filtrar_tabela("nao_finalizados_mes")).pack(
+            side="left", expand=True, fill="x", padx=1
+        )
+        ttk.Button(frame_filtros, text="✅ Finalizados", command=lambda: self.filtrar_tabela("finalizados_mes")).pack(
+            side="left", expand=True, fill="x", padx=1
+        )
+        ttk.Button(frame_filtros, text="📋 Todos", command=lambda: self.filtrar_tabela("todos")).pack(
+            side="left", expand=True, fill="x", padx=1
         )
 
+        columns = ("id", "equipamento", "tombamento", "status")
+        self.tree = ttk.Treeview(list_panel, columns=columns, show="headings", selectmode="browse")
         self.tree.heading("id", text="ID")
         self.tree.heading("equipamento", text="Equipamento")
         self.tree.heading("tombamento", text="Tombamento")
@@ -492,43 +348,26 @@ class Application(tk.Tk):
         self.tree.column("tombamento", width=85)
         self.tree.column("status", width=85, anchor="center")
 
-        scroll_y = ttk.Scrollbar(
-            list_panel, orient="vertical", command=self.tree.yview
-        )
+        scroll_y = ttk.Scrollbar(list_panel, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll_y.set)
         scroll_y.pack(side="right", fill="y")
         self.tree.pack(side="left", fill="both", expand=True)
 
         self.tree.bind("<<TreeviewSelect>>", self.on_item_select)
 
-        # PAINEL DIREITO: FICHA TÉCNICA VISUAL
-        detail_container = ttk.LabelFrame(
-            main_container, text=" Ficha Técnica do Equipamento ", padding=12
-        )
+        # PAINEL DIREITO: FICHA TÉCNICA
+        detail_container = ttk.LabelFrame(main_container, text=" Ficha Técnica do Equipamento ", padding=12)
         detail_container.pack(side="right", fill="both", expand=True)
 
-        self.canvas_detalhes = tk.Canvas(
-            detail_container, bg=self.colors["bg_app"], highlightthickness=0
-        )
-        scroll_detalhes = ttk.Scrollbar(
-            detail_container,
-            orient="vertical",
-            command=self.canvas_detalhes.yview,
-        )
+        self.canvas_detalhes = tk.Canvas(detail_container, bg=self.colors["bg_app"], highlightthickness=0)
+        scroll_detalhes = ttk.Scrollbar(detail_container, orient="vertical", command=self.canvas_detalhes.yview)
 
-        self.frame_ficha = tk.Frame(
-            self.canvas_detalhes, bg=self.colors["bg_app"]
-        )
+        self.frame_ficha = tk.Frame(self.canvas_detalhes, bg=self.colors["bg_app"])
         self.frame_ficha.bind(
-            "<Configure>",
-            lambda e: self.canvas_detalhes.configure(
-                scrollregion=self.canvas_detalhes.bbox("all")
-            ),
+            "<Configure>", lambda e: self.canvas_detalhes.configure(scrollregion=self.canvas_detalhes.bbox("all"))
         )
 
-        self.canvas_detalhes.create_window(
-            (0, 0), window=self.frame_ficha, anchor="nw"
-        )
+        self.canvas_detalhes.create_window((0, 0), window=self.frame_ficha, anchor="nw")
         self.canvas_detalhes.configure(yscrollcommand=scroll_detalhes.set)
 
         scroll_detalhes.pack(side="right", fill="y")
@@ -536,40 +375,29 @@ class Application(tk.Tk):
 
         self.exibir_detalhes_vazio()
 
-    # --- LÓGICA DE BACKUP & GERENCIAMENTO ---
     def configurar_pasta_backup(self):
         if not self.autenticar_admin():
             return
-
-        caminho = filedialog.askdirectory(
-            title="Selecione a Pasta para Armazenar os Backups"
-        )
+        caminho = filedialog.askdirectory(title="Selecione a Pasta para Armazenar os Backups")
         if caminho:
             self.backup_dir = caminho
             ConfigManager.save_config({"backup_dir": caminho})
             self.lbl_backup_path.config(text=f"Destino: {caminho}")
-            messagebox.showinfo(
-                "Sucesso",
-                f"Diretório de backup configurado com sucesso:\n{caminho}",
-            )
+            messagebox.showinfo("Sucesso", f"Diretório de backup configurado com sucesso:\n{caminho}")
 
     def executar_backup_manual(self):
         if not self.backup_dir:
-            messagebox.showwarning(
-                "Aviso",
-                "Por favor, defina primeiro a pasta onde os backups serão salvos no botão abaixo.",
-            )
+            messagebox.showwarning("Aviso", "Por favor, defina primeiro a pasta onde os backups serão salvos.")
             return
 
-        try:
-            zip_criado = BackupManager.criar_backup(self.backup_dir)
-            messagebox.showinfo(
-                "Backup Concluído", f"Backup gerado com sucesso:\n{zip_criado}"
-            )
-        except Exception as e:
-            messagebox.showerror(
-                "Erro no Backup", f"Ocorreu uma falha ao gerar o backup: {str(e)}"
-            )
+        def task():
+            try:
+                zip_criado = BackupManager.criar_backup(self.backup_dir)
+                self.after(0, lambda: messagebox.showinfo("Backup Concluído", f"Backup gerado com sucesso:\n{zip_criado}"))
+            except Exception as e:
+                self.after(0, lambda: messagebox.showerror("Erro no Backup", f"Falha ao gerar o backup: {str(e)}"))
+
+        threading.Thread(target=task, daemon=True).start()
 
     def on_closing(self):
         if self.backup_dir and os.path.exists(self.backup_dir):
@@ -579,17 +407,8 @@ class Application(tk.Tk):
                 print(f"Erro no fechamento: {e}")
         self.destroy()
 
-    def _add_field(
-        self, parent, row, icon_label, value_text, is_full_width=False
-    ):
-        lbl = tk.Label(
-            parent,
-            text=icon_label,
-            font=("Segoe UI", 9),
-            fg=self.colors["text_muted"],
-            bg="#FFFFFF",
-            anchor="w",
-        )
+    def _add_field(self, parent, row, icon_label, value_text, is_full_width=False):
+        lbl = tk.Label(parent, text=icon_label, font=("Segoe UI", 9), fg=self.colors["text_muted"], bg="#FFFFFF", anchor="w")
         lbl.grid(row=row, column=0, sticky="w", pady=3, padx=(10, 5))
 
         val = tk.Label(
@@ -604,11 +423,11 @@ class Application(tk.Tk):
         )
         val.grid(row=row, column=1, sticky="w", pady=3, padx=(0, 10))
 
-    def renderizar_ficha(self, reg_id):
+    def renderizar_ficha_ui(self, dados):
+        """Atualização visual ultra-rápida na Thread Principal"""
         for widget in self.frame_ficha.winfo_children():
             widget.destroy()
 
-        dados = ColetaModel.buscar_por_id(reg_id)
         if not dados:
             self.exibir_detalhes_vazio()
             return
@@ -618,9 +437,7 @@ class Application(tk.Tk):
             data_br = raw_data.strftime("%d/%m/%Y")
         elif raw_data:
             try:
-                data_br = datetime.strptime(
-                    str(raw_data), "%Y-%m-%d"
-                ).strftime("%d/%m/%Y")
+                data_br = datetime.strptime(str(raw_data), "%Y-%m-%d").strftime("%d/%m/%Y")
             except Exception:
                 data_br = str(raw_data)
         else:
@@ -631,9 +448,7 @@ class Application(tk.Tk):
             data_entrega_br = raw_data_entrega.strftime("%d/%m/%Y")
         elif raw_data_entrega:
             try:
-                data_entrega_br = datetime.strptime(
-                    str(raw_data_entrega), "%Y-%m-%d"
-                ).strftime("%d/%m/%Y")
+                data_entrega_br = datetime.strptime(str(raw_data_entrega), "%Y-%m-%d").strftime("%d/%m/%Y")
             except Exception:
                 data_entrega_br = str(raw_data_entrega)
         else:
@@ -644,159 +459,118 @@ class Application(tk.Tk):
         except (ValueError, TypeError):
             valor_custo = 0.0
 
-        val_fmt = (
-            f"R$ {valor_custo:,.2f}".replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
-        )
+        val_fmt = f"R$ {valor_custo:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         status = dados.get("status") or "Pendente"
 
         card_header = tk.Frame(self.frame_ficha, bg="#FFFFFF", relief="flat")
-        card_header.configure(
-            highlightbackground=self.colors["border"], highlightthickness=1
-        )
+        card_header.configure(highlightbackground=self.colors["border"], highlightthickness=1)
         card_header.pack(fill="x", pady=(0, 10), ipady=8, ipadx=10)
 
-        lbl_id = tk.Label(
-            card_header,
-            text=f"REGISTRO #{dados.get('id')}",
-            font=("Segoe UI", 9, "bold"),
-            fg=self.colors["secondary"],
-            bg="#FFFFFF",
-        )
+        lbl_id = tk.Label(card_header, text=f"REGISTRO #{dados.get('id')}", font=("Segoe UI", 9, "bold"), fg=self.colors["secondary"], bg="#FFFFFF")
         lbl_id.pack(anchor="w")
 
-        lbl_titulo = tk.Label(
-            card_header,
-            text=str(dados.get("equipamento") or "").upper(),
-            font=("Segoe UI", 13, "bold"),
-            fg=self.colors["primary"],
-            bg="#FFFFFF",
-        )
+        lbl_titulo = tk.Label(card_header, text=str(dados.get("equipamento") or "").upper(), font=("Segoe UI", 13, "bold"), fg=self.colors["primary"], bg="#FFFFFF")
         lbl_titulo.pack(anchor="w", pady=(2, 6))
 
         is_entregue = status == "Entregue"
-        bg_badge = (
-            self.colors["success_bg"]
-            if is_entregue
-            else self.colors["warning_bg"]
-        )
-        fg_badge = (
-            self.colors["success_fg"]
-            if is_entregue
-            else self.colors["warning_fg"]
-        )
-        txt_badge = (
-            "   ✔ ENTREGUE   " if is_entregue else "   ⏳ PENDENTE DE ENTREGA   "
-        )
+        bg_badge = self.colors["success_bg"] if is_entregue else self.colors["warning_bg"]
+        fg_badge = self.colors["success_fg"] if is_entregue else self.colors["warning_fg"]
+        txt_badge = "   ✔ ENTREGUE   " if is_entregue else "   ⏳ PENDENTE DE ENTREGA   "
 
-        lbl_badge = tk.Label(
-            card_header,
-            text=txt_badge,
-            font=("Segoe UI", 9, "bold"),
-            fg=fg_badge,
-            bg=bg_badge,
-            padx=8,
-            pady=3,
-        )
+        lbl_badge = tk.Label(card_header, text=txt_badge, font=("Segoe UI", 9, "bold"), fg=fg_badge, bg=bg_badge, padx=8, pady=3)
         lbl_badge.pack(anchor="w")
 
         card_tech = tk.Frame(self.frame_ficha, bg="#FFFFFF", relief="flat")
-        card_tech.configure(
-            highlightbackground=self.colors["border"], highlightthickness=1
-        )
+        card_tech.configure(highlightbackground=self.colors["border"], highlightthickness=1)
         card_tech.pack(fill="x", pady=(0, 10), ipadx=10, ipady=8)
 
-        tk.Label(
-            card_tech,
-            text="IDENTIFICAÇÃO E LOCALIZAÇÃO",
-            font=("Segoe UI", 9, "bold"),
-            fg=self.colors["primary"],
-            bg="#FFFFFF",
-        ).grid(
-            row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8)
-        )
+        tk.Label(card_tech, text="IDENTIFICAÇÃO E LOCALIZAÇÃO", font=("Segoe UI", 9, "bold"), fg=self.colors["primary"], bg="#FFFFFF").grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8))
         self._add_field(card_tech, 1, "🏷️ Tombamento:", str(dados.get("tombamento") or ""))
         self._add_field(card_tech, 2, "📍 Localização:", str(dados.get("localizacao") or "N/A"))
 
         card_entrada = tk.Frame(self.frame_ficha, bg="#FFFFFF", relief="flat")
-        card_entrada.configure(
-            highlightbackground=self.colors["border"], highlightthickness=1
-        )
+        card_entrada.configure(highlightbackground=self.colors["border"], highlightthickness=1)
         card_entrada.pack(fill="x", pady=(0, 10), ipadx=10, ipady=8)
 
-        tk.Label(
-            card_entrada,
-            text="DADOS DE ENTRADA / COLETA",
-            font=("Segoe UI", 9, "bold"),
-            fg=self.colors["primary"],
-            bg="#FFFFFF",
-        ).grid(
-            row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8)
-        )
+        tk.Label(card_entrada, text="DADOS DE ENTRADA / COLETA", font=("Segoe UI", 9, "bold"), fg=self.colors["primary"], bg="#FFFFFF").grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8))
         self._add_field(card_entrada, 1, "👤 Técnico Coleta:", str(dados.get("tecnico_coleta") or ""))
         self._add_field(card_entrada, 2, "📅 Data da Coleta:", data_br)
         self._add_field(card_entrada, 3, "🏢 Unidade Origem:", str(dados.get("origem") or ""))
         self._add_field(card_entrada, 4, "📑 O.S de Coleta:", str(dados.get("os_coleta") or "N/A"))
-        self._add_field(
-            card_entrada,
-            5,
-            "⚠️ Problema Relatado:",
-            dados.get("problema") or "Nenhum defeito relatado",
-            is_full_width=True,
-        )
+        self._add_field(card_entrada, 5, "⚠️ Problema Relatado:", dados.get("problema") or "Nenhum defeito relatado", is_full_width=True)
 
         card_saida = tk.Frame(self.frame_ficha, bg="#FFFFFF", relief="flat")
-        card_saida.configure(
-            highlightbackground=self.colors["border"], highlightthickness=1
-        )
+        card_saida.configure(highlightbackground=self.colors["border"], highlightthickness=1)
         card_saida.pack(fill="x", pady=(0, 10), ipadx=10, ipady=8)
 
-        tk.Label(
-            card_saida,
-            text="RESOLUÇÃO E ENTREGA",
-            font=("Segoe UI", 9, "bold"),
-            fg=self.colors["primary"],
-            bg="#FFFFFF",
-        ).grid(
-            row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8)
+        tk.Label(card_saida, text="RESOLUÇÃO E ENTREGA", font=("Segoe UI", 9, "bold"), fg=self.colors["primary"], bg="#FFFFFF").grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8))
+        self._add_field(card_saida, 1, "📄 Laudo Técnico:", dados.get("laudado") or "Não")
+        self._add_field(card_saida, 2, "👤 Téc. Resp. Entrega:", dados.get("tecnico_entrega") or "Pendente")
+        self._add_field(card_saida, 3, "📑 O.S de Entrega:", str(dados.get("os_entrega") or "N/A"))
+        self._add_field(card_saida, 4, "💰 Status de Custo:", f"{dados.get('status_custo') or 'Sem Custo'} ({val_fmt})")
+        self._add_field(card_saida, 5, "🛠️ Serviço / Resolução:", dados.get("resolucao") or "Em andamento / Aguardando manutenção", is_full_width=True)
+        self._add_field(card_saida, 6, "📅 Data da Entrega:", data_entrega_br)
+
+    def preencher_formularios_ui(self, dados):
+        """Preenche as entradas dos formulários de forma imediata"""
+        self.lbl_item_selecionado.config(
+            text=f"Selecionado: #{dados['id']} {dados['equipamento']}", foreground=self.colors["success_fg"]
         )
-        self._add_field(
-            card_saida, 1, "📄 Laudo Técnico:", dados.get("laudado") or "Não"
-        )
-        self._add_field(
-            card_saida,
-            2,
-            "👤 Téc. Resp. Entrega:",
-            dados.get("tecnico_entrega") or "Pendente",
-        )
-        self._add_field(
-            card_saida, 3, "📑 O.S de Entrega:", str(dados.get("os_entrega") or "N/A")
-        )
-        self._add_field(
-            card_saida, 4, "💰 Status de Custo:", f"{dados.get('status_custo') or 'Sem Custo'} ({val_fmt})"
-        )
-        self._add_field(
-            card_saida,
-            5,
-            "🛠️ Serviço / Resolução:",
-            dados.get("resolucao") or "Em andamento / Aguardando manutenção",
-            is_full_width=True,
-        )
-        self._add_field(
-            card_saida, 6, "📅 Data da Entrega:", data_entrega_br
-        )
+
+        self.entry_equip.delete(0, tk.END)
+        self.entry_equip.insert(0, str(dados.get("equipamento") or ""))
+        self.entry_tombamento.delete(0, tk.END)
+        self.entry_tombamento.insert(0, str(dados.get("tombamento") or ""))
+        self.entry_tecnico.delete(0, tk.END)
+        self.entry_tecnico.insert(0, str(dados.get("tecnico_coleta") or ""))
+        self.entry_data.delete(0, tk.END)
+        self.entry_data.insert(0, str(dados.get("data_coleta") or ""))
+        self.entry_origem.delete(0, tk.END)
+        self.entry_origem.insert(0, str(dados.get("origem") or ""))
+        self.entry_os_coleta.delete(0, tk.END)
+        self.entry_os_coleta.insert(0, str(dados.get("os_coleta") or ""))
+
+        loc = dados.get("localizacao")
+        if loc in SecurityValidator.LOCALIZACOES_PERMITIDAS:
+            self.combo_localizacao.set(loc)
+
+        self.text_problema.delete("1.0", tk.END)
+        if dados.get("problema"):
+            self.text_problema.insert("1.0", str(dados["problema"]))
+
+        self.entry_tecnico_entrega.delete(0, tk.END)
+        if dados.get("tecnico_entrega"):
+            self.entry_tecnico_entrega.insert(0, str(dados["tecnico_entrega"]))
+
+        self.entry_os_entrega.delete(0, tk.END)
+        if dados.get("os_entrega"):
+            self.entry_os_entrega.insert(0, str(dados["os_entrega"]))
+
+        self.entry_data_entrega.delete(0, tk.END)
+        data_ent = dados.get("data_entrega") or datetime.now().strftime("%Y-%m-%d")
+        self.entry_data_entrega.insert(0, str(data_ent))
+
+        if dados.get("laudado") in ["Não", "Sim"]:
+            self.combo_laudado.set(dados["laudado"])
+
+        st_custo = dados.get("status_custo") if dados.get("status_custo") in ["Sem Custo", "Com Custo"] else "Sem Custo"
+        self.combo_status_saida.set(st_custo)
+        self.on_status_change()
+
+        if st_custo == "Com Custo" and dados.get("valor_custo") is not None:
+            self.entry_valor_custo.delete(0, tk.END)
+            self.entry_valor_custo.insert(0, str(dados["valor_custo"]))
+
+        self.text_resolucao.delete("1.0", tk.END)
+        if dados.get("resolucao"):
+            self.text_resolucao.insert("1.0", str(dados["resolucao"]))
 
     def exibir_detalhes_vazio(self):
         for widget in self.frame_ficha.winfo_children():
             widget.destroy()
 
-        card_empty = tk.Frame(
-            self.frame_ficha, bg="#FFFFFF", padx=30, pady=30
-        )
-        card_empty.configure(
-            highlightbackground=self.colors["border"], highlightthickness=1
-        )
+        card_empty = tk.Frame(self.frame_ficha, bg="#FFFFFF", padx=30, pady=30)
+        card_empty.configure(highlightbackground=self.colors["border"], highlightthickness=1)
         card_empty.pack(fill="both", expand=True, pady=40)
 
         lbl = tk.Label(
@@ -825,96 +599,36 @@ class Application(tk.Tk):
         item = self.tree.item(selected[0])
         self.registro_selecionado_id = item["values"][0]
 
-        dados = ColetaModel.buscar_por_id(self.registro_selecionado_id)
-        if not dados:
-            return
+        # Busca assíncrona no DB para evitar travamento da UI ao clicar nos itens
+        def fetch():
+            dados = ColetaModel.buscar_por_id(self.registro_selecionado_id)
+            if dados:
+                self.after(0, lambda: self.preencher_formularios_ui(dados))
+                self.after(0, lambda: self.renderizar_ficha_ui(dados))
 
-        self.lbl_item_selecionado.config(
-            text=f"Selecionado: #{dados['id']} {dados['equipamento']}",
-            foreground=self.colors["success_fg"],
-        )
-
-        self.renderizar_ficha(self.registro_selecionado_id)
-
-        # Preenche os campos da Aba Entrada
-        self.entry_equip.delete(0, tk.END)
-        self.entry_equip.insert(0, str(dados.get("equipamento") or ""))
-
-        self.entry_tombamento.delete(0, tk.END)
-        self.entry_tombamento.insert(0, str(dados.get("tombamento") or ""))
-
-        self.entry_tecnico.delete(0, tk.END)
-        self.entry_tecnico.insert(0, str(dados.get("tecnico_coleta") or ""))
-
-        self.entry_data.delete(0, tk.END)
-        self.entry_data.insert(0, str(dados.get("data_coleta") or ""))
-
-        self.entry_origem.delete(0, tk.END)
-        self.entry_origem.insert(0, str(dados.get("origem") or ""))
-
-        self.entry_os_coleta.delete(0, tk.END)
-        self.entry_os_coleta.insert(0, str(dados.get("os_coleta") or ""))
-
-        loc = dados.get("localizacao")
-        if loc in SecurityValidator.LOCALIZACOES_PERMITIDAS:
-            self.combo_localizacao.set(loc)
-
-        self.text_problema.delete("1.0", tk.END)
-        if dados.get("problema"):
-            self.text_problema.insert("1.0", str(dados["problema"]))
-
-        # Preenche os campos da Aba Saída
-        self.entry_tecnico_entrega.delete(0, tk.END)
-        if dados.get("tecnico_entrega"):
-            self.entry_tecnico_entrega.insert(0, str(dados["tecnico_entrega"]))
-
-        self.entry_os_entrega.delete(0, tk.END)
-        if dados.get("os_entrega"):
-            self.entry_os_entrega.insert(0, str(dados["os_entrega"]))
-
-        self.entry_data_entrega.delete(0, tk.END)
-        data_ent = dados.get("data_entrega") or datetime.now().strftime("%Y-%m-%d")
-        self.entry_data_entrega.insert(0, str(data_ent))
-
-        if dados.get("laudado") in ["Não", "Sim"]:
-            self.combo_laudado.set(dados["laudado"])
-
-        st_custo = (
-            dados.get("status_custo")
-            if dados.get("status_custo") in ["Sem Custo", "Com Custo"]
-            else "Sem Custo"
-        )
-        self.combo_status_saida.set(st_custo)
-        self.on_status_change()
-
-        if st_custo == "Com Custo" and dados.get("valor_custo") is not None:
-            self.entry_valor_custo.delete(0, tk.END)
-            self.entry_valor_custo.insert(0, str(dados["valor_custo"]))
-
-        self.text_resolucao.delete("1.0", tk.END)
-        if dados.get("resolucao"):
-            self.text_resolucao.insert("1.0", str(dados["resolucao"]))
+        threading.Thread(target=fetch, daemon=True).start()
 
     def carregar_dados_tabela(self):
         for row in self.tree.get_children():
             self.tree.delete(row)
 
-        if self.filtro_ativo == "nao_finalizados_mes":
-            self.todos_registros_cache = (
-                ColetaModel.buscar_nao_finalizados_mes_atual()
-            )
-        elif self.filtro_ativo == "finalizados_mes":
-            self.todos_registros_cache = (
-                ColetaModel.buscar_finalizados_mes_atual()
-            )
-        else:
-            self.todos_registros_cache = ColetaModel.buscar_todos()
+        def fetch_db():
+            if self.filtro_ativo == "nao_finalizados_mes":
+                regs = ColetaModel.buscar_nao_finalizados_mes_atual()
+            elif self.filtro_ativo == "finalizados_mes":
+                regs = ColetaModel.buscar_finalizados_mes_atual()
+            else:
+                regs = ColetaModel.buscar_todos()
 
-        for reg in self.todos_registros_cache:
-            st_exibicao = reg[9] if len(reg) > 9 and reg[9] else "Pendente"
-            self.tree.insert(
-                "", "end", values=(reg[0], reg[1], reg[2], st_exibicao)
-            )
+            def update_ui():
+                self.todos_registros_cache = regs
+                for reg in regs:
+                    st_exibicao = reg[9] if len(reg) > 9 and reg[9] else "Pendente"
+                    self.tree.insert("", "end", values=(reg[0], reg[1], reg[2], st_exibicao))
+
+            self.after(0, update_ui)
+
+        threading.Thread(target=fetch_db, daemon=True).start()
 
     def filtrar_tabela(self, tipo_filtro):
         self.filtro_ativo = tipo_filtro
@@ -933,9 +647,7 @@ class Application(tk.Tk):
                 self.combo_localizacao.get(),
                 self.text_problema.get("1.0", tk.END).strip(),
             )
-            messagebox.showinfo(
-                "Sucesso", f"Entrada ID #{registro_id} registrada com sucesso!"
-            )
+            messagebox.showinfo("Sucesso", f"Entrada ID #{registro_id} registrada com sucesso!")
             self.limpar_formularios()
             self.carregar_dados_tabela()
         except Exception as e:
@@ -943,9 +655,7 @@ class Application(tk.Tk):
 
     def atualizar_entrada(self):
         if not self.registro_selecionado_id:
-            messagebox.showwarning(
-                "Aviso", "Selecione um registro na tabela para editar."
-            )
+            messagebox.showwarning("Aviso", "Selecione um registro na tabela para editar.")
             return
 
         if not self.autenticar_admin():
@@ -963,19 +673,14 @@ class Application(tk.Tk):
                 self.combo_localizacao.get(),
                 self.text_problema.get("1.0", tk.END).strip(),
             )
-            messagebox.showinfo(
-                "Sucesso", f"Registro #{self.registro_selecionado_id} atualizado com sucesso!"
-            )
+            messagebox.showinfo("Sucesso", f"Registro #{self.registro_selecionado_id} atualizado com sucesso!")
             self.carregar_dados_tabela()
-            self.renderizar_ficha(self.registro_selecionado_id)
         except Exception as e:
             messagebox.showerror("Erro ao Atualizar", str(e))
 
     def salvar_saida(self):
         if not self.registro_selecionado_id:
-            messagebox.showwarning(
-                "Aviso", "Selecione um equipamento na tabela antes de dar saída."
-            )
+            messagebox.showwarning("Aviso", "Selecione um equipamento na tabela antes de dar saída.")
             return
 
         try:
@@ -989,9 +694,7 @@ class Application(tk.Tk):
                 self.text_resolucao.get("1.0", tk.END).strip(),
                 self.combo_laudado.get(),
             )
-            messagebox.showinfo(
-                "Sucesso", f"Equipamento #{self.registro_selecionado_id} marcado como Entregue!"
-            )
+            messagebox.showinfo("Sucesso", f"Equipamento #{self.registro_selecionado_id} marcado como Entregue!")
             self.limpar_formularios()
             self.carregar_dados_tabela()
         except Exception as e:
@@ -999,9 +702,7 @@ class Application(tk.Tk):
 
     def excluir_registro(self):
         if not self.registro_selecionado_id:
-            messagebox.showwarning(
-                "Aviso", "Selecione um registro na tabela para excluir."
-            )
+            messagebox.showwarning("Aviso", "Selecione um registro na tabela para excluir.")
             return
 
         if not self.autenticar_admin():
@@ -1021,9 +722,7 @@ class Application(tk.Tk):
 
     def limpar_formularios(self):
         self.registro_selecionado_id = None
-        self.lbl_item_selecionado.config(
-            text="⚠️ Nenhum item selecionado", foreground=self.colors["danger"]
-        )
+        self.lbl_item_selecionado.config(text="⚠️ Nenhum item selecionado", foreground=self.colors["danger"])
 
         self.entry_equip.delete(0, tk.END)
         self.entry_tombamento.delete(0, tk.END)
@@ -1054,9 +753,7 @@ class Application(tk.Tk):
         janela.transient(self)
         janela.grab_set()
 
-        ttk.Label(
-            janela, text="Selecione o Mês e Ano do Relatório:", font=("Segoe UI", 9, "bold")
-        ).pack(pady=(15, 10))
+        ttk.Label(janela, text="Selecione o Mês e Ano do Relatório:", font=("Segoe UI", 9, "bold")).pack(pady=(15, 10))
 
         frame_seletor = ttk.Frame(janela)
         frame_seletor.pack(pady=5)
@@ -1064,19 +761,13 @@ class Application(tk.Tk):
         hoje = datetime.now()
 
         combo_mes = ttk.Combobox(
-            frame_seletor,
-            values=[f"{i:02d}" for i in range(1, 13)],
-            width=5,
-            state="readonly",
+            frame_seletor, values=[f"{i:02d}" for i in range(1, 13)], width=5, state="readonly"
         )
         combo_mes.set(f"{hoje.month:02d}")
         combo_mes.pack(side="left", padx=5)
 
         combo_ano = ttk.Combobox(
-            frame_seletor,
-            values=[str(y) for y in range(hoje.year - 5, hoje.year + 2)],
-            width=8,
-            state="readonly",
+            frame_seletor, values=[str(y) for y in range(hoje.year - 5, hoje.year + 2)], width=8, state="readonly"
         )
         combo_ano.set(str(hoje.year))
         combo_ano.pack(side="left", padx=5)
@@ -1092,26 +783,30 @@ class Application(tk.Tk):
                 initialfile=f"relatorio_coletas_{ano}_{mes:02d}.pdf",
             )
             if fpath:
-                try:
-                    PDFReportGenerator.gerar_relatorio_mensal(mes, ano, fpath)
-                    messagebox.showinfo(
-                        "Sucesso", f"Relatório mensal gerado em:\n{fpath}"
-                    )
-                except Exception as e:
-                    messagebox.showerror(
-                        "Erro na Geração", f"Não foi possível gerar o PDF: {str(e)}"
-                    )
+                def task():
+                    try:
+                        from reports import PDFReportGenerator  # Lazy import
+                        PDFReportGenerator.gerar_relatorio_mensal(mes, ano, fpath)
+                        self.after(0, lambda: messagebox.showinfo("Sucesso", f"Relatório gerado em:\n{fpath}"))
+                    except Exception as e:
+                        self.after(0, lambda: messagebox.showerror("Erro", f"Não foi possível gerar PDF: {str(e)}"))
 
-        ttk.Button(
-            janela,
-            text="📄 Exportar PDF",
-            style="Primary.TButton",
-            command=gerar,
-        ).pack(pady=15, fill="x", padx=40)
+                threading.Thread(target=task, daemon=True).start()
+
+        ttk.Button(janela, text="📄 Exportar PDF", style="Primary.TButton", command=gerar).pack(pady=15, fill="x", padx=40)
 
 
 if __name__ == "__main__":
     init_db()
     app = Application()
-    verificar_e_atualizar()
+
+    # Atualização assíncrona para não atrasar a abertura da janela
+    def check_updates_bg():
+        try:
+            from updater import verificar_e_atualizar
+            verificar_e_atualizar()
+        except Exception as e:
+            print(f"Erro no updater: {e}")
+
+    threading.Thread(target=check_updates_bg, daemon=True).start()
     app.mainloop()

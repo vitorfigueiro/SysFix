@@ -13,7 +13,7 @@ from database import init_db
 from models import ColetaModel
 from security import SecurityValidator
 
-ADMIN_PASSWORD = "admin123"
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 app = FastAPI(title="Gestão de Equipamentos Web", version="2.0.0")
 

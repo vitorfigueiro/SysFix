@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão e Controle de Equipamentos</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter e Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+          colors: {
+            pastel: {
+              bg: '#F8FAFC',
+              card: '#FFFFFF',
+              sidebar: '#F1F5F9',
+              primary: '#64748B',
+              accent: '#38BDF8',
+              accentBg: '#F0F9FF',
+              success: '#34D399',
+              successBg: '#ECFDF5',
+              warning: '#FBBF24',
+              warningBg: '#FFFBEB',
+              danger: '#F87171',
+              dangerBg: '#FEF2F2',
+              textDark: '#1E293B',
+              textMuted: '#64748B',
+              border: '#E2E8F0',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #F8FAFC; color: #1E293B; font-family: 'Plus Jakarta Sans', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #F1F5F9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+  <!-- BARRA DE NAVEGAÇÃO SUPERIOR -->
+  <header class="bg-white border-b border-pastel-border px-6 py-3.5 flex justify-between items-center shadow-sm z-10">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+        ⚙️
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-slate-800 tracking-tight">Sistema de Gestão de Equipamentos</h1>
+        <p class="text-xs text-slate-500 font-medium">PostgreSQL Database System</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="abrirModalRelatorio()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 border border-slate-200">
+        📄 Exportar Relatório
+      </button>
+    </div>
+  </header>
+
+  <!-- CORPO PRINCIPAL -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- PAINEL ESQUERDO: FORMULÁRIOS (ENTRADA / SAÍDA) -->
+    <aside class="w-[410px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
+      
+      <!-- TABS DE NAVEGAÇÃO DO FORMULÁRIO -->
+      <div class="grid grid-cols-2 p-3 gap-2 border-b border-pastel-border bg-slate-50">
+        <button id="btnTabEntrada" onclick="alternarTab('entrada')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200">
+          📥 Registrar Entrada
+        </button>
+        <button id="btnTabSaida" onclick="alternarTab('saida')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800">
+          📤 Dar Saída
+        </button>
+      </div>
+
+      <!-- FORMULÁRIO DE ENTRADA -->
+      <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Equipamento</label>
+          <input type="text" id="ent_equip" placeholder="Ex: Notebook Dell Vostro" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Tombamento</label>
+            <input type="text" id="ent_tomb" placeholder="Ex: 123456" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Coleta</label>
+            <input type="text" id="ent_tec" placeholder="Ex: Carlos Silva" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Data Coleta</label>
+            <input type="date" id="ent_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Origem</label>
+            <input type="text" id="ent_origem" placeholder="Ex: Setor Financeiro" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Coleta</label>
+            <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Localização</label>
+            <select id="ent_loc" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+              <option value="Bancada TI">Bancada TI</option>
+              <option value="Estoque">Estoque</option>
+              <option value="Manutenção Externa">Manutenção Externa</option>
+              <option value="Aguardando Peça">Aguardando Peça</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Problema Relatado</label>
+          <textarea id="ent_prob" rows="3" placeholder="Descreva a falha..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
+        </div>
+
+        <div class="pt-2 space-y-2">
+          <button onclick="salvarEntrada()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+            ➕ Registrar Entrada
+          </button>
+          <button onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
+            🔒 ✏️ Editar Entrada (Resp.)
+          </button>
+        </div>
+      </div>
+
+      <!-- FORMULÁRIO DE SAÍDA -->
+      <div id="formSaidaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4 hidden">
+        <div id="badgeStatusSelecao" class="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2">
+          ⚠️ Nenhum item selecionado na lista
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Entrega</label>
+            <input type="text" id="sai_tec" placeholder="Ex: Roberto Gomes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Entrega</label>
+            <input type="text" id="sai_os" placeholder="Ex: OS-2026-99" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Data Entrega</label>
+            <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Laudado?</label>
+            <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+              <option value="Não">Não</option>
+              <option value="Sim">Sim</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Status Custo</label>
+            <select id="sai_status_custo" onchange="alternarCampoCusto()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+              <option value="Sem Custo">Sem Custo</option>
+              <option value="Com Custo">Com Custo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Valor (R$)</label>
+            <input type="number" step="0.01" id="sai_valor" value="0.00" disabled class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Serviço / Resolução</label>
+          <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
+        </div>
+
+        <button onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+          ✅ Finalizar & Marcar Entregue
+        </button>
+      </div>
+
+      <!-- BOTÕES DE AÇÕES -->
+      <div class="p-3 bg-slate-50 border-t border-pastel-border flex gap-2">
+        <button onclick="excluirRegistroAdmin()" class="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg transition-all border border-rose-200">
+          🗑️ Excluir
+        </button>
+        <button onclick="limparFormularios()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all">
+          🧹 Limpar
+        </button>
+      </div>
+    </aside>
+
+    <!-- PAINEL CENTRAL: LISTA DE EQUIPAMENTOS -->
+    <main class="w-[480px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
+      <div class="p-3 border-b border-pastel-border bg-slate-50 flex items-center justify-between">
+        <span class="text-xs font-bold text-slate-700">Equipamentos Cadastrados</span>
+        <div class="flex gap-1">
+          <button onclick="carregarLista('nao_finalizados_mes')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Pendentes</button>
+          <button onclick="carregarLista('finalizados_mes')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Entregues</button>
+          <button onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Todos</button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto custom-scrollbar">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-100 sticky top-0 text-slate-600 font-bold border-b border-pastel-border">
+            <tr>
+              <th class="p-2.5">ID</th>
+              <th class="p-2.5">Equipamento</th>
+              <th class="p-2.5">Tombamento</th>
+              <th class="p-2.5">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaCorpo" class="divide-y divide-slate-100">
+            <!-- Linhas dinâmicas via JS -->
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- PAINEL DIREITO: FICHA TÉCNICA DETALHADA -->
+    <section class="flex-1 bg-slate-50 flex flex-col overflow-y-auto p-6 custom-scrollbar">
+      <div id="fichaVazia" class="flex-1 flex flex-col items-center justify-center text-slate-400">
+        <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl mb-3">📋</div>
+        <p class="text-xs font-medium">Selecione um equipamento na lista para carregar a ficha técnica.</p>
+      </div>
+
+      <div id="fichaConteudo" class="hidden space-y-4 max-w-2xl mx-auto w-full">
+        <!-- HEADER DA FICHA -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start">
+          <div>
+            <span id="f_id" class="text-xs font-bold text-sky-600 uppercase tracking-wider">REGISTRO #0</span>
+            <h2 id="f_equipamento" class="text-lg font-bold text-slate-800 mt-1">NOME DO EQUIPAMENTO</h2>
+            <p id="f_tombamento" class="text-xs text-slate-500 font-medium">Tombamento: ---</p>
+          </div>
+          <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+            ⏳ PENDENTE
+          </span>
+        </div>
+
+        <!-- DADOS DA ENTRADA -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📥 Dados de Entrada</h3>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div><span class="text-slate-400 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-700">---</span></div>
+          </div>
+          <div class="pt-2">
+            <span class="text-slate-400 font-medium block text-xs">Problema Relatado:</span>
+            <p id="f_problema" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+          </div>
+        </div>
+
+        <!-- DADOS DA SAÍDA -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📤 Resolução & Entrega</h3>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div><span class="text-slate-400 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-700">---</span></div>
+          </div>
+          <div class="pt-2">
+            <span class="text-slate-400 font-medium block text-xs">Serviço Realizado:</span>
+            <p id="f_resolucao" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- JAVASCRIPT DE INTERATIVIDADE -->
+  <script>
+    let registroSelecionadoId = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById('ent_data').valueAsDate = new Date();
+      document.getElementById('sai_data').valueAsDate = new Date();
+      carregarLista('nao_finalizados_mes');
+    });
+
+    function alternarTab(tab) {
+      const isEntrada = tab === 'entrada';
+      document.getElementById('formEntradaContainer').classList.toggle('hidden', !isEntrada);
+      document.getElementById('formSaidaContainer').classList.toggle('hidden', isEntrada);
+
+      document.getElementById('btnTabEntrada').className = isEntrada 
+        ? "py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200" 
+        : "py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
+
+      document.getElementById('btnTabSaida').className = !isEntrada 
+        ? "py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200" 
+        : "py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
+    }
+
+    function alternarCampoCusto() {
+      const isComCusto = document.getElementById('sai_status_custo').value === "Com Custo";
+      const campo = document.getElementById('sai_valor');
+      campo.disabled = !isComCusto;
+      campo.className = isComCusto 
+        ? "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white text-slate-800"
+        : "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all";
+    }
+
+    async function carregarLista(filtro) {
+      const res = await fetch(`/api/equipamentos?filtro=${filtro}`);
+      const dados = await res.json();
+      const tbody = document.getElementById('tabelaCorpo');
+      tbody.innerHTML = '';
+
+      dados.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100";
+        tr.onclick = () => selecionarItem(item.id);
+        
+        const badge = item.status === "Entregue" 
+          ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>'
+          : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente</span>';
+
+        tr.innerHTML = `
+          <td class="p-2.5 font-bold text-slate-500">#${item.id}</td>
+          <td class="p-2.5 font-semibold text-slate-800">${item.equipamento}</td>
+          <td class="p-2.5 text-slate-600">${item.tombamento}</td>
+          <td class="p-2.5">${badge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function selecionarItem(id) {
+      registroSelecionadoId = id;
+      const res = await fetch(`/api/equipamentos/${id}`);
+      const d = await res.json();
+
+      // Preencher formulários
+      document.getElementById('ent_equip').value = d.equipamento || '';
+      document.getElementById('ent_tomb').value = d.tombamento || '';
+      document.getElementById('ent_tec').value = d.tecnico_coleta || '';
+      document.getElementById('ent_data').value = d.data_coleta || '';
+      document.getElementById('ent_origem').value = d.origem || '';
+      document.getElementById('ent_os').value = d.os_coleta || '';
+      document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
+      document.getElementById('ent_prob').value = d.problema || '';
+
+      document.getElementById('badgeStatusSelecao').className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
+      document.getElementById('badgeStatusSelecao').innerText = `✔ Selecionado: #${d.id} - ${d.equipamento}`;
+
+      // Exibir Ficha Técnica
+      document.getElementById('fichaVazia').classList.add('hidden');
+      document.getElementById('fichaConteudo').classList.remove('hidden');
+
+      document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
+      document.getElementById('f_equipamento').innerText = d.equipamento;
+      document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento}`;
+      document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || 'N/A';
+      document.getElementById('f_data_coleta').innerText = d.data_coleta || 'N/A';
+      document.getElementById('f_origem').innerText = d.origem || 'N/A';
+      document.getElementById('f_localizacao').innerText = d.localizacao || 'N/A';
+      document.getElementById('f_problema').innerText = d.problema || 'Nenhum problema informado';
+
+      document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || 'Pendente';
+      document.getElementById('f_data_entrega').innerText = d.data_entrega || 'Pendente';
+      document.getElementById('f_custo').innerText = `${d.status_custo || 'Sem Custo'} (R$ ${d.valor_custo || '0.00'})`;
+      document.getElementById('f_laudado').innerText = d.laudado || 'Não';
+      document.getElementById('f_resolucao').innerText = d.resolucao || 'Em andamento';
+
+      const isEntregue = d.status === "Entregue";
+      document.getElementById('f_badge_status').className = isEntregue 
+        ? "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200"
+        : "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
+      document.getElementById('f_badge_status').innerText = isEntregue ? "✔ ENTREGUE" : "⏳ PENDENTE";
+    }
+
+    async function salvarEntrada() {
+      const formData = new FormData();
+      formData.append('equipamento', document.getElementById('ent_equip').value);
+      formData.append('tombamento', document.getElementById('ent_tomb').value);
+      formData.append('tecnico_coleta', document.getElementById('ent_tec').value);
+      formData.append('data_coleta', document.getElementById('ent_data').value);
+      formData.append('origem', document.getElementById('ent_origem').value);
+      formData.append('os_coleta', document.getElementById('ent_os').value);
+      formData.append('localizacao', document.getElementById('ent_loc').value);
+      formData.append('problema', document.getElementById('ent_prob').value);
+
+      const res = await fetch('/api/equipamentos/entrada', { method: 'POST', body: formData });
+      if (res.ok) {
+        alert("Entrada registrada!");
+        limparFormularios();
+        carregarLista('nao_finalizados_mes');
+      } else {
+        const err = await res.json();
+        alert("Erro: " + err.detail);
+      }
+    }
+
+    async function salvarSaida() {
+      if (!registroSelecionadoId) return alert("Selecione um item primeiro!");
+
+      const formData = new FormData();
+      formData.append('tecnico_entrega', document.getElementById('sai_tec').value);
+      formData.append('os_entrega', document.getElementById('sai_os').value);
+      formData.append('data_entrega', document.getElementById('sai_data').value);
+      formData.append('laudado', document.getElementById('sai_laudado').value);
+      formData.append('status_custo', document.getElementById('sai_status_custo').value);
+      formData.append('valor_custo', document.getElementById('sai_valor').value);
+      formData.append('resolucao', document.getElementById('sai_resolucao').value);
+
+      const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/saida`, { method: 'POST', body: formData });
+      if (res.ok) {
+        alert("Saída registrada!");
+        limparFormularios();
+        carregarLista('nao_finalizados_mes');
+      } else {
+        const err = await res.json();
+        alert("Erro: " + err.detail);
+      }
+    }
+
+    function limparFormularios() {
+      registroSelecionadoId = null;
+      document.querySelectorAll('input').forEach(i => i.value = '');
+      document.querySelectorAll('textarea').forEach(i => i.value = '');
+      document.getElementById('ent_data').valueAsDate = new Date();
+      document.getElementById('sai_data').valueAsDate = new Date();
+      document.getElementById('fichaVazia').classList.remove('hidden');
+      document.getElementById('fichaConteudo').classList.add('hidden');
+      document.getElementById('badgeStatusSelecao').className = "p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2";
+      document.getElementById('badgeStatusSelecao').innerText = "⚠️ Nenhum item selecionado na lista";
+    }
+  </script>
+</body>
+</html>

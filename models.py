@@ -1,5 +1,6 @@
 from datetime import datetime
 import psycopg2
+import psycopg2.extras
 from database import get_connection
 from security import SecurityValidator
 
@@ -283,6 +284,18 @@ class ColetaModel:
             )
             registros = cursor.fetchall()
             return registros
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
+    def buscar_por_id(registro_id):
+        """Busca o registro pelo ID e retorna os dados mapeados por nome de coluna."""
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            cursor.execute("SELECT * FROM coletas WHERE id = %s;", (registro_id,))
+            return cursor.fetchone()
         finally:
             cursor.close()
             conn.close()

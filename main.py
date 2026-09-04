@@ -1,7 +1,6 @@
 import json
 import os
 import tkinter as tk
-
 from datetime import date, datetime
 from tkinter import filedialog, messagebox, simpledialog, ttk
 import zipfile
@@ -48,7 +47,6 @@ class BackupManager:
         nome_zip = f"backup_info_{timestamp}.zip"
         caminho_zip = os.path.join(destino_dir, nome_zip)
 
-        # Como o banco PostgreSQL é remoto, geramos um arquivo de log/status de encerramento
         with zipfile.ZipFile(caminho_zip, "w", zipfile.ZIP_DEFLATED) as zipf:
             info_text = (
                 f"Sessão encerrada em {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -606,29 +604,52 @@ class Application(tk.Tk):
         )
         val.grid(row=row, column=1, sticky="w", pady=3, padx=(0, 10))
 
-    def renderizar_ficha(self, reg):
+    def renderizar_ficha(self, reg_id):
         for widget in self.frame_ficha.winfo_children():
             widget.destroy()
 
-        # Conversão de data (aceita objetos date do PostgreSQL ou strings)
-        raw_data = reg[4]
+        dados = ColetaModel.buscar_por_id(reg_id)
+        if not dados:
+            self.exibir_detalhes_vazio()
+            return
+
+        raw_data = dados.get("data_coleta")
         if isinstance(raw_data, (date, datetime)):
             data_br = raw_data.strftime("%d/%m/%Y")
-        else:
+        elif raw_data:
             try:
                 data_br = datetime.strptime(
                     str(raw_data), "%Y-%m-%d"
                 ).strftime("%d/%m/%Y")
             except Exception:
                 data_br = str(raw_data)
+        else:
+            data_br = "N/A"
 
-        valor_custo = float(reg[10]) if len(reg) > 10 and reg[10] is not None else 0.0
+        raw_data_entrega = dados.get("data_entrega")
+        if isinstance(raw_data_entrega, (date, datetime)):
+            data_entrega_br = raw_data_entrega.strftime("%d/%m/%Y")
+        elif raw_data_entrega:
+            try:
+                data_entrega_br = datetime.strptime(
+                    str(raw_data_entrega), "%Y-%m-%d"
+                ).strftime("%d/%m/%Y")
+            except Exception:
+                data_entrega_br = str(raw_data_entrega)
+        else:
+            data_entrega_br = "N/A"
+
+        try:
+            valor_custo = float(dados.get("valor_custo") or 0.0)
+        except (ValueError, TypeError):
+            valor_custo = 0.0
+
         val_fmt = (
             f"R$ {valor_custo:,.2f}".replace(",", "X")
             .replace(".", ",")
             .replace("X", ".")
         )
-        status = reg[8] if len(reg) > 8 else "Pendente"
+        status = dados.get("status") or "Pendente"
 
         card_header = tk.Frame(self.frame_ficha, bg="#FFFFFF", relief="flat")
         card_header.configure(
@@ -638,7 +659,7 @@ class Application(tk.Tk):
 
         lbl_id = tk.Label(
             card_header,
-            text=f"REGISTRO #{reg[0]}",
+            text=f"REGISTRO #{dados.get('id')}",
             font=("Segoe UI", 9, "bold"),
             fg=self.colors["secondary"],
             bg="#FFFFFF",
@@ -647,7 +668,7 @@ class Application(tk.Tk):
 
         lbl_titulo = tk.Label(
             card_header,
-            text=str(reg[1]).upper(),
+            text=str(dados.get("equipamento") or "").upper(),
             font=("Segoe UI", 13, "bold"),
             fg=self.colors["primary"],
             bg="#FFFFFF",
@@ -666,7 +687,7 @@ class Application(tk.Tk):
             else self.colors["warning_fg"]
         )
         txt_badge = (
-            "  ✔ ENTREGUE  " if is_entregue else "  ⏳ PENDENTE DE ENTREGA  "
+            "   ✔ ENTREGUE   " if is_entregue else "   ⏳ PENDENTE DE ENTREGA   "
         )
 
         lbl_badge = tk.Label(
@@ -695,8 +716,8 @@ class Application(tk.Tk):
         ).grid(
             row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8)
         )
-        self._add_field(card_tech, 1, "🏷️ Tombamento:", str(reg[2]))
-        self._add_field(card_tech, 2, "📍 Localização:", str(reg[7]) if len(reg) > 7 else "N/A")
+        self._add_field(card_tech, 1, "🏷️ Tombamento:", str(dados.get("tombamento") or ""))
+        self._add_field(card_tech, 2, "📍 Localização:", str(dados.get("localizacao") or "N/A"))
 
         card_entrada = tk.Frame(self.frame_ficha, bg="#FFFFFF", relief="flat")
         card_entrada.configure(
@@ -713,15 +734,15 @@ class Application(tk.Tk):
         ).grid(
             row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8)
         )
-        self._add_field(card_entrada, 1, "👤 Técnico Coleta:", str(reg[3]))
+        self._add_field(card_entrada, 1, "👤 Técnico Coleta:", str(dados.get("tecnico_coleta") or ""))
         self._add_field(card_entrada, 2, "📅 Data da Coleta:", data_br)
-        self._add_field(card_entrada, 3, "🏢 Unidade Origem:", str(reg[5]))
-        self._add_field(card_entrada, 4, "📑 O.S de Coleta:", str(reg[6]))
+        self._add_field(card_entrada, 3, "🏢 Unidade Origem:", str(dados.get("origem") or ""))
+        self._add_field(card_entrada, 4, "📑 O.S de Coleta:", str(dados.get("os_coleta") or "N/A"))
         self._add_field(
             card_entrada,
             5,
             "⚠️ Problema Relatado:",
-            reg[8] if len(reg) > 8 and reg[8] else "Nenhum defeito relatado",
+            dados.get("problema") or "Nenhum defeito relatado",
             is_full_width=True,
         )
 
@@ -741,26 +762,29 @@ class Application(tk.Tk):
             row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 8)
         )
         self._add_field(
-            card_saida, 1, "📄 Laudo Técnico:", reg[14] if len(reg) > 14 and reg[14] else "Não"
+            card_saida, 1, "📄 Laudo Técnico:", dados.get("laudado") or "Não"
         )
         self._add_field(
             card_saida,
             2,
             "👤 Téc. Resp. Entrega:",
-            reg[11] if len(reg) > 11 and reg[11] else "Pendente",
+            dados.get("tecnico_entrega") or "Pendente",
         )
         self._add_field(
-            card_saida, 3, "💰 Status de Custo:", f"{reg[15] if len(reg) > 15 else 'Sem Custo'} ({val_fmt})"
+            card_saida, 3, "📑 O.S de Entrega:", str(dados.get("os_entrega") or "N/A")
+        )
+        self._add_field(
+            card_saida, 4, "💰 Status de Custo:", f"{dados.get('status_custo') or 'Sem Custo'} ({val_fmt})"
         )
         self._add_field(
             card_saida,
-            4,
+            5,
             "🛠️ Serviço / Resolução:",
-            reg[16] if len(reg) > 16 and reg[16] else "Em andamento / Aguardando manutenção",
+            dados.get("resolucao") or "Em andamento / Aguardando manutenção",
             is_full_width=True,
         )
         self._add_field(
-            card_saida, 5, "📅 Data da Entrega:", str(reg[13]) if len(reg) > 13 and reg[13] else "N/A"
+            card_saida, 6, "📅 Data da Entrega:", data_entrega_br
         )
 
     def exibir_detalhes_vazio(self):
@@ -801,67 +825,75 @@ class Application(tk.Tk):
         item = self.tree.item(selected[0])
         self.registro_selecionado_id = item["values"][0]
 
-        reg = next(
-            (
-                r
-                for r in self.todos_registros_cache
-                if r[0] == self.registro_selecionado_id
-            ),
-            None,
-        )
-        if not reg:
+        dados = ColetaModel.buscar_por_id(self.registro_selecionado_id)
+        if not dados:
             return
 
         self.lbl_item_selecionado.config(
-            text=f"Selecionado: #{reg[0]} {reg[1]}",
+            text=f"Selecionado: #{dados['id']} {dados['equipamento']}",
             foreground=self.colors["success_fg"],
         )
 
-        self.renderizar_ficha(reg)
+        self.renderizar_ficha(self.registro_selecionado_id)
 
+        # Preenche os campos da Aba Entrada
         self.entry_equip.delete(0, tk.END)
-        self.entry_equip.insert(0, str(reg[1]))
+        self.entry_equip.insert(0, str(dados.get("equipamento") or ""))
+
         self.entry_tombamento.delete(0, tk.END)
-        self.entry_tombamento.insert(0, str(reg[2]))
+        self.entry_tombamento.insert(0, str(dados.get("tombamento") or ""))
+
         self.entry_tecnico.delete(0, tk.END)
-        self.entry_tecnico.insert(0, str(reg[3]))
+        self.entry_tecnico.insert(0, str(dados.get("tecnico_coleta") or ""))
 
         self.entry_data.delete(0, tk.END)
-        self.entry_data.insert(0, str(reg[4]))
+        self.entry_data.insert(0, str(dados.get("data_coleta") or ""))
 
         self.entry_origem.delete(0, tk.END)
-        self.entry_origem.insert(0, str(reg[5]))
+        self.entry_origem.insert(0, str(dados.get("origem") or ""))
 
         self.entry_os_coleta.delete(0, tk.END)
-        self.entry_os_coleta.insert(0, str(reg[6]))
+        self.entry_os_coleta.insert(0, str(dados.get("os_coleta") or ""))
 
-        if len(reg) > 7 and reg[7] in SecurityValidator.LOCALIZACOES_PERMITIDAS:
-            self.combo_localizacao.set(reg[7])
+        loc = dados.get("localizacao")
+        if loc in SecurityValidator.LOCALIZACOES_PERMITIDAS:
+            self.combo_localizacao.set(loc)
 
         self.text_problema.delete("1.0", tk.END)
-        if len(reg) > 8 and reg[8]:
-            self.text_problema.insert("1.0", str(reg[8]))
+        if dados.get("problema"):
+            self.text_problema.insert("1.0", str(dados["problema"]))
 
-        if len(reg) > 14 and reg[14] in ["Não", "Sim"]:
-            self.combo_laudado.set(reg[14])
+        # Preenche os campos da Aba Saída
+        self.entry_tecnico_entrega.delete(0, tk.END)
+        if dados.get("tecnico_entrega"):
+            self.entry_tecnico_entrega.insert(0, str(dados["tecnico_entrega"]))
+
+        self.entry_os_entrega.delete(0, tk.END)
+        if dados.get("os_entrega"):
+            self.entry_os_entrega.insert(0, str(dados["os_entrega"]))
+
+        self.entry_data_entrega.delete(0, tk.END)
+        data_ent = dados.get("data_entrega") or datetime.now().strftime("%Y-%m-%d")
+        self.entry_data_entrega.insert(0, str(data_ent))
+
+        if dados.get("laudado") in ["Não", "Sim"]:
+            self.combo_laudado.set(dados["laudado"])
 
         st_custo = (
-            reg[15] if len(reg) > 15 and reg[15] in ["Sem Custo", "Com Custo"] else "Sem Custo"
+            dados.get("status_custo")
+            if dados.get("status_custo") in ["Sem Custo", "Com Custo"]
+            else "Sem Custo"
         )
         self.combo_status_saida.set(st_custo)
         self.on_status_change()
 
-        if st_custo == "Com Custo" and len(reg) > 10:
+        if st_custo == "Com Custo" and dados.get("valor_custo") is not None:
             self.entry_valor_custo.delete(0, tk.END)
-            self.entry_valor_custo.insert(0, str(reg[10]))
+            self.entry_valor_custo.insert(0, str(dados["valor_custo"]))
 
         self.text_resolucao.delete("1.0", tk.END)
-        if len(reg) > 16 and reg[16]:
-            self.text_resolucao.insert("1.0", str(reg[16]))
-
-        self.entry_tecnico_entrega.delete(0, tk.END)
-        if len(reg) > 11 and reg[11]:
-            self.entry_tecnico_entrega.insert(0, str(reg[11]))
+        if dados.get("resolucao"):
+            self.text_resolucao.insert("1.0", str(dados["resolucao"]))
 
     def carregar_dados_tabela(self):
         for row in self.tree.get_children():
@@ -912,7 +944,7 @@ class Application(tk.Tk):
     def atualizar_entrada(self):
         if not self.registro_selecionado_id:
             messagebox.showwarning(
-                "Aviso", "Selecione um registro na lista para editar."
+                "Aviso", "Selecione um registro na tabela para editar."
             )
             return
 
@@ -931,15 +963,18 @@ class Application(tk.Tk):
                 self.combo_localizacao.get(),
                 self.text_problema.get("1.0", tk.END).strip(),
             )
-            messagebox.showinfo("Sucesso", "Dados de entrada atualizados!")
+            messagebox.showinfo(
+                "Sucesso", f"Registro #{self.registro_selecionado_id} atualizado com sucesso!"
+            )
             self.carregar_dados_tabela()
+            self.renderizar_ficha(self.registro_selecionado_id)
         except Exception as e:
-            messagebox.showerror("Erro na Atualização", str(e))
+            messagebox.showerror("Erro ao Atualizar", str(e))
 
     def salvar_saida(self):
         if not self.registro_selecionado_id:
             messagebox.showwarning(
-                "Aviso", "Selecione um registro para registrar a saída."
+                "Aviso", "Selecione um equipamento na tabela antes de dar saída."
             )
             return
 
@@ -947,22 +982,26 @@ class Application(tk.Tk):
             ColetaModel.registrar_saida(
                 self.registro_selecionado_id,
                 self.entry_tecnico_entrega.get(),
-                self.entry_os_entrega.get(),
                 self.entry_data_entrega.get(),
-                self.combo_laudado.get(),
+                self.entry_os_entrega.get(),
                 self.combo_status_saida.get(),
                 self.entry_valor_custo.get(),
                 self.text_resolucao.get("1.0", tk.END).strip(),
+                self.combo_laudado.get(),
             )
-            messagebox.showinfo("Sucesso", "Saída/Entrega registrada com sucesso!")
+            messagebox.showinfo(
+                "Sucesso", f"Equipamento #{self.registro_selecionado_id} marcado como Entregue!"
+            )
             self.limpar_formularios()
             self.carregar_dados_tabela()
         except Exception as e:
-            messagebox.showerror("Erro ao registrar saída", str(e))
+            messagebox.showerror("Erro na Saída", str(e))
 
     def excluir_registro(self):
         if not self.registro_selecionado_id:
-            messagebox.showwarning("Aviso", "Selecione um registro para excluir.")
+            messagebox.showwarning(
+                "Aviso", "Selecione um registro na tabela para excluir."
+            )
             return
 
         if not self.autenticar_admin():
@@ -970,7 +1009,7 @@ class Application(tk.Tk):
 
         if messagebox.askyesno(
             "Confirmar Exclusão",
-            f"Tem certeza que deseja excluir o registro #{self.registro_selecionado_id}?",
+            f"Tem certeza que deseja excluir permanentemente o registro #{self.registro_selecionado_id}?",
         ):
             try:
                 ColetaModel.excluir(self.registro_selecionado_id)
@@ -983,11 +1022,9 @@ class Application(tk.Tk):
     def limpar_formularios(self):
         self.registro_selecionado_id = None
         self.lbl_item_selecionado.config(
-            text="⚠️ Nenhum item selecionado",
-            foreground=self.colors["danger"],
+            text="⚠️ Nenhum item selecionado", foreground=self.colors["danger"]
         )
 
-        # Entrada
         self.entry_equip.delete(0, tk.END)
         self.entry_tombamento.delete(0, tk.END)
         self.entry_tecnico.delete(0, tk.END)
@@ -995,11 +1032,9 @@ class Application(tk.Tk):
         self.entry_data.insert(0, datetime.now().strftime("%Y-%m-%d"))
         self.entry_origem.delete(0, tk.END)
         self.entry_os_coleta.delete(0, tk.END)
-        if SecurityValidator.LOCALIZACOES_PERMITIDAS:
-            self.combo_localizacao.set(SecurityValidator.LOCALIZACOES_PERMITIDAS[0])
+        self.combo_localizacao.set(SecurityValidator.LOCALIZACOES_PERMITIDAS[0])
         self.text_problema.delete("1.0", tk.END)
 
-        # Saída
         self.entry_tecnico_entrega.delete(0, tk.END)
         self.entry_os_entrega.delete(0, tk.END)
         self.entry_data_entrega.delete(0, tk.END)
@@ -1012,50 +1047,71 @@ class Application(tk.Tk):
         self.exibir_detalhes_vazio()
 
     def abrir_janela_relatorio(self):
-        ano_atual = datetime.now().year
-        mes_atual = datetime.now().month
+        janela = tk.Toplevel(self)
+        janela.title("Gerar Relatório Mensal")
+        janela.geometry("320x180")
+        janela.resizable(False, False)
+        janela.transient(self)
+        janela.grab_set()
 
-        mes = simpledialog.askinteger(
-            "Relatório Mensal",
-            "Mês do relatório (1-12):",
-            initialvalue=mes_atual,
-            minvalue=1,
-            maxvalue=12,
-            parent=self,
+        ttk.Label(
+            janela, text="Selecione o Mês e Ano do Relatório:", font=("Segoe UI", 9, "bold")
+        ).pack(pady=(15, 10))
+
+        frame_seletor = ttk.Frame(janela)
+        frame_seletor.pack(pady=5)
+
+        hoje = datetime.now()
+
+        combo_mes = ttk.Combobox(
+            frame_seletor,
+            values=[f"{i:02d}" for i in range(1, 13)],
+            width=5,
+            state="readonly",
         )
-        if not mes:
-            return
+        combo_mes.set(f"{hoje.month:02d}")
+        combo_mes.pack(side="left", padx=5)
 
-        ano = simpledialog.askinteger(
-            "Relatório Mensal",
-            "Ano do relatório:",
-            initialvalue=ano_atual,
-            minvalue=2000,
-            maxvalue=2100,
-            parent=self,
+        combo_ano = ttk.Combobox(
+            frame_seletor,
+            values=[str(y) for y in range(hoje.year - 5, hoje.year + 2)],
+            width=8,
+            state="readonly",
         )
-        if not ano:
-            return
+        combo_ano.set(str(hoje.year))
+        combo_ano.pack(side="left", padx=5)
 
-        caminho_salvar = filedialog.asksaveasfilename(
-            defaultextension=".pdf",
-            filetypes=[("PDF files", "*.pdf")],
-            initialfile=f"Relatorio_{mes:02d}_{ano}.pdf",
-            title="Salvar Relatório PDF",
-        )
+        def gerar():
+            mes = int(combo_mes.get())
+            ano = int(combo_ano.get())
+            janela.destroy()
 
-        if caminho_salvar:
-            try:
-                PDFReportGenerator.gerar_relatorio_mensal(mes, ano, caminho_salvar)
-                messagebox.showinfo(
-                    "Sucesso", f"Relatório gerado com sucesso em:\n{caminho_salvar}"
-                )
-            except Exception as e:
-                messagebox.showerror("Erro ao Gerar PDF", str(e))
+            fpath = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("Arquivos PDF", "*.pdf")],
+                initialfile=f"relatorio_coletas_{ano}_{mes:02d}.pdf",
+            )
+            if fpath:
+                try:
+                    PDFReportGenerator.gerar_relatorio_mensal(mes, ano, fpath)
+                    messagebox.showinfo(
+                        "Sucesso", f"Relatório mensal gerado em:\n{fpath}"
+                    )
+                except Exception as e:
+                    messagebox.showerror(
+                        "Erro na Geração", f"Não foi possível gerar o PDF: {str(e)}"
+                    )
+
+        ttk.Button(
+            janela,
+            text="📄 Exportar PDF",
+            style="Primary.TButton",
+            command=gerar,
+        ).pack(pady=15, fill="x", padx=40)
 
 
 if __name__ == "__main__":
     init_db()
-    verificar_e_atualizar()
     app = Application()
+    verificar_e_atualizar()
     app.mainloop()

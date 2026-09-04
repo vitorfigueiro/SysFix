@@ -16,7 +16,11 @@ def get_connection():
             "A variável de ambiente DATABASE_URL não foi configurada no arquivo .env!"
         )
 
-    return psycopg2.connect(DATABASE_URL)
+    url_conexao = DATABASE_URL
+    if url_conexao.startswith("postgres://"):
+        url_conexao = url_conexao.replace("postgres://", "postgresql://", 1)
+
+    return psycopg2.connect(url_conexao)
 
 
 def aplicar_migracoes(conn, versao_banco):
@@ -67,7 +71,6 @@ def aplicar_migracoes(conn, versao_banco):
             )
             conn.commit()
 
-        # Migração Versão 3 e 4: Adição de campos de OS, entrega e remoção de NOT NULL
         # Migração Versão 4: Adição individual e segura das colunas de O.S. e entregas
         if versao_banco < 4:
             colunas_para_adicionar = [

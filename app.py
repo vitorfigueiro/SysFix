@@ -1,21 +1,28 @@
 import os
-import json
-from datetime import datetime, date
+from contextlib import asynccontextmanager
 from typing import Optional
-from fastapi import FastAPI, Request, Form, HTTPException, Depends, status
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi import FastAPI, Request, HTTPException, status
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-# Importa a estrutura de banco existente
+# Imports das camadas do sistema
 from database import init_db
 from models import ColetaModel
-from security import SecurityValidator
+from reports import PDFReportGenerator
 
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
-app = FastAPI(title="Gestão de Equipamentos Web", version="2.0.0")
+
+# Ciclo de vida moderno do FastAPI (substitui @app.on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="Gestão de Equipamentos Web", version="2.0.0", lifespan=lifespan)
 
 # Configuração de Arquivos Estáticos e Templates
 os.makedirs("static", exist_ok=True)
@@ -24,9 +31,41 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
-@app.on_event("startup")
-def startup_event():
-    init_db()
+# ----------------------------------------------------
+# MODELOS PYDANTIC (Para aceitar payloads JSON e Form)
+# ----------------------------------------------------
+class EntradaEquipamentoSchema(BaseModel):
+    equipamento: str
+    tombamento: str
+    tecnico_coleta: str
+    data_coleta: str
+    origem: str
+    os_coleta: Optional[str] = ""
+    localizacao: Optional[str] = ""
+    problema: Optional[str] = ""
+
+
+class AtualizarEntradaSchema(EntradaEquipamentoSchema):
+    admin_password: str
+
+
+class SaidaEquipamentoSchema(BaseModel):
+    tecnico_entrega: str
+    data_entrega: str
+    os_entrega: Optional[str] = ""
+    status_custo: Optional[str] = "Sem Custo"
+    valor_custo: Optional[float] = 0.0
+    resolucao: Optional[str] = ""
+    laudado: Optional[str] = "Não"
+
+
+class AcaoAdminSchema(BaseModel):
+    admin_password: str
+
+
+class RelatorioFiltroSchema(BaseModel):
+    mes: int
+    ano: int
 
 
 # ----------------------------------------------------
@@ -49,54 +88,47 @@ def listar_equipamentos(filtro: str = "nao_finalizados_mes"):
     else:
         regs = ColetaModel.buscar_todos()
 
-    lista = []
+    # Como o RealDictCursor já retorna dicionários, o payload é retornado diretamente
     for r in regs:
-        lista.append({
-            "id": r[0],
-            "equipamento": r[1],
-            "tombamento": r[2],
-            "tecnico_coleta": r[3],
-            "data_coleta": str(r[4]) if r[4] else None,
-            "origem": r[5],
-            "os_coleta": r[6],
-            "localizacao": r[7],
-            "problema": r[8],
-            "status": r[9] if len(r) > 9 and r[9] else "Pendente",
-        })
-    return JSONResponse(content=lista)
+        if not r.get("status"):
+            r["status"] = "Pendente"
+        # Garante serialização simples para datas
+        if r.get("data_coleta"):
+            r["data_coleta"] = str(r["data_coleta"])
+        if r.get("data_entrega"):
+            r["data_entrega"] = str(r["data_entrega"])
+
+    return JSONResponse(content=regs)
 
 
 @app.get("/api/equipamentos/{registro_id}")
 def obter_equipamento(registro_id: int):
     dados = ColetaModel.buscar_por_id(registro_id)
     if not dados:
-        raise HTTPException(status_code=404, detail="Registro não encontrado")
+        raise HTTPException(status_code=404, detail="Registro não encontrado.")
     
-    # Formatação de campos para JSON
+    # Formatação de nulos e datas para exibição limpa no frontend
     for key, val in dados.items():
-        if isinstance(val, (date, datetime)):
-            dados[key] = str(val)
-        elif val is None:
+        if val is None:
             dados[key] = ""
-            
+        else:
+            dados[key] = str(val)
+
     return JSONResponse(content=dados)
 
 
 @app.post("/api/equipamentos/entrada")
-def registrar_entrada(
-    equipamento: str = Form(...),
-    tombamento: str = Form(...),
-    tecnico_coleta: str = Form(...),
-    data_coleta: str = Form(...),
-    origem: str = Form(...),
-    os_coleta: str = Form(...),
-    localizacao: str = Form(...),
-    problema: str = Form(""),
-):
+def registrar_entrada(payload: EntradaEquipamentoSchema):
     try:
         reg_id = ColetaModel.registrar_entrada(
-            equipamento, tombamento, tecnico_coleta, data_coleta,
-            origem, os_coleta, localizacao, problema
+            payload.equipamento,
+            payload.tombamento,
+            payload.tecnico_coleta,
+            payload.data_coleta,
+            payload.origem,
+            payload.os_coleta,
+            payload.localizacao,
+            payload.problema,
         )
         return {"success": True, "id": reg_id, "message": "Entrada registrada com sucesso!"}
     except Exception as e:
@@ -104,25 +136,21 @@ def registrar_entrada(
 
 
 @app.put("/api/equipamentos/{registro_id}/entrada")
-def atualizar_entrada(
-    registro_id: int,
-    equipamento: str = Form(...),
-    tombamento: str = Form(...),
-    tecnico_coleta: str = Form(...),
-    data_coleta: str = Form(...),
-    origem: str = Form(...),
-    os_coleta: str = Form(...),
-    localizacao: str = Form(...),
-    problema: str = Form(""),
-    admin_password: str = Form(...),
-):
-    if admin_password != ADMIN_PASSWORD:
+def atualizar_entrada(registro_id: int, payload: AtualizarEntradaSchema):
+    if payload.admin_password != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Senha de administrador incorreta!")
 
     try:
         ColetaModel.atualizar_entrada(
-            registro_id, equipamento, tombamento, tecnico_coleta,
-            data_coleta, origem, os_coleta, localizacao, problema
+            registro_id,
+            payload.equipamento,
+            payload.tombamento,
+            payload.tecnico_coleta,
+            payload.data_coleta,
+            payload.origem,
+            payload.os_coleta,
+            payload.localizacao,
+            payload.problema,
         )
         return {"success": True, "message": "Dados de entrada atualizados!"}
     except Exception as e:
@@ -130,29 +158,26 @@ def atualizar_entrada(
 
 
 @app.post("/api/equipamentos/{registro_id}/saida")
-def registrar_saida(
-    registro_id: int,
-    tecnico_entrega: str = Form(...),
-    data_entrega: str = Form(...),
-    os_entrega: str = Form(...),
-    status_custo: str = Form(...),
-    valor_custo: str = Form("0.00"),
-    resolucao: str = Form(""),
-    laudado: str = Form("Não"),
-):
+def registrar_saida(registro_id: int, payload: SaidaEquipamentoSchema):
     try:
         ColetaModel.registrar_saida(
-            registro_id, tecnico_entrega, data_entrega, os_entrega,
-            status_custo, valor_custo, resolucao, laudado
+            registro_id,
+            payload.tecnico_entrega,
+            payload.data_entrega,
+            payload.os_entrega,
+            payload.status_custo,
+            payload.valor_custo,
+            payload.resolucao,
+            payload.laudado,
         )
         return {"success": True, "message": "Saída registrada com sucesso!"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.delete("/api/equipamentos/{registro_id}")
-def excluir_registro(registro_id: int, admin_password: str = Form(...)):
-    if admin_password != ADMIN_PASSWORD:
+@app.post("/api/equipamentos/{registro_id}/excluir")
+def excluir_registro(registro_id: int, payload: AcaoAdminSchema):
+    if payload.admin_password != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Senha de administrador incorreta!")
 
     try:
@@ -163,15 +188,15 @@ def excluir_registro(registro_id: int, admin_password: str = Form(...)):
 
 
 @app.post("/api/relatorios/mensal")
-def gerar_relatorio_mensal(mes: int = Form(...), ano: int = Form(...)):
-    fpath = f"/tmp/relatorio_coletas_{ano}_{mes:02d}.pdf"
+def gerar_relatorio_mensal(payload: RelatorioFiltroSchema):
     try:
-        from reports import PDFReportGenerator
-        PDFReportGenerator.gerar_relatorio_mensal(mes, ano, fpath)
-        return FileResponse(
-            path=fpath,
-            filename=f"relatorio_coletas_{ano}_{mes:02d}.pdf",
-            media_type="application/pdf"
+        pdf_buffer = PDFReportGenerator.relatorio_por_mes(payload.mes, payload.ano)
+        nome_arquivo = f"relatorio_coletas_{payload.ano}_{payload.mes:02d}.pdf"
+
+        return StreamingResponse(
+            pdf_buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"},
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF: {str(e)}")

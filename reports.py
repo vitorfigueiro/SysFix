@@ -1,4 +1,4 @@
-import os
+import io
 from datetime import datetime
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -7,10 +7,13 @@ from reportlab.lib import colors
 from models import ColetaModel
 
 class PDFReportGenerator:
+
     @staticmethod
-    def _gerar_pdf(caminho_arquivo, titulo, dados):
+    def _gerar_pdf_buffer(titulo, dados):
+        """Gera o arquivo PDF diretamente em um buffer de memória (BytesIO)."""
+        buffer = io.BytesIO()
         doc = SimpleDocTemplate(
-            caminho_arquivo, 
+            buffer, 
             pagesize=landscape(letter),
             rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20
         )
@@ -34,20 +37,35 @@ class PDFReportGenerator:
         cell_style = ParagraphStyle('CellStyle', parent=styles['Normal'], fontSize=8, leading=10)
 
         for reg in dados:
-            val_fmt = f"R$ {reg[9]:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            data_fmt = datetime.strptime(reg[4], "%Y-%m-%d").strftime("%d/%m/%Y")
+            # Formatação segura de valores financeiros
+            raw_valor = reg.get('valor_custo') or 0.0
+            try:
+                val_num = float(raw_valor)
+                val_fmt = f"R$ {val_num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            except (ValueError, TypeError):
+                val_fmt = "R$ 0,00"
+
+            # Formatação segura de datas (YYYY-MM-DD)
+            raw_data = str(reg.get('data_coleta') or '')
+            if len(raw_data) >= 10:
+                try:
+                    data_fmt = datetime.strptime(raw_data[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+                except ValueError:
+                    data_fmt = raw_data
+            else:
+                data_fmt = raw_data or "-"
             
             table_data.append([
-                str(reg[0]),
-                Paragraph(str(reg[1]), cell_style),
-                Paragraph(str(reg[2]), cell_style),
-                Paragraph(str(reg[3]), cell_style),
+                str(reg.get('id', '')),
+                Paragraph(str(reg.get('equipamento') or '-'), cell_style),
+                Paragraph(str(reg.get('tombamento') or '-'), cell_style),
+                Paragraph(str(reg.get('tecnico_coleta') or '-'), cell_style),
                 data_fmt,
-                Paragraph(str(reg[5]), cell_style),
-                str(reg[7]),
+                Paragraph(str(reg.get('origem') or '-'), cell_style),
+                str(reg.get('status') or '-'),
                 val_fmt,
-                Paragraph(str(reg[10]) if reg[10] else "-", cell_style),
-                Paragraph(str(reg[11]) if reg[11] else "-", cell_style)
+                Paragraph(str(reg.get('resolucao') or '-'), cell_style),
+                Paragraph(str(reg.get('tecnico_entrega') or '-'), cell_style)
             ])
 
         t = Table(table_data, colWidths=[30, 110, 60, 85, 60, 95, 65, 65, 110, 85])
@@ -63,11 +81,12 @@ class PDFReportGenerator:
         
         elements.append(t)
         doc.build(elements)
+        buffer.seek(0)
+        return buffer
 
     @classmethod
-    def relatorio_por_mes(cls, pasta_destino, mes: int, ano: int):
+    def relatorio_por_mes(cls, mes: int, ano: int):
         nome_meses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-        caminho = os.path.join(pasta_destino, f"relatorio_{mes:02d}_{ano}.pdf")
         dados = ColetaModel.buscar_por_mes_ano(mes, ano)
-        cls._gerar_pdf(caminho, f"Relatório de Equipamentos - {nome_meses[mes]} / {ano}", dados)
-        return caminho
+        titulo = f"Relatório de Equipamentos - {nome_meses[mes]} / {ano}"
+        return cls._gerar_pdf_buffer(titulo, dados)

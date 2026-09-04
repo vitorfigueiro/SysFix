@@ -23,7 +23,7 @@ class ColetaModel:
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
         data_validada = SecurityValidator.validar_data(data_coleta)
         origem_san = SecurityValidator.sanitizar_texto(origem)
-        os_coleta = SecurityValidator.sanitizar_texto(os_coleta)
+        os_san = SecurityValidator.sanitizar_texto(os_coleta)
         loc_san = SecurityValidator.sanitizar_texto(localizacao)
         prob_san = SecurityValidator.sanitizar_texto(problema)
 
@@ -36,10 +36,11 @@ class ColetaModel:
         conn = get_connection()
         cursor = conn.cursor()
         try:
+            # Corrigido: os_coleta (estava os_coelta) e adicionado o 8º %s que faltava
             cursor.execute(
                 """
-                INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, os_coelta, localizacao, problema)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, os_coleta, localizacao, problema)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id;
             """,
                 (
@@ -48,7 +49,7 @@ class ColetaModel:
                     tec_san,
                     data_validada,
                     origem_san,
-                    os_coleta,
+                    os_san,
                     loc_san,
                     prob_san,
                 ),
@@ -201,92 +202,75 @@ class ColetaModel:
     def buscar_nao_finalizados_mes_atual():
         """Busca equipamentos cadastrados no mês atual que ainda NÃO foram entregues."""
         conn = get_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         mes_atual = datetime.now().strftime("%Y-%m")
 
-        cursor.execute(
-            """
-            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, 
-                   origem, os_coleta, localizacao, problema, status, 
-                   status_custo, valor_custo, os_entrega, resolucao, 
-                   tecnico_entrega, data_entrega, laudado
-            FROM coletas
-            WHERE data_coleta LIKE %s AND (status != 'Entregue' OR status IS NULL)
-            ORDER BY id DESC
-        """,
-            (f"{mes_atual}%",),
-        )
-
-        registros = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        return registros
+        try:
+            cursor.execute(
+                """
+                SELECT * FROM coletas
+                WHERE data_coleta LIKE %s AND (status != 'Entregue' OR status IS NULL)
+                ORDER BY id DESC
+            """,
+                (f"{mes_atual}%",),
+            )
+            return cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
 
     @staticmethod
     def buscar_finalizados_mes_atual():
         """Busca equipamentos entregues no mês atual."""
         conn = get_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         mes_atual = datetime.now().strftime("%Y-%m")
 
-        cursor.execute(
-            """
-            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, 
-                   origem, os_coleta, localizacao, problema, status, 
-                   status_custo, valor_custo, os_entrega, resolucao, 
-                   tecnico_entrega, data_entrega, laudado
-            FROM coletas
-            WHERE data_coleta LIKE %s AND status = 'Entregue'
-            ORDER BY id DESC
-        """,
-            (f"{mes_atual}%",),
-        )
-
-        registros = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        return registros
+        try:
+            cursor.execute(
+                """
+                SELECT * FROM coletas
+                WHERE data_coleta LIKE %s AND status = 'Entregue'
+                ORDER BY id DESC
+            """,
+                (f"{mes_atual}%",),
+            )
+            return cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
 
     @staticmethod
     def buscar_todos():
         """Busca todos os registros do banco de dados."""
         conn = get_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        cursor.execute("""
-            SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, 
-                   origem, os_coleta, localizacao, problema, status, 
-                   status_custo, valor_custo, os_entrega, resolucao, 
-                   tecnico_entrega, data_entrega, laudado
-            FROM coletas
-            ORDER BY id DESC
-        """)
-
-        registros = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        return registros
+        try:
+            cursor.execute("""
+                SELECT * FROM coletas
+                ORDER BY id DESC
+            """)
+            return cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
 
     @staticmethod
     def buscar_por_mes_ano(mes: int, ano: int):
         mes_str = f"{ano:04d}-{mes:02d}"
         conn = get_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
             cursor.execute(
                 """
-                SELECT id, equipamento, tombamento, tecnico_coleta, data_coleta, 
-                       origem, os_coleta, localizacao, problema, status, 
-                       status_custo, valor_custo, os_entrega, resolucao, 
-                       tecnico_entrega, data_entrega, laudado 
-                FROM coletas 
+                SELECT * FROM coletas 
                 WHERE data_coleta LIKE %s
                 ORDER BY id DESC
             """,
                 (f"{mes_str}%",),
             )
-            registros = cursor.fetchall()
-            return registros
+            return cursor.fetchall()
         finally:
             cursor.close()
             conn.close()

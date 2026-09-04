@@ -1,14 +1,17 @@
-# Cache do Python
+# Python & Ambientes virtuais
 __pycache__/
-*.pyc
+*.py[cod]
+venv/
+.venv/
 
-# Builds e Executáveis
+# PyInstaller / Resíduos anteriores
 build/
 dist/
+*.spec
 
-# Variáveis de Ambiente e Segurança
+# Variáveis de ambiente com senhas do banco
 .env
 
-# Banco de dados local
+# Banco de dados local (se houver SQLite ou dumps)
 *.db
-coletas.db
+*.sqlite3

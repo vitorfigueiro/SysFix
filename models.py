@@ -14,6 +14,7 @@ class ColetaModel:
         tecnico,
         data_coleta,
         origem,
+        os_coleta,
         localizacao,
         problema,
     ):
@@ -22,6 +23,7 @@ class ColetaModel:
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
         data_validada = SecurityValidator.validar_data(data_coleta)
         origem_san = SecurityValidator.sanitizar_texto(origem)
+        os_coleta = SecurityValidator.sanitizar_texto(os_coleta)
         loc_san = SecurityValidator.sanitizar_texto(localizacao)
         prob_san = SecurityValidator.sanitizar_texto(problema)
 
@@ -36,7 +38,7 @@ class ColetaModel:
         try:
             cursor.execute(
                 """
-                INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, localizacao, problema)
+                INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, os_coelta, localizacao, problema)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id;
             """,
@@ -46,6 +48,7 @@ class ColetaModel:
                     tec_san,
                     data_validada,
                     origem_san,
+                    os_coleta,
                     loc_san,
                     prob_san,
                 ),

@@ -1,5 +1,6 @@
 import os
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,7 +21,7 @@ def get_connection():
     if url_conexao.startswith("postgres://"):
         url_conexao = url_conexao.replace("postgres://", "postgresql://", 1)
 
-    return psycopg2.connect(url_conexao)
+    return psycopg2.connect(url_conexao, cursor_factory=RealDictCursor)
 
 
 def aplicar_migracoes(conn, versao_banco):
@@ -116,6 +117,7 @@ def init_db():
             );
         """
         )
+        conn.commit()
 
         cursor.execute("SELECT versao FROM schema_version WHERE id = 1;")
         row = cursor.fetchone()
@@ -127,7 +129,11 @@ def init_db():
             )
             conn.commit()
         else:
-            versao_banco = row[0]
+            # Compatível com RealDictCursor (dicionário) ou cursor normal (tupla/lista)
+            if isinstance(row, dict):
+                versao_banco = row.get("versao", 0)
+            else:
+                versao_banco = row[0]
 
         if versao_banco < VERSAO_ATUAL_SCHEMA:
             aplicar_migracoes(conn, versao_banco)

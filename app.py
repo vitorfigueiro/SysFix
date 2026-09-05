@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 # Imports das camadas do sistema
@@ -88,17 +89,16 @@ def listar_equipamentos(filtro: str = "nao_finalizados_mes"):
     else:
         regs = ColetaModel.buscar_todos()
 
-    # Como o RealDictCursor já retorna dicionários, o payload é retornado diretamente
     for r in regs:
         if not r.get("status"):
             r["status"] = "Pendente"
-        # Garante serialização simples para datas
         if r.get("data_coleta"):
             r["data_coleta"] = str(r["data_coleta"])
         if r.get("data_entrega"):
             r["data_entrega"] = str(r["data_entrega"])
 
-    return JSONResponse(content=regs)
+    # jsonable_encoder resolve a serialização de Decimal (valor_custo) e outros tipos
+    return JSONResponse(content=jsonable_encoder(regs))
 
 
 @app.get("/api/equipamentos/{registro_id}")
@@ -114,7 +114,7 @@ def obter_equipamento(registro_id: int):
         else:
             dados[key] = str(val)
 
-    return JSONResponse(content=dados)
+    return JSONResponse(content=jsonable_encoder(dados))
 
 
 @app.post("/api/equipamentos/entrada")

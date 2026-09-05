@@ -69,7 +69,7 @@
   <div class="flex-1 flex overflow-hidden">
     
     <!-- PAINEL ESQUERDO: FORMULÁRIOS (ENTRADA / SAÍDA) -->
-    <aside class="w-[410px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
+    <aside id="painelFormularios" class="w-[410px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
       
       <!-- TABS DE NAVEGAÇÃO DO FORMULÁRIO -->
       <div class="grid grid-cols-2 p-3 gap-2 border-b border-pastel-border bg-slate-50">
@@ -208,7 +208,7 @@
     </aside>
 
     <!-- PAINEL CENTRAL: LISTA DE EQUIPAMENTOS -->
-    <main class="w-[480px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
+    <main id="painelLista" class="w-[480px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
       <div class="p-3 border-b border-pastel-border bg-slate-50 flex items-center justify-between">
         <span class="text-xs font-bold text-slate-700">Equipamentos Cadastrados</span>
         <div class="flex gap-1">
@@ -236,7 +236,7 @@
     </main>
 
     <!-- PAINEL DIREITO: FICHA TÉCNICA DETALHADA -->
-    <section class="flex-1 bg-slate-50 flex flex-col overflow-y-auto p-6 custom-scrollbar">
+    <section id="painelFicha" class="flex-1 bg-slate-50 flex flex-col overflow-y-auto p-6 custom-scrollbar">
       <div id="fichaVazia" class="flex-1 flex flex-col items-center justify-center text-slate-400">
         <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl mb-3">📋</div>
         <p class="text-xs font-medium">Selecione um equipamento na lista para carregar a ficha técnica.</p>
@@ -261,6 +261,7 @@
           <div class="grid grid-cols-2 gap-3 text-xs">
             <div><span class="text-slate-400 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-700">---</span></div>
             <div><span class="text-slate-400 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">O.S. Coleta:</span><span id="f_os_coleta" class="font-semibold text-slate-700">---</span></div>
             <div><span class="text-slate-400 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-700">---</span></div>
             <div><span class="text-slate-400 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-700">---</span></div>
           </div>
@@ -276,6 +277,7 @@
           <div class="grid grid-cols-2 gap-3 text-xs">
             <div><span class="text-slate-400 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-700">---</span></div>
             <div><span class="text-slate-400 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">O.S. Entrega:</span><span id="f_os_entrega" class="font-semibold text-slate-700">---</span></div>
             <div><span class="text-slate-400 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-700">---</span></div>
             <div><span class="text-slate-400 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-700">---</span></div>
           </div>
@@ -296,6 +298,23 @@
       document.getElementById('ent_data').valueAsDate = new Date();
       document.getElementById('sai_data').valueAsDate = new Date();
       carregarLista('nao_finalizados_mes');
+
+      // ESCUTA CLIQUES GLOBAIS NA TELA PARA LIMPAR SE CLICAR FORA
+      document.addEventListener("click", (event) => {
+        if (!registroSelecionadoId) return;
+
+        const painelFormularios = document.getElementById("painelFormularios");
+        const painelLista = document.getElementById("painelLista");
+        const painelFicha = document.getElementById("painelFicha");
+
+        const clicouNoForm = painelFormularios && painelFormularios.contains(event.target);
+        const clicouNaLista = painelLista && painelLista.contains(event.target);
+        const clicouNaFicha = painelFicha && painelFicha.contains(event.target);
+
+        if (!clicouNoForm && !clicouNaLista && !clicouNaFicha) {
+          limparFormularios();
+        }
+      });
     });
 
     function alternarTab(tab) {
@@ -361,6 +380,15 @@
       document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
       document.getElementById('ent_prob').value = d.problema || '';
 
+      document.getElementById('sai_tec').value = d.tecnico_entrega || '';
+      document.getElementById('sai_os').value = d.os_entrega || '';
+      document.getElementById('sai_data').value = d.data_entrega || new Date().toISOString().split('T')[0];
+      document.getElementById('sai_laudado').value = d.laudado || 'Não';
+      document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
+      document.getElementById('sai_valor').value = d.valor_custo || '0.00';
+      document.getElementById('sai_resolucao').value = d.resolucao || '';
+      alternarCampoCusto();
+
       document.getElementById('badgeStatusSelecao').className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
       document.getElementById('badgeStatusSelecao').innerText = `✔ Selecionado: #${d.id} - ${d.equipamento}`;
 
@@ -373,12 +401,14 @@
       document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento}`;
       document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || 'N/A';
       document.getElementById('f_data_coleta').innerText = d.data_coleta || 'N/A';
+      document.getElementById('f_os_coleta').innerText = d.os_coleta || 'N/A';
       document.getElementById('f_origem').innerText = d.origem || 'N/A';
       document.getElementById('f_localizacao').innerText = d.localizacao || 'N/A';
       document.getElementById('f_problema').innerText = d.problema || 'Nenhum problema informado';
 
       document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || 'Pendente';
       document.getElementById('f_data_entrega').innerText = d.data_entrega || 'Pendente';
+      document.getElementById('f_os_entrega').innerText = d.os_entrega || 'N/A';
       document.getElementById('f_custo').innerText = `${d.status_custo || 'Sem Custo'} (R$ ${d.valor_custo || '0.00'})`;
       document.getElementById('f_laudado').innerText = d.laudado || 'Não';
       document.getElementById('f_resolucao').innerText = d.resolucao || 'Em andamento';
@@ -391,17 +421,23 @@
     }
 
     async function salvarEntrada() {
-      const formData = new FormData();
-      formData.append('equipamento', document.getElementById('ent_equip').value);
-      formData.append('tombamento', document.getElementById('ent_tomb').value);
-      formData.append('tecnico_coleta', document.getElementById('ent_tec').value);
-      formData.append('data_coleta', document.getElementById('ent_data').value);
-      formData.append('origem', document.getElementById('ent_origem').value);
-      formData.append('os_coleta', document.getElementById('ent_os').value);
-      formData.append('localizacao', document.getElementById('ent_loc').value);
-      formData.append('problema', document.getElementById('ent_prob').value);
+      const payload = {
+        equipamento: document.getElementById('ent_equip').value,
+        tombamento: document.getElementById('ent_tomb').value,
+        tecnico_coleta: document.getElementById('ent_tec').value,
+        data_coleta: document.getElementById('ent_data').value,
+        origem: document.getElementById('ent_origem').value,
+        os_coleta: document.getElementById('ent_os').value,
+        localizacao: document.getElementById('ent_loc').value,
+        problema: document.getElementById('ent_prob').value
+      };
 
-      const res = await fetch('/api/equipamentos/entrada', { method: 'POST', body: formData });
+      const res = await fetch('/api/equipamentos/entrada', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload) 
+      });
+
       if (res.ok) {
         alert("Entrada registrada!");
         limparFormularios();
@@ -415,16 +451,22 @@
     async function salvarSaida() {
       if (!registroSelecionadoId) return alert("Selecione um item primeiro!");
 
-      const formData = new FormData();
-      formData.append('tecnico_entrega', document.getElementById('sai_tec').value);
-      formData.append('os_entrega', document.getElementById('sai_os').value);
-      formData.append('data_entrega', document.getElementById('sai_data').value);
-      formData.append('laudado', document.getElementById('sai_laudado').value);
-      formData.append('status_custo', document.getElementById('sai_status_custo').value);
-      formData.append('valor_custo', document.getElementById('sai_valor').value);
-      formData.append('resolucao', document.getElementById('sai_resolucao').value);
+      const payload = {
+        tecnico_entrega: document.getElementById('sai_tec').value,
+        os_entrega: document.getElementById('sai_os').value,
+        data_entrega: document.getElementById('sai_data').value,
+        laudado: document.getElementById('sai_laudado').value,
+        status_custo: document.getElementById('sai_status_custo').value,
+        valor_custo: parseFloat(document.getElementById('sai_valor').value) || 0.0,
+        resolucao: document.getElementById('sai_resolucao').value
+      };
 
-      const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/saida`, { method: 'POST', body: formData });
+      const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/saida`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload) 
+      });
+
       if (res.ok) {
         alert("Saída registrada!");
         limparFormularios();
@@ -437,7 +479,13 @@
 
     function limparFormularios() {
       registroSelecionadoId = null;
-      document.querySelectorAll('input').forEach(i => i.value = '');
+      document.querySelectorAll('input').forEach(i => {
+        if (i.type === "number") {
+          i.value = "0.00";
+        } else if (i.type !== "date") {
+          i.value = '';
+        }
+      });
       document.querySelectorAll('textarea').forEach(i => i.value = '');
       document.getElementById('ent_data').valueAsDate = new Date();
       document.getElementById('sai_data').valueAsDate = new Date();

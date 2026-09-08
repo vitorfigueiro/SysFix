@@ -4,276 +4,596 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SysFix - Gestão de Equipamentos</title>
+  <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+          colors: {
+            pastel: {
+              bg: '#F8FAFC',
+              card: '#FFFFFF',
+              sidebar: '#F1F5F9',
+              primary: '#64748B',
+              accent: '#38BDF8',
+              accentBg: '#F0F9FF',
+              success: '#34D399',
+              successBg: '#ECFDF5',
+              warning: '#FBBF24',
+              warningBg: '#FFFBEB',
+              danger: '#F87171',
+              dangerBg: '#FEF2F2',
+              textDark: '#1E293B',
+              textMuted: '#64748B',
+              border: '#E2E8F0',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #F8FAFC; color: #1E293B; font-family: 'Plus Jakarta Sans', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #F1F5F9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+  </style>
 </head>
-<body class="bg-gray-100 font-sans text-gray-800">
+<body class="h-screen flex flex-col overflow-hidden">
 
-  <!-- Header -->
-  <header class="bg-blue-900 text-white p-4 shadow-md flex justify-between items-center">
-    <h1 class="text-xl font-bold">SysFix - Controle de Manutenção</h1>
-    <button onclick="abrirModalRelatorio()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold text-sm">
-      Gerar Relatório PDF
-    </button>
-  </header>
-
-  <div class="container mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
-
-    <!-- Painel Esquerdo: Lista de Equipamentos -->
-    <div class="bg-white p-4 rounded shadow md:col-span-1">
-      <div class="flex justify-between items-center mb-4 border-b pb-2">
-        <h2 class="text-lg font-bold">Equipamentos</h2>
-        <select id="filtroStatus" onchange="carregarLista(this.value)" class="border rounded p-1 text-sm">
-          <option value="nao_finalizados">Em Aberto</option>
-          <option value="finalizados">Entregues</option>
-          <option value="todos">Todos</option>
-        </select>
+  <!-- BARRA DE NAVEGAÇÃO SUPERIOR -->
+  <header class="bg-white border-b border-pastel-border px-6 py-3.5 flex justify-between items-center shadow-sm z-10">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+        ⚙️
       </div>
-
-      <div id="listaEquipamentos" class="space-y-2 overflow-y-auto max-h-[650px]">
-        <p class="text-gray-500 text-sm">Carregando registros...</p>
+      <div>
+        <h1 class="text-base font-bold text-slate-800 tracking-tight">SysFix</h1>
+        <p class="text-xs text-slate-500 font-medium">Sistema de Gestão de Equipamentos</p>
       </div>
     </div>
+    <div class="flex items-center gap-3">
+      <button onclick="abrirModalRelatorio()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 border border-slate-200">
+        📄 Exportar Relatório
+      </button>
+    </div>
+  </header>
 
-    <!-- Painel Direito: Formulários de Entrada e Saída -->
-    <div class="bg-white p-6 rounded shadow md:col-span-2 space-y-6">
+  <!-- CORPO PRINCIPAL -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- PAINEL ESQUERDO: FORMULÁRIOS (ENTRADA / SAÍDA) -->
+    <aside id="painelFormularios" class="w-[410px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
+      
+      <!-- TABS DE NAVEGAÇÃO DO FORMULÁRIO -->
+      <div class="grid grid-cols-2 p-3 gap-2 border-b border-pastel-border bg-slate-50">
+        <button id="btnTabEntrada" onclick="alternarTab('entrada')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200">
+          📥 Registrar Entrada
+        </button>
+        <button id="btnTabSaida" onclick="alternarTab('saida')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800">
+          📤 Dar Saída
+        </button>
+      </div>
 
-      <!-- Formulário de Entrada/Edição -->
-      <div>
-        <h2 class="text-lg font-bold text-blue-900 border-b pb-2 mb-4" id="formEntradaTitulo">Entrada / Dados Gerais do Equipamento</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- FORMULÁRIO DE ENTRADA -->
+      <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Equipamento</label>
+          <input type="text" id="ent_equip" placeholder="Ex: Notebook Dell Vostro" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Equipamento*</label>
-            <input type="text" id="ent_equipamento" class="w-full border rounded p-2 text-sm" placeholder="Ex: Notebook Dell Vostro">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Tombamento</label>
+            <input type="text" id="ent_tomb" placeholder="Ex: 123456" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Tombamento / Patrimônio*</label>
-            <input type="text" id="ent_tombamento" class="w-full border rounded p-2 text-sm" placeholder="Ex: 123456">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Técnico Coleta*</label>
-            <input type="text" id="ent_tecnico" class="w-full border rounded p-2 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Data Coleta*</label>
-            <input type="date" id="ent_data" class="w-full border rounded p-2 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Origem / Setor</label>
-            <input type="text" id="ent_origem" class="w-full border rounded p-2 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">OS Coleta</label>
-            <input type="text" id="ent_os" class="w-full border rounded p-2 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Localização Atual</label>
-            <select id="ent_loc" class="w-full border rounded p-2 text-sm">
-              <option value="Bancada TI">Bancada TI</option>
-              <option value="Em Teste">Em Teste</option>
-              <option value="Aguardando Peça">Aguardando Peça</option>
-              <option value="Concluído">Concluído</option>
-            </select>
-          </div>
-          <div class="md:col-span-2">
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Problema Relatado*</label>
-            <textarea id="ent_prob" class="w-full border rounded p-2 text-sm h-20" placeholder="Descreva o defeito..."></textarea>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Coleta</label>
+            <input type="text" id="ent_tec" placeholder="Ex: Carlos Silva" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
           </div>
         </div>
 
-        <div class="mt-4 flex gap-2">
-          <button onclick="salvarEntrada()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold text-sm">
-            Salvar / Atualizar Entrada
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Data Coleta</label>
+            <input type="date" id="ent_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Origem</label>
+            <input type="text" id="ent_origem" placeholder="Ex: Setor Financeiro" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Coleta</label>
+            <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Localização</label>
+            <select id="ent_loc" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+              <option value="Bancada TI">Bancada TI</option>
+              <option value="PlayLan">PlayLan</option>
+              <option value="Central Informática">Central Informática</option>
+              <option value="Aguardando Peça">Aguardando Peça</option>
+              <option value="Bancada">Bancada</option>
+              <option value="Sede">Sede</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Problema Relatado</label>
+          <textarea id="ent_prob" rows="3" placeholder="Descreva a falha..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
+        </div>
+
+        <div class="pt-2 space-y-2">
+          <button onclick="salvarEntrada()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+            ➕ Registrar Entrada
           </button>
-          <button onclick="limparFormularios()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded font-semibold text-sm">
-            Novo / Limpar
+          <button onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
+            🔒 ✏️ Editar Entrada (Resp.)
           </button>
         </div>
       </div>
 
-      <hr>
+      <!-- FORMULÁRIO DE SAÍDA -->
+      <div id="formSaidaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4 hidden">
+        <div id="badgeStatusSelecao" class="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2">
+          ⚠️ Nenhum item selecionado na lista
+        </div>
 
-      <!-- Formulário de Saída / Conclusão -->
-      <div>
-        <h2 class="text-lg font-bold text-green-900 border-b pb-2 mb-4">Registro de Saída / Devolução</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Técnico Entrega</label>
-            <input type="text" id="sai_tec" class="w-full border rounded p-2 text-sm">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Entrega</label>
+            <input type="text" id="sai_tec" placeholder="Ex: Roberto Gomes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">OS Entrega</label>
-            <input type="text" id="sai_os" class="w-full border rounded p-2 text-sm">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Entrega</label>
+            <input type="text" id="sai_os" placeholder="Ex: OS-2026-99" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Data Entrega</label>
+            <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Data Entrega</label>
-            <input type="date" id="sai_data" class="w-full border rounded p-2 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Laudado</label>
-            <select id="sai_laudado" class="w-full border rounded p-2 text-sm">
-              <option value="Sim">Sim</option>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Laudado?</label>
+            <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
               <option value="Não">Não</option>
+              <option value="Sim">Sim</option>
             </select>
           </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Status Custo</label>
-            <select id="sai_status_custo" class="w-full border rounded p-2 text-sm">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Status Custo</label>
+            <select id="sai_status_custo" onchange="alternarCampoCusto()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
               <option value="Sem Custo">Sem Custo</option>
               <option value="Com Custo">Com Custo</option>
             </select>
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Valor Custo (R$)</label>
-            <input type="number" step="0.01" id="sai_valor" class="w-full border rounded p-2 text-sm" value="0.00">
-          </div>
-          <div class="md:col-span-2">
-            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Resolução / Serviço Realizado</label>
-            <textarea id="sai_resolucao" class="w-full border rounded p-2 text-sm h-20" placeholder="Descreva os reparos feitos..."></textarea>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Valor (R$)</label>
+            <input type="number" step="0.01" id="sai_valor" value="0.00" disabled class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all">
           </div>
         </div>
 
-        <div class="mt-4 flex justify-between">
-          <button onclick="salvarSaida()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold text-sm">
-            Registrar Saída (Finalizar)
-          </button>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Serviço / Resolução</label>
+          <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
+        </div>
 
-          <button onclick="excluirRegistroAdmin()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-semibold text-sm">
-            Excluir Registro
-          </button>
+        <button onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+          ✅ Finalizar & Marcar Entregue
+        </button>
+      </div>
+
+      <!-- BOTÕES DE AÇÕES -->
+      <div class="p-3 bg-slate-50 border-t border-pastel-border flex gap-2">
+        <button onclick="excluirRegistroAdmin()" class="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg transition-all border border-rose-200">
+          🗑️ Excluir
+        </button>
+        <button onclick="limparFormularios()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all">
+          🧹 Limpar
+        </button>
+      </div>
+    </aside>
+
+    <!-- PAINEL CENTRAL: LISTA DE EQUIPAMENTOS -->
+    <main id="painelLista" class="w-[480px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
+      <div class="p-3 border-b border-pastel-border bg-slate-50 flex items-center justify-between">
+        <span class="text-xs font-bold text-slate-700">Equipamentos Cadastrados</span>
+        <div class="flex gap-1">
+          <button onclick="carregarLista('nao_finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Pendentes</button>
+          <button onclick="carregarLista('finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Entregues</button>
+          <button onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Todos</button>
         </div>
       </div>
 
+      <div class="flex-1 overflow-y-auto custom-scrollbar">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-100 sticky top-0 text-slate-600 font-bold border-b border-pastel-border">
+            <tr>
+              <th class="p-2.5">ID</th>
+              <th class="p-2.5">Equipamento</th>
+              <th class="p-2.5">Tombamento</th>
+              <th class="p-2.5">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaCorpo" class="divide-y divide-slate-100">
+            <!-- Linhas dinâmicas via JS -->
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- PAINEL DIREITO: FICHA TÉCNICA DETALHADA -->
+    <section id="painelFicha" class="flex-1 bg-slate-50 flex flex-col overflow-y-auto p-6 custom-scrollbar">
+      <div id="fichaVazia" class="flex-1 flex flex-col items-center justify-center text-slate-400">
+        <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl mb-3">📋</div>
+        <p class="text-xs font-medium">Selecione um equipamento na lista para carregar a ficha técnica.</p>
+      </div>
+
+      <div id="fichaConteudo" class="hidden space-y-4 max-w-2xl mx-auto w-full">
+        <!-- HEADER DA FICHA -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start">
+          <div>
+            <span id="f_id" class="text-xs font-bold text-sky-600 uppercase tracking-wider">REGISTRO #0</span>
+            <h2 id="f_equipamento" class="text-lg font-bold text-slate-800 mt-1">NOME DO EQUIPAMENTO</h2>
+            <p id="f_tombamento" class="text-xs text-slate-500 font-medium">Tombamento: ---</p>
+          </div>
+          <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+            ⏳ PENDENTE
+          </span>
+        </div>
+
+        <!-- DADOS DA ENTRADA -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📥 Dados de Entrada</h3>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div><span class="text-slate-400 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">O.S. Coleta:</span><span id="f_os_coleta" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-700">---</span></div>
+          </div>
+          <div class="pt-2">
+            <span class="text-slate-400 font-medium block text-xs">Problema Relatado:</span>
+            <p id="f_problema" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+          </div>
+        </div>
+
+        <!-- DADOS DA SAÍDA -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📤 Resolução & Entrega</h3>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div><span class="text-slate-400 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">O.S. Entrega:</span><span id="f_os_entrega" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-700">---</span></div>
+            <div><span class="text-slate-400 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-700">---</span></div>
+          </div>
+          <div class="pt-2">
+            <span class="text-slate-400 font-medium block text-xs">Serviço Realizado:</span>
+            <p id="f_resolucao" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- MODAL DE EXPORTAÇÃO DE RELATÓRIO PDF -->
+  <div id="modalRelatorio" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 w-96 shadow-xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="text-sm font-bold text-slate-800">📄 Gerar Relatório PDF</h3>
+        <button onclick="fecharModalRelatorio()" class="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Selecione o Mês / Ano</label>
+          <div class="grid grid-cols-2 gap-2">
+            <select id="rel_mes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none bg-white">
+              <option value="1">Janeiro</option>
+              <option value="2">Fevereiro</option>
+              <option value="3">Março</option>
+              <option value="4">Abril</option>
+              <option value="5">Maio</option>
+              <option value="6">Junho</option>
+              <option value="7">Julho</option>
+              <option value="8">Agosto</option>
+              <option value="9">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+            <input type="number" id="rel_ano" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="rel_anonimizar" class="rounded border-slate-300 text-sky-600 focus:ring-sky-200">
+          <label for="rel_anonimizar" class="text-xs text-slate-600 font-medium">Anonimizar Nomes (LGPD)</label>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="baixarRelatorioPDF()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+          📥 Download PDF
+        </button>
+        <button onclick="fecharModalRelatorio()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
+          Cancelar
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Modal para Parâmetros do Relatório -->
-  <div id="modalRelatorio" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full shadow-lg">
-      <h3 class="text-lg font-bold mb-4">Gerar Relatório em PDF</h3>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium mb-1">Mês</label>
-          <select id="rel_mes" class="w-full border rounded p-2 text-sm">
-            <option value="1">Janeiro</option>
-            <option value="2">Fevereiro</option>
-            <option value="3">Março</option>
-            <option value="4">Abril</option>
-            <option value="5">Maio</option>
-            <option value="6">Junho</option>
-            <option value="7">Julho</option>
-            <option value="8">Agosto</option>
-            <option value="9" selected>Setembro</option>
-            <option value="10">Outubro</option>
-            <option value="11">Novembro</option>
-            <option value="12">Dezembro</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1">Ano</label>
-          <input type="number" id="rel_ano" class="w-full border rounded p-2 text-sm" value="2026">
-        </div>
-        <div class="flex items-center gap-2">
-          <input type="checkbox" id="rel_anonimizar" class="rounded">
-          <label for="rel_anonimizar" class="text-sm">Anonimizar dados de técnicos</label>
-        </div>
-      </div>
-      <div class="mt-6 flex justify-end gap-2">
-        <button onclick="fecharModalRelatorio()" class="bg-gray-300 px-4 py-2 rounded text-sm font-semibold">Cancelar</button>
-        <button onclick="baixarRelatorioPDF()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-semibold">Download PDF</button>
-      </div>
-    </div>
-  </div>
-
+  <!-- JAVASCRIPT DE INTERATIVIDADE -->
   <script>
-    // Configuração base da API (detecta Railway ou local automaticamente)
+    // Configuração base da API (detecta Railway ou ambiente local)
     const API_BASE = window.location.origin.includes('railway.app') 
       ? '/api' 
       : 'https://web-production-04cf6.up.railway.app/api';
 
     let registroSelecionadoId = null;
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const hoje = new Date();
+      document.getElementById('ent_data').valueAsDate = hoje;
+      document.getElementById('sai_data').valueAsDate = hoje;
+      document.getElementById('rel_ano').value = hoje.getFullYear();
+      document.getElementById('rel_mes').value = hoje.getMonth() + 1;
+
       carregarLista('nao_finalizados');
-      document.getElementById('ent_data').value = new Date().toISOString().split('T')[0];
+
+      // ESCUTA CLIQUES GLOBAIS NA TELA PARA LIMPAR SE CLICAR FORA
+      document.addEventListener("click", (event) => {
+        if (!registroSelecionadoId) return;
+
+        const painelFormularios = document.getElementById("painelFormularios");
+        const painelLista = document.getElementById("painelLista");
+        const painelFicha = document.getElementById("painelFicha");
+        const modalRelatorio = document.getElementById("modalRelatorio");
+
+        const clicouNoForm = painelFormularios && painelFormularios.contains(event.target);
+        const clicouNaLista = painelLista && painelLista.contains(event.target);
+        const clicouNaFicha = painelFicha && painelFicha.contains(event.target);
+        const clicouNoModal = modalRelatorio && modalRelatorio.contains(event.target);
+
+        if (!clicouNoForm && !clicouNaLista && !clicouNaFicha && !clicouNoModal) {
+          limparFormularios();
+        }
+      });
     });
 
-    async function carregarLista(filtro = 'nao_finalizados') {
-      const listaDiv = document.getElementById('listaEquipamentos');
-      listaDiv.innerHTML = '<p class="text-gray-500 text-sm">Buscando...</p>';
-
-      try {
-        const res = await fetch(`${API_BASE}/equipamentos?status=${filtro}`);
-        if (!res.ok) throw new Error("Erro na requisição");
-
-        const itens = await res.json();
-        listaDiv.innerHTML = '';
-
-        if (itens.length === 0) {
-          listaDiv.innerHTML = '<p class="text-gray-400 text-sm">Nenhum registro encontrado.</p>';
-          return;
-        }
-
-        itens.forEach(item => {
-          const card = document.createElement('div');
-          card.className = `p-3 rounded border cursor-pointer hover:bg-blue-50 transition ${registroSelecionadoId === item.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200'}`;
-          card.onclick = () => selecionarItem(item);
-
-          card.innerHTML = `
-            <div class="flex justify-between items-start">
-              <span class="font-bold text-sm text-gray-800">${item.equipamento}</span>
-              <span class="text-xs px-2 py-0.5 rounded ${item.status === 'Entregue' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${item.status || 'Em Manutenção'}</span>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">Tombamento: ${item.tombamento} | OS: ${item.os_coleta || 'N/A'}</p>
-            <p class="text-xs text-gray-600">Técnico: ${item.tecnico}</p>
-          `;
-          listaDiv.appendChild(card);
-        });
-      } catch (e) {
-        listaDiv.innerHTML = '<p class="text-red-500 text-sm">Falha ao carregar lista de equipamentos.</p>';
-      }
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
 
-    function selecionarItem(item) {
-      registroSelecionadoId = item.id;
-      document.getElementById('formEntradaTitulo').innerText = `Editando Equipamento #${item.id}`;
+    function converterDataParaInput(dataStr) {
+      if (!dataStr) return new Date().toISOString().split('T')[0];
+      if (dataStr.includes('/')) {
+        const partes = dataStr.split('/');
+        if (partes.length === 3) return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+      }
+      return dataStr;
+    }
 
-      // Preenche Entrada
-      document.getElementById('ent_equipamento').value = item.equipamento || '';
-      document.getElementById('ent_tombamento').value = item.tombamento || '';
-      document.getElementById('ent_tecnico').value = item.tecnico || '';
-      document.getElementById('ent_data').value = item.data_coleta || '';
-      document.getElementById('ent_origem').value = item.origem || '';
-      document.getElementById('ent_os').value = item.os_coleta || '';
-      document.getElementById('ent_loc').value = item.localizacao || 'Bancada TI';
-      document.getElementById('ent_prob').value = item.problema || '';
+    function alternarTab(tab) {
+      const isEntrada = tab === 'entrada';
+      document.getElementById('formEntradaContainer').classList.toggle('hidden', !isEntrada);
+      document.getElementById('formSaidaContainer').classList.toggle('hidden', isEntrada);
 
-      // Preenche Saída se já existir
-      document.getElementById('sai_tec').value = item.tecnico_entrega || '';
-      document.getElementById('sai_os').value = item.os_entrega || '';
-      document.getElementById('sai_data').value = item.data_entrega || '';
-      document.getElementById('sai_laudado').value = item.laudado || 'Sim';
-      document.getElementById('sai_status_custo').value = item.status_custo || 'Sem Custo';
-      document.getElementById('sai_valor').value = item.valor_custo || 0;
-      document.getElementById('sai_resolucao').value = item.resolucao || '';
+      document.getElementById('btnTabEntrada').className = isEntrada 
+        ? "py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200" 
+        : "py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
+
+      document.getElementById('btnTabSaida').className = !isEntrada 
+        ? "py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200" 
+        : "py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
+    }
+
+    function alternarCampoCusto() {
+      const isComCusto = document.getElementById('sai_status_custo').value === "Com Custo";
+      const campo = document.getElementById('sai_valor');
+      campo.disabled = !isComCusto;
+      campo.className = isComCusto 
+        ? "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white text-slate-800"
+        : "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all";
     }
 
     function limparFormularios() {
       registroSelecionadoId = null;
-      document.getElementById('formEntradaTitulo').innerText = 'Entrada / Dados Gerais do Equipamento';
+      
+      // Limpar formulário de Entrada
+      document.getElementById('ent_equip').value = '';
+      document.getElementById('ent_tomb').value = '';
+      document.getElementById('ent_tec').value = '';
+      document.getElementById('ent_data').valueAsDate = new Date();
+      document.getElementById('ent_origem').value = '';
+      document.getElementById('ent_os').value = '';
+      document.getElementById('ent_loc').value = 'Bancada TI';
+      document.getElementById('ent_prob').value = '';
 
-      document.querySelectorAll('input, textarea').forEach(input => {
-        if (input.type !== 'checkbox' && input.id !== 'rel_ano') input.value = '';
-      });
-
-      document.getElementById('ent_data').value = new Date().toISOString().split('T')[0];
+      // Limpar formulário de Saída
+      document.getElementById('sai_tec').value = '';
+      document.getElementById('sai_os').value = '';
+      document.getElementById('sai_data').valueAsDate = new Date();
+      document.getElementById('sai_laudado').value = 'Não';
+      document.getElementById('sai_status_custo').value = 'Sem Custo';
       document.getElementById('sai_valor').value = '0.00';
+      document.getElementById('sai_resolucao').value = '';
+      alternarCampoCusto();
+
+      // Resetar Badges
+      document.getElementById('badgeStatusSelecao').className = "p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2";
+      document.getElementById('badgeStatusSelecao').innerText = "⚠️ Nenhum item selecionado na lista";
+
+      // Esconder Ficha Técnica
+      document.getElementById('fichaConteudo').classList.add('hidden');
+      document.getElementById('fichaVazia').classList.remove('hidden');
+    }
+
+    async function carregarLista(filtro) {
+      try {
+        const res = await fetch(`${API_BASE}/equipamentos?status=${filtro}`);
+        const dados = await res.json();
+        const tbody = document.getElementById('tabelaCorpo');
+        tbody.innerHTML = '';
+
+        if (!Array.isArray(dados) || dados.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400">Nenhum equipamento encontrado.</td></tr>';
+          return;
+        }
+
+        dados.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100";
+          tr.onclick = (e) => {
+            e.stopPropagation();
+            selecionarItem(item.id);
+          };
+          
+          const badge = item.status === "Entregue" 
+            ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>'
+            : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente</span>';
+
+          tr.innerHTML = `
+            <td class="p-2.5 font-bold text-slate-500">#${item.id}</td>
+            <td class="p-2.5 font-semibold text-slate-800">${escapeHtml(item.equipamento)}</td>
+            <td class="p-2.5 text-slate-600">${escapeHtml(item.tombamento || '-')}</td>
+            <td class="p-2.5">${badge}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        console.error("Erro ao carregar lista:", e);
+      }
+    }
+
+    async function selecionarItem(id) {
+      registroSelecionadoId = id;
+      try {
+        const res = await fetch(`${API_BASE}/equipamentos/${id}`);
+        const d = await res.json();
+
+        // Preencher formulários
+        document.getElementById('ent_equip').value = d.equipamento || '';
+        document.getElementById('ent_tomb').value = d.tombamento || '';
+        document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
+        document.getElementById('ent_data').value = converterDataParaInput(d.data_coleta);
+        document.getElementById('ent_origem').value = d.origem || '';
+        document.getElementById('ent_os').value = d.os_coleta || '';
+        document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
+        document.getElementById('ent_prob').value = d.problema || '';
+
+        document.getElementById('sai_tec').value = d.tecnico_entrega || '';
+        document.getElementById('sai_os').value = d.os_entrega || '';
+        document.getElementById('sai_data').value = converterDataParaInput(d.data_entrega);
+        document.getElementById('sai_laudado').value = d.laudado || 'Não';
+        document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
+        document.getElementById('sai_valor').value = d.valor_custo || '0.00';
+        document.getElementById('sai_resolucao').value = d.resolucao || '';
+        alternarCampoCusto();
+
+        document.getElementById('badgeStatusSelecao').className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
+        document.getElementById('badgeStatusSelecao').innerText = `✔ Selecionado: #${d.id} - ${d.equipamento}`;
+
+        // Exibir Ficha Técnica
+        document.getElementById('fichaVazia').classList.add('hidden');
+        document.getElementById('fichaConteudo').classList.remove('hidden');
+
+        document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
+        document.getElementById('f_equipamento').innerText = d.equipamento;
+        document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || 'N/A'}`;
+        document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || 'N/A';
+        document.getElementById('f_data_coleta').innerText = d.data_coleta || 'N/A';
+        document.getElementById('f_os_coleta').innerText = d.os_coleta || 'N/A';
+        document.getElementById('f_origem').innerText = d.origem || 'N/A';
+        document.getElementById('f_localizacao').innerText = d.localizacao || 'N/A';
+        document.getElementById('f_problema').innerText = d.problema || 'Nenhum problema informado';
+
+        document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || 'Pendente';
+        document.getElementById('f_data_entrega').innerText = d.data_entrega || 'Pendente';
+        document.getElementById('f_os_entrega').innerText = d.os_entrega || 'N/A';
+        
+        const valorFmt = parseFloat(d.valor_custo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('f_custo').innerText = `${d.status_custo || 'Sem Custo'} (R$ ${valorFmt})`;
+        document.getElementById('f_laudado').innerText = d.laudado || 'Não';
+        document.getElementById('f_resolucao').innerText = d.resolucao || 'Em andamento';
+
+        const isEntregue = d.status === "Entregue";
+        document.getElementById('f_badge_status').className = isEntregue 
+          ? "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200"
+          : "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
+        document.getElementById('f_badge_status').innerText = isEntregue ? "✔ ENTREGUE" : "⏳ PENDENTE";
+      } catch (e) {
+        console.error("Erro ao carregar detalhes do equipamento:", e);
+      }
     }
 
     async function salvarEntrada() {
+      const dataInput = document.getElementById('ent_data').value;
       const payload = {
-        equipamento: document.getElementById('ent_equipamento').value.trim(),
-        tombamento: document.getElementById('ent_tombamento').value.trim(),
-        tecnico: document.getElementById('ent_tecnico').value.trim(),
+        equipamento: document.getElementById('ent_equip').value.trim(),
+        tombamento: document.getElementById('ent_tomb').value.trim(),
+        tecnico: document.getElementById('ent_tec').value.trim(),
+        data_coleta: dataInput,
+        origem: document.getElementById('ent_origem').value.trim(),
+        os_coleta: document.getElementById('ent_os').value.trim(),
+        localizacao: document.getElementById('ent_loc').value,
+        problema: document.getElementById('ent_prob').value.trim()
+      };
+
+      if (!payload.equipamento) {
+        alert("Por favor, preencha o nome do equipamento.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/equipamentos`, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload) 
+        });
+
+        if (res.ok) {
+          alert("Entrada registrada com sucesso!");
+          limparFormularios();
+          carregarLista('nao_finalizados');
+        } else {
+          const err = await res.json();
+          alert("Erro: " + (err.detail || "Falha ao registrar entrada"));
+        }
+      } catch (e) {
+        alert("Erro ao se comunicar com o servidor.");
+      }
+    }
+
+    async function atualizarEntradaAdmin() {
+      if (!registroSelecionadoId) return alert("Selecione um equipamento da lista para editar!");
+
+      const payload = {
+        equipamento: document.getElementById('ent_equip').value.trim(),
+        tombamento: document.getElementById('ent_tomb').value.trim(),
+        tecnico: document.getElementById('ent_tec').value.trim(),
         data_coleta: document.getElementById('ent_data').value,
         origem: document.getElementById('ent_origem').value.trim(),
         os_coleta: document.getElementById('ent_os').value.trim(),
@@ -281,27 +601,20 @@
         problema: document.getElementById('ent_prob').value.trim()
       };
 
-      if (!payload.equipamento || !payload.tombamento || !payload.tecnico || !payload.data_coleta || !payload.problema) {
-        return alert("Por favor, preencha todos os campos obrigatórios (*)");
-      }
-
-      const url = registroSelecionadoId ? `${API_BASE}/equipamentos/${registroSelecionadoId}` : `${API_BASE}/equipamentos`;
-      const method = registroSelecionadoId ? 'PUT' : 'POST';
-
       try {
-        const res = await fetch(url, {
-          method: method,
+        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
         if (res.ok) {
-          alert(registroSelecionadoId ? "Registro atualizado!" : "Equipamento cadastrado com sucesso!");
-          limparFormularios();
-          carregarLista(document.getElementById('filtroStatus').value);
+          alert("Registro de entrada atualizado com sucesso!");
+          carregarLista('nao_finalizados');
+          selecionarItem(registroSelecionadoId);
         } else {
           const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao salvar"));
+          alert("Erro: " + (err.detail || "Falha ao atualizar dados"));
         }
       } catch (e) {
         alert("Erro ao se comunicar com o servidor.");
@@ -330,12 +643,12 @@
         });
 
         if (res.ok) {
-          alert("Saída registrada com sucesso!");
+          alert("Saída registrada e status atualizado para Entregue!");
           limparFormularios();
-          carregarLista(document.getElementById('filtroStatus').value);
+          carregarLista('nao_finalizados');
         } else {
           const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao dar saída"));
+          alert("Erro: " + (err.detail || "Falha ao registrar saída"));
         }
       } catch (e) {
         alert("Erro ao se comunicar com o servidor.");
@@ -348,12 +661,14 @@
       if (!confirm(`Tem certeza que deseja excluir o registro #${registroSelecionadoId}?`)) return;
 
       try {
-        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, { 
+          method: 'DELETE' 
+        });
 
         if (res.ok) {
           alert("Registro excluído com sucesso!");
           limparFormularios();
-          carregarLista(document.getElementById('filtroStatus').value);
+          carregarLista('nao_finalizados');
         } else {
           const err = await res.json();
           alert("Erro: " + (err.detail || "Falha ao excluir registro"));

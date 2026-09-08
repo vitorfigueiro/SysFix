@@ -1,4 +1,5 @@
 import os
+import uvicorn
 from datetime import datetime, date
 from typing import Optional, Union
 from fastapi import FastAPI, HTTPException, Depends, Query
@@ -9,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from mensagens import obter_mensagem_erro
 from database import init_db, get_connection
 from models import ColetaModel
+from flask import Flask
+from flask_cors import CORS
 
 # Inicializa o banco de dados e aplica migrações
 init_db()
@@ -253,3 +256,10 @@ def deletar_equipamento(registro_id: int):
         return {"sucesso": True, "mensagem": "Registro excluído com sucesso."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao excluir registro: {str(e)}")
+
+app = Flask(__name__)
+CORS(app)
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

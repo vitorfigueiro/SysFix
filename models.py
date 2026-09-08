@@ -21,11 +21,11 @@ class ColetaModel:
         equip_san = SecurityValidator.sanitizar_texto(equipamento)
         tomb_san = SecurityValidator.sanitizar_texto(tombamento)
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
-        
+
         # Se data_coleta vier vazia, injeta a data de hoje
         data_para_validar = data_coleta if data_coleta else datetime.now().strftime("%Y-%m-%d")
         data_validada = SecurityValidator.validar_data(data_para_validar)
-        
+
         origem_san = SecurityValidator.sanitizar_texto(origem)
         os_san = SecurityValidator.sanitizar_texto(os_coleta)
         loc_san = SecurityValidator.sanitizar_texto(localizacao)
@@ -49,9 +49,9 @@ class ColetaModel:
                     tec_san or "Não informado",
                     data_validada,
                     origem_san or "Geral",
-                    os_san,
+                    os_san or "",
                     loc_san or "Bancada TI",
-                    prob_san,
+                    prob_san or "",
                 ),
             )
             novo_id = cursor.fetchone()[0]
@@ -76,21 +76,18 @@ class ColetaModel:
         laudado,
     ):
         if not registro_id:
-            raise ValueError(
-                "Nenhum registro selecionado para atualizar saída."
-            )
+            raise ValueError("Nenhum registro selecionado para atualizar saída.")
 
         tec_entrega_san = SecurityValidator.sanitizar_texto(tecnico_entrega)
         if not tec_entrega_san:
-            raise ValueError(
-                "Informe o técnico responsável por realizar a entrega."
-            )
+            raise ValueError("Informe o técnico responsável por realizar a entrega.")
 
         val_custo = SecurityValidator.validate_cost(valor_custo)
         res_san = SecurityValidator.sanitizar_texto(resolucao)
         laudado_san = SecurityValidator.sanitizar_texto(laudado)
         entrega_san = SecurityValidator.validar_data(data_entrega)
         os_san = SecurityValidator.sanitizar_texto(os_entrega)
+        status_custo_san = SecurityValidator.sanitizar_texto(status_custo) or "Sem Custo"
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -106,16 +103,16 @@ class ColetaModel:
                     valor_custo = %s, 
                     resolucao = %s,
                     laudado = %s
-                WHERE id = %s
+                WHERE id = %s;
             """,
                 (
                     tec_entrega_san,
                     entrega_san,
-                    os_san,
-                    status_custo,
+                    os_san or "",
+                    status_custo_san,
                     val_custo,
-                    res_san,
-                    laudado_san,
+                    res_san or "",
+                    laudado_san or "Não",
                     registro_id,
                 ),
             )
@@ -168,17 +165,17 @@ class ColetaModel:
                     os_coleta = %s, 
                     localizacao = %s, 
                     problema = %s
-                WHERE id = %s
+                WHERE id = %s;
             """,
                 (
                     equip_san,
-                    tomb_san,
-                    tec_san,
+                    tomb_san or "",
+                    tec_san or "",
                     data_validada,
-                    origem_san,
-                    os_san,
-                    loc_san,
-                    prob_san,
+                    origem_san or "",
+                    os_san or "",
+                    loc_san or "Bancada TI",
+                    prob_san or "",
                     registro_id,
                 ),
             )
@@ -198,7 +195,7 @@ class ColetaModel:
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("DELETE FROM coletas WHERE id = %s", (registro_id,))
+            cursor.execute("DELETE FROM coletas WHERE id = %s;", (registro_id,))
             conn.commit()
         except Exception as e:
             conn.rollback()
@@ -219,7 +216,7 @@ class ColetaModel:
                 """
                 SELECT * FROM coletas
                 WHERE data_coleta::text LIKE %s AND (status != 'Entregue' OR status IS NULL)
-                ORDER BY id DESC
+                ORDER BY id DESC;
             """,
                 (f"{mes_atual}%",),
             )
@@ -240,7 +237,7 @@ class ColetaModel:
                 """
                 SELECT * FROM coletas
                 WHERE data_coleta::text LIKE %s AND status = 'Entregue'
-                ORDER BY id DESC
+                ORDER BY id DESC;
             """,
                 (f"{mes_atual}%",),
             )
@@ -258,7 +255,7 @@ class ColetaModel:
         try:
             cursor.execute("""
                 SELECT * FROM coletas
-                ORDER BY id DESC
+                ORDER BY id DESC;
             """)
             return cursor.fetchall()
         finally:
@@ -275,7 +272,7 @@ class ColetaModel:
                 """
                 SELECT * FROM coletas 
                 WHERE data_coleta::text LIKE %s
-                ORDER BY id DESC
+                ORDER BY id DESC;
             """,
                 (f"{mes_str}%",),
             )

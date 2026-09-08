@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 
 from fastapi import FastAPI, Request, HTTPException, status
@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, field_validator
 
 # Imports das camadas do sistema
@@ -21,17 +22,33 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Inicializa o schema e migrações no Neon PostgreSQL
     init_db()
     yield
 
 
-app = FastAPI(title="Gestão de Equipamentos Web", version="2.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Gestão de Equipamentos Web",
+    version="2.0.0",
+    lifespan=lifespan
+)
 
 # Configuração de Arquivos Estáticos e Templates
 os.makedirs("static", exist_ok=True)
 os.makedirs("templates", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+
+# Handler personalizado para capturar erros de validação do Pydantic (422 -> 400 amigável)
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    erros = exc.errors()
+    primeiro_erro = erros[0]["msg"] if erros else "Dados de requisição inválidos."
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"success": False, "detail": f"Erro de Validação: {primeiro_erro}"},
+    )
 
 
 # ----------------------------------------------------
@@ -47,27 +64,29 @@ class EntradaEquipamentoSchema(BaseModel):
     localizacao: Optional[str] = "Bancada TI"
     problema: Optional[str] = ""
 
-    @field_validator("equipamento")
+    @field_validator("equipamento", mode="before")
     @classmethod
-    def validar_equipamento(cls, v: str) -> str:
-        txt = SecurityValidator.sanitizar_texto(v)
-        if not txt:
+    def validar_equipamento(cls, v: Any) -> str:
+        if not v or not str(v).strip():
             raise ValueError("O campo 'equipamento' é obrigatório.")
+        txt = SecurityValidator.sanitizar_texto(str(v))
+        if not txt:
+            raise ValueError("O campo 'equipamento' não pode conter caracteres inválidos.")
         return txt
 
     @field_validator("data_coleta", mode="before")
     @classmethod
-    def normalizar_data(cls, v: Optional[str]) -> str:
+    def normalizar_data(cls, v: Optional[Any]) -> str:
         if not v or not str(v).strip():
             return datetime.now().strftime("%Y-%m-%d")
-        return SecurityValidator.validar_data(v)
+        return SecurityValidator.validar_data(str(v))
 
     @field_validator("localizacao", mode="before")
     @classmethod
-    def normalizar_localizacao(cls, v: Optional[str]) -> str:
-        if not v:
+    def normalizar_localizacao(cls, v: Optional[Any]) -> str:
+        if not v or not str(v).strip():
             return "Bancada TI"
-        return SecurityValidator.validate_location(v)
+        return SecurityValidator.validate_location(str(v))
 
 
 class AtualizarEntradaSchema(EntradaEquipamentoSchema):
@@ -85,14 +104,16 @@ class SaidaEquipamentoSchema(BaseModel):
 
     @field_validator("data_entrega", mode="before")
     @classmethod
-    def normalizar_data_entrega(cls, v: Optional[str]) -> str:
+    def normalizar_data_entrega(cls, v: Optional[Any]) -> str:
         if not v or not str(v).strip():
             return datetime.now().strftime("%Y-%m-%d")
-        return SecurityValidator.validar_data(v)
+        return SecurityValidator.validar_data(str(v))
 
     @field_validator("valor_custo", mode="before")
     @classmethod
-    def normalizar_custo(cls, v) -> float:
+    def normalizar_custo(cls, v: Optional[Any]) -> float:
+        if v is None or v == "":
+            return 0.0
         return SecurityValidator.validate_cost(v)
 
 
@@ -246,4 +267,6 @@ def gerar_relatorio_mensal(payload: RelatorioFiltroSchema):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    # Lê a porta configurada no ambiente do Railway ou usa 8000 por padrão
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)

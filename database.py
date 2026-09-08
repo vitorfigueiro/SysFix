@@ -10,15 +10,22 @@ VERSAO_ATUAL_SCHEMA = 5  # Incrementado para refletir a remoção de NOT NULL
 
 
 def get_connection():
-    """Conecta no banco PostgreSQL hospedado na nuvem."""
+    """Conecta no banco PostgreSQL serverless hospedado no Neon (com SSL obrigatorio)."""
     if not DATABASE_URL:
         raise ValueError(
-            "A variável de ambiente DATABASE_URL não foi configurada no arquivo .env!"
+            "A variável de ambiente DATABASE_URL não foi configurada! Adicione-a no Railway/env."
         )
 
     url_conexao = DATABASE_URL
+
+    # Corrige prefixo para compatibilidade com psycopg2
     if url_conexao.startswith("postgres://"):
         url_conexao = url_conexao.replace("postgres://", "postgresql://", 1)
+
+    # Garante o parâmetro sslmode=require para o Neon DB
+    if "sslmode=" not in url_conexao:
+        conector = "&" if "?" in url_conexao else "?"
+        url_conexao += f"{conector}sslmode=require"
 
     return psycopg2.connect(url_conexao, cursor_factory=RealDictCursor)
 
@@ -28,7 +35,7 @@ def aplicar_migracoes(conn, versao_banco):
     cursor = conn.cursor()
 
     try:
-        # Migração Versão 1: Criação Inicial (Flexibilizando NOT NULL nos campos opcionais)
+        # Migração Versão 1: Criação Inicial
         if versao_banco < 1:
             cursor.execute(
                 """

@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 
@@ -17,7 +18,9 @@ class SecurityValidator:
         """Limpa espaços extras nas extremidades de entradas de texto."""
         if not texto:
             return ""
-        return str(texto).strip()
+        # Remove múltiplos espaços em branco consecutivos
+        clean = re.sub(r"\s+", " ", str(texto))
+        return clean.strip()
 
     @staticmethod
     def validate_location(location: str) -> str:
@@ -42,8 +45,8 @@ class SecurityValidator:
         if not data_str or not str(data_str).strip():
             return datetime.now().strftime("%Y-%m-%d")
 
-        # Mantém apenas o trecho da data caso venha acompanhado de horário
-        data_limpa = str(data_str).strip().split(" ")[0]
+        # Trata separadores de data/hora ISO (T ou espaço)
+        data_limpa = str(data_str).strip().replace("T", " ").split(" ")[0]
 
         formatos = (
             "%Y-%m-%d",  # 2026-09-08 (ISO / HTML5 input)

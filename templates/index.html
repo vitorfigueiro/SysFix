@@ -6,7 +6,7 @@
   <title>SysFix - Gestão de Equipamentos</title>
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Inter e Plus Jakarta Sans -->
+  <!-- Google Fonts: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -214,8 +214,8 @@
       <div class="p-3 border-b border-pastel-border bg-slate-50 flex items-center justify-between">
         <span class="text-xs font-bold text-slate-700">Equipamentos Cadastrados</span>
         <div class="flex gap-1">
-          <button onclick="carregarLista('nao_finalizados_mes')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Pendentes</button>
-          <button onclick="carregarLista('finalizados_mes')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Entregues</button>
+          <button onclick="carregarLista('nao_finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Pendentes</button>
+          <button onclick="carregarLista('finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Entregues</button>
           <button onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Todos</button>
         </div>
       </div>
@@ -340,7 +340,6 @@
   </div>
 
   <!-- JAVASCRIPT DE INTERATIVIDADE -->
-<!-- JAVASCRIPT DE INTERATIVIDADE CORRIGIDO E COMPLETO -->
   <script>
     let registroSelecionadoId = null;
 
@@ -381,6 +380,15 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+    }
+
+    function converterDataParaInput(dataStr) {
+      if (!dataStr) return new Date().toISOString().split('T')[0];
+      if (dataStr.includes('/')) {
+        const partes = dataStr.split('/');
+        if (partes.length === 3) return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+      }
+      return dataStr;
     }
 
     function alternarTab(tab) {
@@ -479,8 +487,8 @@
         // Preencher formulários
         document.getElementById('ent_equip').value = d.equipamento || '';
         document.getElementById('ent_tomb').value = d.tombamento || '';
-        document.getElementById('ent_tec').value = d.tecnico || '';
-        document.getElementById('ent_data').value = d.data_coleta || '';
+        document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
+        document.getElementById('ent_data').value = converterDataParaInput(d.data_coleta);
         document.getElementById('ent_origem').value = d.origem || '';
         document.getElementById('ent_os').value = d.os_coleta || '';
         document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
@@ -488,7 +496,7 @@
 
         document.getElementById('sai_tec').value = d.tecnico_entrega || '';
         document.getElementById('sai_os').value = d.os_entrega || '';
-        document.getElementById('sai_data').value = d.data_entrega || new Date().toISOString().split('T')[0];
+        document.getElementById('sai_data').value = converterDataParaInput(d.data_entrega);
         document.getElementById('sai_laudado').value = d.laudado || 'Não';
         document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
         document.getElementById('sai_valor').value = d.valor_custo || '0.00';
@@ -505,7 +513,7 @@
         document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
         document.getElementById('f_equipamento').innerText = d.equipamento;
         document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || 'N/A'}`;
-        document.getElementById('f_tec_coleta').innerText = d.tecnico || 'N/A';
+        document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || 'N/A';
         document.getElementById('f_data_coleta').innerText = d.data_coleta || 'N/A';
         document.getElementById('f_os_coleta').innerText = d.os_coleta || 'N/A';
         document.getElementById('f_origem').innerText = d.origem || 'N/A';
@@ -533,13 +541,11 @@
 
     async function salvarEntrada() {
       const dataInput = document.getElementById('ent_data').value;
-      const dataColeta = dataInput || new Date().toISOString().split('T')[0];
-
       const payload = {
         equipamento: document.getElementById('ent_equip').value.trim(),
         tombamento: document.getElementById('ent_tomb').value.trim(),
         tecnico: document.getElementById('ent_tec').value.trim(),
-        data_coleta: dataColeta,
+        data_coleta: dataInput,
         origem: document.getElementById('ent_origem').value.trim(),
         os_coleta: document.getElementById('ent_os').value.trim(),
         localizacao: document.getElementById('ent_loc').value,
@@ -593,33 +599,33 @@
         });
 
         if (res.ok) {
-          alert("Registro atualizado com sucesso!");
-          carregarLista('nao_finalizados');
+          alert("Registro de entrada atualizado com sucesso!");
           selecionarItem(registroSelecionadoId);
+          carregarLista('nao_finalizados');
         } else {
           const err = await res.json();
           alert("Erro: " + (err.detail || "Falha ao atualizar"));
         }
       } catch (e) {
-        alert("Erro ao conectar com o servidor.");
+        alert("Erro ao se comunicar com o servidor.");
       }
     }
 
     async function salvarSaida() {
-      if (!registroSelecionadoId) return alert("Selecione um equipamento na lista para dar saída!");
+      if (!registroSelecionadoId) return alert("Selecione um equipamento da lista para dar saída!");
 
       const payload = {
         tecnico_entrega: document.getElementById('sai_tec').value.trim(),
         data_entrega: document.getElementById('sai_data').value,
         os_entrega: document.getElementById('sai_os').value.trim(),
         status_custo: document.getElementById('sai_status_custo').value,
-        valor_custo: parseFloat(document.getElementById('sai_valor').value) || 0.0,
+        valor_custo: parseFloat(document.getElementById('sai_valor').value || 0),
         resolucao: document.getElementById('sai_resolucao').value.trim(),
         laudado: document.getElementById('sai_laudado').value
       };
 
       if (!payload.tecnico_entrega) {
-        alert("Por favor, preencha o nome do Técnico de Entrega.");
+        alert("Por favor, informe o técnico responsável pela entrega.");
         return;
       }
 
@@ -632,41 +638,37 @@
 
         if (res.ok) {
           alert("Saída/Entrega registrada com sucesso!");
-          carregarLista('nao_finalizados');
           selecionarItem(registroSelecionadoId);
+          carregarLista('finalizados');
         } else {
           const err = await res.json();
           alert("Erro: " + (err.detail || "Falha ao registrar saída"));
         }
       } catch (e) {
-        alert("Erro ao conectar com o servidor.");
+        alert("Erro ao se comunicar com o servidor.");
       }
     }
 
     async function excluirRegistroAdmin() {
-      if (!registroSelecionadoId) return alert("Selecione um equipamento na lista para excluir!");
+      if (!registroSelecionadoId) return alert("Selecione um equipamento da lista para excluir!");
 
-      if (!confirm(`Tem certeza que deseja excluir permanentemente o registro #${registroSelecionadoId}?`)) return;
-
-      try {
-        const res = await fetch(`/api/equipamentos/${registroSelecionadoId}`, {
-          method: 'DELETE'
-        });
-
-        if (res.ok) {
-          alert("Registro excluído com sucesso.");
-          limparFormularios();
-          carregarLista('nao_finalizados');
-        } else {
-          const err = await res.json();
-          alert("Erro ao excluir: " + (err.detail || "Erro desconhecido"));
+      if (confirm(`Tem certeza que deseja excluir permanentemente o registro #${registroSelecionadoId}?`)) {
+        try {
+          const res = await fetch(`/api/equipamentos/${registroSelecionadoId}`, { method: 'DELETE' });
+          if (res.ok) {
+            alert("Registro excluído!");
+            limparFormularios();
+            carregarLista('nao_finalizados');
+          } else {
+            const err = await res.json();
+            alert("Erro ao excluir: " + (err.detail || "Erro desconhecido"));
+          }
+        } catch (e) {
+          alert("Erro ao se comunicar com o servidor.");
         }
-      } catch (e) {
-        alert("Erro de conexão ao tentar excluir.");
       }
     }
 
-    // Modal Relatório Functions
     function abrirModalRelatorio() {
       document.getElementById('modalRelatorio').classList.remove('hidden');
     }
@@ -678,9 +680,9 @@
     function baixarRelatorioPDF() {
       const mes = document.getElementById('rel_mes').value;
       const ano = document.getElementById('rel_ano').value;
-      const anonimizar = document.getElementById('rel_anonimizar').checked;
+      const anonimizar = document.getElementById('rel_anonimizar').checked ? 1 : 0;
 
-      alert(`Gerando relatório do mês ${mes}/${ano}...`);
+      window.open(`/api/relatorio?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`, '_blank');
       fecharModalRelatorio();
     }
   </script>

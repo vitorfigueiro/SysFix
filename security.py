@@ -27,7 +27,7 @@ class SecurityValidator:
         """Valida se a localização pertence à Whitelist."""
         if not location:
             return "Bancada TI"  # Valor padrão amigável
-            
+
         clean_loc = str(location).strip()
         if clean_loc not in SecurityValidator.LOCALIZACOES_PERMITIDAS:
             raise ValueError(
@@ -40,6 +40,7 @@ class SecurityValidator:
         """
         Valida se a data enviada está correta e converte SEMPRE 
         para o formato ISO padrão do banco de dados (YYYY-MM-DD).
+        Aceita formatos brasileiros (DD/MM/YYYY) e ISO.
         Se a data for vazia ou nula, retorna a data atual.
         """
         if not data_str or not str(data_str).strip():

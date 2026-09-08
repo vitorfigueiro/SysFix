@@ -22,8 +22,8 @@ class ColetaModel:
         tomb_san = SecurityValidator.sanitizar_texto(tombamento)
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
 
-        # Se data_coleta vier vazia, injeta a data de hoje
-        data_para_validar = data_coleta if data_coleta else datetime.now().strftime("%Y-%m-%d")
+        # Se data_coleta vier vazia, injeta a data de hoje no formato brasileiro DD/MM/YYYY
+        data_para_validar = data_coleta if data_coleta else datetime.now().strftime("%d/%m/%Y")
         data_validada = SecurityValidator.validar_data(data_para_validar)
 
         origem_san = SecurityValidator.sanitizar_texto(origem)
@@ -206,10 +206,6 @@ class ColetaModel:
 
     @staticmethod
     def buscar_nao_finalizados_mes_atual():
-        """
-        Retorna TODOS os equipamentos pendentes na bancada (não entregues),
-        independentemente do mês em que deram entrada.
-        """
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
@@ -228,13 +224,10 @@ class ColetaModel:
 
     @staticmethod
     def buscar_finalizados_mes_atual():
-        """
-        Retorna os equipamentos entregues no mês atual (suporta formatos YYYY-MM e DD/MM/YYYY).
-        """
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        mes_iso = datetime.now().strftime("%Y-%m")      # Ex: '2026-09'
-        mes_br = datetime.now().strftime("/%m/%Y")      # Ex: '/09/2026'
+        mes_iso = datetime.now().strftime("%Y-%m")
+        mes_br = datetime.now().strftime("/%m/%Y")
 
         try:
             cursor.execute(
@@ -258,7 +251,6 @@ class ColetaModel:
 
     @staticmethod
     def buscar_todos():
-        """Busca todos os registros do banco de dados sem restrições."""
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
@@ -295,7 +287,6 @@ class ColetaModel:
 
     @staticmethod
     def buscar_por_id(registro_id):
-        """Busca o registro pelo ID e retorna os dados mapeados por nome de coluna."""
         if not registro_id:
             return None
 

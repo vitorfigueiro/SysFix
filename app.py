@@ -1,10 +1,11 @@
 import os
-from typing import Optional
+from datetime import datetime, date
+from typing import Optional, Union
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from database import init_db, get_connection
 from models import ColetaModel
@@ -17,7 +18,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configuração de CORS (libera chamadas do frontend no Railway / Local)
+# Configuração de CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,17 +27,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Monta diretório de arquivos estáticos (CSS, JS, Imagens) se a pasta 'static' existir
+# Monta diretório de arquivos estáticos (CSS, JS, Imagens) se existir
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# Modelos Pydantic para validação das requisições
+# Função para converter de forma flexível datas enviadas como String (ISO, BR ou Objeto date)
+def validar_e_formatar_data(v: Union[str, date, None]) -> str:
+    if not v:
+        return ""
+    if isinstance(v, date):
+        return v.strftime("%d/%m/%Y")
+    
+    v = str(v).strip()
+    if not v:
+        return ""
+
+    # Tenta ler formato Brasileiro DD/MM/YYYY
+    try:
+        dt = datetime.strptime(v, "%d/%m/%Y")
+        return dt.strftime("%d/%m/%Y")
+    except ValueError:
+        pass
+
+    # Tenta ler formato ISO YYYY-MM-DD
+    try:
+        dt = datetime.strptime(v, "%Y-%m-%d")
+        return dt.strftime("%d/%m/%Y")
+    except ValueError:
+        pass
+
+    # Se for em outro formato de string já aceito
+    return v
+
+
+# Modelos Pydantic ajustados para aceitar str e date flexivelmente
 class EntradaSchema(BaseModel):
     equipamento: str
     tombamento: Optional[str] = ""
     tecnico: Optional[str] = ""
-    data_coleta: Optional[str] = ""
+    data_coleta: Optional[Union[str, date]] = ""  # Aceita DD/MM/YYYY, YYYY-MM-DD ou objeto date
     origem: Optional[str] = ""
     os_coleta: Optional[str] = ""
     localizacao: Optional[str] = ""
@@ -44,10 +74,15 @@ class EntradaSchema(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
+    @field_validator("data_coleta", mode="before")
+    @classmethod
+    def normalizar_data(cls, v):
+        return validar_e_formatar_data(v)
+
 
 class SaidaSchema(BaseModel):
     tecnico_entrega: str
-    data_entrega: str
+    data_entrega: Optional[Union[str, date]] = ""  # Aceita DD/MM/YYYY, YYYY-MM-DD ou objeto date
     os_entrega: Optional[str] = ""
     status_custo: Optional[str] = "Sem Custo"
     valor_custo: Optional[float] = 0.0
@@ -56,11 +91,16 @@ class SaidaSchema(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
+    @field_validator("data_entrega", mode="before")
+    @classmethod
+    def normalizar_data(cls, v):
+        return validar_e_formatar_data(v)
+
 
 # Rota Principal: Servir o Frontend (index.html)
 @app.get("/", response_class=FileResponse)
 def read_index():
-    index_path = os.path.join(os.path.dirname(__file__), "templates/index.html")
+    index_path = os.path.join(os.path.dirname(__file__), "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     raise HTTPException(status_code=404, detail="Arquivo index.html não encontrado no servidor.")
@@ -69,12 +109,12 @@ def read_index():
 # Rota de Diagnóstico do Banco de Dados
 @app.get("/debug-db")
 def debug_db():
-    """Retorna a contagem total e os últimos registros para verificar migração do SQLite."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT COUNT(*) FROM coletas;")
-        total_coletas = cursor.fetchone()["count"]
+        res = cursor.fetchone()
+        total_coletas = res["count"] if isinstance(res, dict) else res[0]
 
         cursor.execute("SELECT id, equipamento, status, data_coleta FROM coletas ORDER BY id DESC LIMIT 5;")
         ultimos_registros = cursor.fetchall()
@@ -95,12 +135,6 @@ def debug_db():
 
 @app.get("/api/equipamentos")
 def listar_equipamentos(filtro: Optional[str] = Query("nao_finalizados")):
-    """
-    Retorna a lista de equipamentos.
-    - 'nao_finalizados': todos pendentes na bancada.
-    - 'finalizados': entregues no mês atual.
-    - 'todos': histórico completo.
-    """
     try:
         if filtro == "finalizados":
             dados = ColetaModel.buscar_finalizados_mes_atual()
@@ -121,10 +155,12 @@ def obter_equipamento(registro_id: int):
         if not dados:
             raise HTTPException(status_code=404, detail="Equipamento não encontrado.")
         
-        # Garante substituição de valores None por string vazia mantendo compatibilidade
         resultado = {}
         for key, val in dados.items():
-            resultado[key] = "" if val is None else val
+            if isinstance(val, date):
+                resultado[key] = val.strftime("%d/%m/%Y")
+            else:
+                resultado[key] = "" if val is None else val
 
         return resultado
     except HTTPException:
@@ -140,7 +176,7 @@ def criar_entrada(payload: EntradaSchema):
             equipamento=payload.equipamento,
             tombamento=payload.tombamento,
             tecnico=payload.tecnico,
-            data_coleta=payload.data_coleta,
+            data_coleta=payload.data_coleta,  # Já normalizada para DD/MM/YYYY
             origem=payload.origem,
             os_coleta=payload.os_coleta,
             localizacao=payload.localizacao,
@@ -159,7 +195,7 @@ def registrar_saida(registro_id: int, payload: SaidaSchema):
         ColetaModel.registrar_saida(
             registro_id=registro_id,
             tecnico_entrega=payload.tecnico_entrega,
-            data_entrega=payload.data_entrega,
+            data_entrega=payload.data_entrega,  # Já normalizada para DD/MM/YYYY
             os_entrega=payload.os_entrega,
             status_custo=payload.status_custo,
             valor_custo=payload.valor_custo,
@@ -181,7 +217,7 @@ def atualizar_entrada(registro_id: int, payload: EntradaSchema):
             equipamento=payload.equipamento,
             tombamento=payload.tombamento,
             tecnico=payload.tecnico,
-            data_coleta=payload.data_coleta,
+            data_coleta=payload.data_coleta,  # Já normalizada para DD/MM/YYYY
             origem=payload.origem,
             os_coleta=payload.os_coleta,
             localizacao=payload.localizacao,

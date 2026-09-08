@@ -5,18 +5,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
 VERSAO_ATUAL_SCHEMA = 5  # Incrementado para refletir a remoção de NOT NULL
 
 
 def get_connection():
-    """Conecta no banco PostgreSQL serverless hospedado no Neon (com SSL obrigatorio)."""
-    if not DATABASE_URL:
+    """Conecta no banco PostgreSQL serverless hospedado no Neon (com SSL obrigatório)."""
+    # Lê a variável de ambiente em tempo de execução
+    database_url = os.getenv("DATABASE_URL")
+
+    if not database_url:
         raise ValueError(
             "A variável de ambiente DATABASE_URL não foi configurada! Adicione-a no Railway/env."
         )
 
-    url_conexao = DATABASE_URL
+    url_conexao = database_url
 
     # Corrige prefixo para compatibilidade com psycopg2
     if url_conexao.startswith("postgres://"):

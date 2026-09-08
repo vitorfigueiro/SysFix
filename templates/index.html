@@ -119,8 +119,8 @@
             <label class="block text-xs font-semibold text-slate-600 mb-1">Localização</label>
             <select id="ent_loc" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
               <option value="Bancada TI">Bancada TI</option>
-              <option value="Estoque">PlayLan</option>
-              <option value="Manutenção Externa">Central Informática</option>
+              <option value="PlayLan">PlayLan</option>
+              <option value="Central Informática">Central Informática</option>
               <option value="Aguardando Peça">Aguardando Peça</option>
             </select>
           </div>
@@ -421,54 +421,88 @@
     }
 
     async function salvarEntrada() {
-  const dataInput = document.getElementById('ent_data').value;
-  // Se o campo de data estiver vazio, usa a data atual no formato YYYY-MM-DD
-  const dataColeta = dataInput || new Date().toISOString().split('T')[0];
+      const dataInput = document.getElementById('ent_data').value;
+      const dataColeta = dataInput || new Date().toISOString().split('T')[0];
 
-  const payload = {
-    equipamento: document.getElementById('ent_equip').value.trim(),
-    tombamento: document.getElementById('ent_tomb').value.trim(),
-    tecnico_coleta: document.getElementById('ent_tec').value.trim(),
-    data_coleta: dataColeta,
-    origem: document.getElementById('ent_origem').value.trim(),
-    os_coleta: document.getElementById('ent_os').value.trim(),
-    localizacao: document.getElementById('ent_loc').value,
-    problema: document.getElementById('ent_prob').value.trim()
-  };
+      const payload = {
+        equipamento: document.getElementById('ent_equip').value.trim(),
+        tombamento: document.getElementById('ent_tomb').value.trim(),
+        tecnico_coleta: document.getElementById('ent_tec').value.trim(),
+        data_coleta: dataColeta,
+        origem: document.getElementById('ent_origem').value.trim(),
+        os_coleta: document.getElementById('ent_os').value.trim(),
+        localizacao: document.getElementById('ent_loc').value,
+        problema: document.getElementById('ent_prob').value.trim()
+      };
 
-  // Validação básica antes do envio
-  if (!payload.equipamento) {
-    alert("Por favor, preencha o nome do equipamento.");
-    return;
-  }
+      if (!payload.equipamento) {
+        alert("Por favor, preencha o nome do equipamento.");
+        return;
+      }
 
-  try {
-    const res = await fetch('/api/equipamentos/entrada', { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload) 
-    });
+      try {
+        const res = await fetch('/api/equipamentos/entrada', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload) 
+        });
 
-    if (res.ok) {
-      alert("Entrada registrada com sucesso!");
-      limparFormularios();
-      carregarLista('nao_finalizados_mes');
-    } else {
-      const err = await res.json();
-      // Mostra o detalhe do erro retornado pelo FastAPI
-      console.error("Erro da API:", err);
-      if (Array.isArray(err.detail)) {
-        const mensagens = err.detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join('\n');
-        alert("Erro de validação:\n" + mensagens);
-      } else {
-        alert("Erro: " + (err.detail || "Falha ao registrar entrada"));
+        if (res.ok) {
+          alert("Entrada registrada com sucesso!");
+          limparFormularios();
+          carregarLista('nao_finalizados_mes');
+        } else {
+          const err = await res.json();
+          alert("Erro: " + (err.detail || "Falha ao registrar entrada"));
+        }
+      } catch (e) {
+        alert("Erro ao se comunicar com o servidor.");
       }
     }
-  } catch (e) {
-    console.error("Erro de conexão:", e);
-    alert("Erro ao se comunicar com o servidor.");
-  }
-}
+
+    async function atualizarEntradaAdmin() {
+      if (!registroSelecionadoId) {
+        alert("Selecione um equipamento na lista para editar.");
+        return;
+      }
+
+      const senha = prompt("Informe a senha de administrador para salvar as alterações:");
+      if (!senha) return;
+
+      const dataInput = document.getElementById('ent_data').value;
+      const dataColeta = dataInput || new Date().toISOString().split('T')[0];
+
+      const payload = {
+        equipamento: document.getElementById('ent_equip').value.trim(),
+        tombamento: document.getElementById('ent_tomb').value.trim(),
+        tecnico_coleta: document.getElementById('ent_tec').value.trim(),
+        data_coleta: dataColeta,
+        origem: document.getElementById('ent_origem').value.trim(),
+        os_coleta: document.getElementById('ent_os').value.trim(),
+        localizacao: document.getElementById('ent_loc').value,
+        problema: document.getElementById('ent_prob').value.trim(),
+        admin_password: senha
+      };
+
+      try {
+        const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/entrada`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          alert("Entrada atualizada com sucesso!");
+          carregarLista('nao_finalizados_mes');
+          selecionarItem(registroSelecionadoId);
+        } else {
+          const err = await res.json();
+          alert("Erro: " + (err.detail || "Falha ao atualizar registro"));
+        }
+      } catch (e) {
+        alert("Erro ao se comunicar com o servidor.");
+      }
+    }
 
     async function salvarSaida() {
       if (!registroSelecionadoId) return alert("Selecione um item primeiro!");
@@ -496,6 +530,69 @@
       } else {
         const err = await res.json();
         alert("Erro: " + err.detail);
+      }
+    }
+
+    async function excluirRegistroAdmin() {
+      if (!registroSelecionadoId) {
+        alert("Selecione um registro para excluir.");
+        return;
+      }
+
+      const senha = prompt("Informe a senha de administrador para excluir este registro:");
+      if (!senha) return;
+
+      try {
+        const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/excluir`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admin_password: senha })
+        });
+
+        if (res.ok) {
+          alert("Registro excluído com sucesso!");
+          limparFormularios();
+          carregarLista('nao_finalizados_mes');
+        } else {
+          const err = await res.json();
+          alert("Erro: " + (err.detail || "Falha ao excluir registro"));
+        }
+      } catch (e) {
+        alert("Erro ao se comunicar com o servidor.");
+      }
+    }
+
+    async function abrirModalRelatorio() {
+      const mesStr = prompt("Informe o mês (1-12):", new Date().getMonth() + 1);
+      if (!mesStr) return;
+      const anoStr = prompt("Informe o ano (ex: 2026):", new Date().getFullYear());
+      if (!anoStr) return;
+
+      const mes = parseInt(mesStr);
+      const ano = parseInt(anoStr);
+
+      try {
+        const res = await fetch('/api/relatorios/mensal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mes, ano })
+        });
+
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `relatorio_coletas_${ano}_${mes.toString().padStart(2, '0')}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } else {
+          const err = await res.json();
+          alert("Erro ao gerar relatório: " + (err.detail || "Falha interna"));
+        }
+      } catch (e) {
+        alert("Erro ao solicitar relatório.");
       }
     }
 

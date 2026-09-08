@@ -36,7 +36,6 @@ class ColetaModel:
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            # Corrigido: os_coleta (estava os_coelta) e adicionado o 8º %s que faltava
             cursor.execute(
                 """
                 INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, os_coleta, localizacao, problema)
@@ -139,6 +138,9 @@ class ColetaModel:
         localizacao,
         problema,
     ):
+        if not registro_id:
+            raise ValueError("ID de registro inválido para atualização.")
+
         equip_san = SecurityValidator.sanitizar_texto(equipamento)
         tomb_san = SecurityValidator.sanitizar_texto(tombamento)
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
@@ -186,6 +188,9 @@ class ColetaModel:
 
     @staticmethod
     def excluir(registro_id):
+        if not registro_id:
+            raise ValueError("ID de registro inválido para exclusão.")
+
         conn = get_connection()
         cursor = conn.cursor()
         try:
@@ -278,10 +283,15 @@ class ColetaModel:
     @staticmethod
     def buscar_por_id(registro_id):
         """Busca o registro pelo ID e retorna os dados mapeados por nome de coluna."""
+        if not registro_id:
+            return None
+
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
-            cursor.execute("SELECT * FROM coletas WHERE id = %s;", (registro_id,))
+            cursor.execute(
+                "SELECT * FROM coletas WHERE id = %s;", (registro_id,)
+            )
             return cursor.fetchone()
         finally:
             cursor.close()

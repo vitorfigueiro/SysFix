@@ -16,7 +16,7 @@ from reports import PDFReportGenerator
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 
-# Ciclo de vida moderno do FastAPI (substitui @app.on_event)
+# Ciclo de vida moderno do FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -33,11 +33,8 @@ templates = Jinja2Templates(directory="templates")
 
 
 # ----------------------------------------------------
-# MODELOS PYDANTIC (Para aceitar payloads JSON e Form)
+# MODELOS PYDANTIC (Ajustados para evitar erro 400/500)
 # ----------------------------------------------------
-from pydantic import BaseModel
-from typing import Optional
-
 class EntradaEquipamentoSchema(BaseModel):
     equipamento: str
     tombamento: Optional[str] = ""
@@ -48,16 +45,22 @@ class EntradaEquipamentoSchema(BaseModel):
     localizacao: Optional[str] = "Bancada TI"
     problema: Optional[str] = ""
 
-# ESSENCIAL PARA RESOLVER O ERRO DO PYDANTIC NO PYTHON 3.14:
-EntradaEquipamentoSchema.model_rebuild()
 
-class AtualizarEntradaSchema(EntradaEquipamentoSchema):
+class AtualizarEntradaSchema(BaseModel):
+    equipamento: str
+    tombamento: Optional[str] = ""
+    tecnico_coleta: Optional[str] = ""
+    data_coleta: Optional[str] = ""
+    origem: Optional[str] = ""
+    os_coleta: Optional[str] = ""
+    localizacao: Optional[str] = "Bancada TI"
+    problema: Optional[str] = ""
     admin_password: str
 
 
 class SaidaEquipamentoSchema(BaseModel):
-    tecnico_entrega: str
-    data_entrega: str
+    tecnico_entrega: Optional[str] = ""
+    data_entrega: Optional[str] = ""
     os_entrega: Optional[str] = ""
     status_custo: Optional[str] = "Sem Custo"
     valor_custo: Optional[float] = 0.0
@@ -72,6 +75,14 @@ class AcaoAdminSchema(BaseModel):
 class RelatorioFiltroSchema(BaseModel):
     mes: int
     ano: int
+
+
+# Reconstrução explicita dos esquemas para compatibilidade com Python 3.14 / Pydantic v2
+EntradaEquipamentoSchema.model_rebuild()
+AtualizarEntradaSchema.model_rebuild()
+SaidaEquipamentoSchema.model_rebuild()
+AcaoAdminSchema.model_rebuild()
+RelatorioFiltroSchema.model_rebuild()
 
 
 # ----------------------------------------------------
@@ -102,7 +113,6 @@ def listar_equipamentos(filtro: str = "nao_finalizados_mes"):
         if r.get("data_entrega"):
             r["data_entrega"] = str(r["data_entrega"])
 
-    # jsonable_encoder resolve a serialização de Decimal (valor_custo) e outros tipos
     return JSONResponse(content=jsonable_encoder(regs))
 
 
@@ -112,7 +122,6 @@ def obter_equipamento(registro_id: int):
     if not dados:
         raise HTTPException(status_code=404, detail="Registro não encontrado.")
     
-    # Formatação de nulos e datas para exibição limpa no frontend
     for key, val in dados.items():
         if val is None:
             dados[key] = ""
@@ -127,13 +136,13 @@ def registrar_entrada(payload: EntradaEquipamentoSchema):
     try:
         reg_id = ColetaModel.registrar_entrada(
             payload.equipamento,
-            payload.tombamento,
-            payload.tecnico_coleta,
-            payload.data_coleta,
-            payload.origem,
-            payload.os_coleta,
-            payload.localizacao,
-            payload.problema,
+            payload.tombamento or "",
+            payload.tecnico_coleta or "",
+            payload.data_coleta or "",
+            payload.origem or "",
+            payload.os_coleta or "",
+            payload.localizacao or "Bancada TI",
+            payload.problema or "",
         )
         return {"success": True, "id": reg_id, "message": "Entrada registrada com sucesso!"}
     except Exception as e:
@@ -149,13 +158,13 @@ def atualizar_entrada(registro_id: int, payload: AtualizarEntradaSchema):
         ColetaModel.atualizar_entrada(
             registro_id,
             payload.equipamento,
-            payload.tombamento,
-            payload.tecnico_coleta,
-            payload.data_coleta,
-            payload.origem,
-            payload.os_coleta,
-            payload.localizacao,
-            payload.problema,
+            payload.tombamento or "",
+            payload.tecnico_coleta or "",
+            payload.data_coleta or "",
+            payload.origem or "",
+            payload.os_coleta or "",
+            payload.localizacao or "Bancada TI",
+            payload.problema or "",
         )
         return {"success": True, "message": "Dados de entrada atualizados!"}
     except Exception as e:
@@ -167,13 +176,13 @@ def registrar_saida(registro_id: int, payload: SaidaEquipamentoSchema):
     try:
         ColetaModel.registrar_saida(
             registro_id,
-            payload.tecnico_entrega,
-            payload.data_entrega,
-            payload.os_entrega,
-            payload.status_custo,
-            payload.valor_custo,
-            payload.resolucao,
-            payload.laudado,
+            payload.tecnico_entrega or "",
+            payload.data_entrega or "",
+            payload.os_entrega or "",
+            payload.status_custo or "Sem Custo",
+            payload.valor_custo or 0.0,
+            payload.resolucao or "",
+            payload.laudado or "Não",
         )
         return {"success": True, "message": "Saída registrada com sucesso!"}
     except Exception as e:

@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-
 VERSAO_ATUAL_SCHEMA = 4
 
 
@@ -77,17 +76,23 @@ def aplicar_migracoes(conn, versao_banco):
             colunas_para_adicionar = [
                 ("os_coleta", "VARCHAR(255)"),
                 ("os_entrega", "VARCHAR(255)"),
-                ("data_entrega", "VARCHAR(255)")
+                ("data_entrega", "VARCHAR(255)"),
             ]
-            
+
             for nome_coluna, tipo_coluna in colunas_para_adicionar:
                 try:
-                    cursor.execute(f"ALTER TABLE coletas ADD COLUMN IF NOT EXISTS {nome_coluna} {tipo_coluna};")
-                    cursor.execute(f"ALTER TABLE coletas ALTER COLUMN {nome_coluna} DROP NOT NULL;")
-                    conn.commit()  # Garante a criação individual de cada coluna
+                    cursor.execute(
+                        f"ALTER TABLE coletas ADD COLUMN IF NOT EXISTS {nome_coluna} {tipo_coluna};"
+                    )
+                    cursor.execute(
+                        f"ALTER TABLE coletas ALTER COLUMN {nome_coluna} DROP NOT NULL;"
+                    )
+                    conn.commit()
                 except Exception as err_coluna:
                     conn.rollback()
-                    print(f"Aviso ao adicionar coluna {nome_coluna}: {err_coluna}")
+                    print(
+                        f"Aviso ao adicionar coluna {nome_coluna}: {err_coluna}"
+                    )
 
         # Atualiza a versão registrada no banco
         cursor.execute(
@@ -129,7 +134,6 @@ def init_db():
             )
             conn.commit()
         else:
-            # Compatível com RealDictCursor (dicionário) ou cursor normal (tupla/lista)
             if isinstance(row, dict):
                 versao_banco = row.get("versao", 0)
             else:

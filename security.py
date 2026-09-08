@@ -33,7 +33,7 @@ class SecurityValidator:
         if not data_str or not str(data_str).strip():
             raise ValueError("A data não pode estar vazia.")
 
-        data_limpa = str(data_str).strip()
+        data_limpa = str(data_str).replace(" ","").strip()
 
         # Aceita DD/MM/AAAA, DD-MM-AAAA, AAAA-MM-DD e AAAA/MM/DD
         formatos = (

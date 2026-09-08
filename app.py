@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 
 from database import init_db, get_connection
-from ColetaModel import ColetaModel
+from models import ColetaModel
 
 # Inicializa o banco de dados e aplica migrações
 init_db()

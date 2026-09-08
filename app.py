@@ -2,6 +2,8 @@ import os
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
 from database import init_db, get_connection
@@ -23,6 +25,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Monta diretório de arquivos estáticos (CSS, JS, Imagens) se a pasta 'static' existir
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # Modelos Pydantic para validação das requisições
@@ -49,6 +55,15 @@ class SaidaSchema(BaseModel):
     laudado: Optional[str] = "Não"
 
     model_config = ConfigDict(extra="ignore")
+
+
+# Rota Principal: Servir o Frontend (index.html)
+@app.get("/", response_class=FileResponse)
+def read_index():
+    index_path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    raise HTTPException(status_code=404, detail="Arquivo index.html não encontrado no servidor.")
 
 
 # Rota de Diagnóstico do Banco de Dados

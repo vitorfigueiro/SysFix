@@ -5,26 +5,27 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-VERSAO_ATUAL_SCHEMA = 5  # Incrementado para refletir a remoção de NOT NULL
+VERSAO_ATUAL_SCHEMA = 5
 
 
 def get_connection():
-    """Conecta no banco PostgreSQL serverless hospedado no Neon (com SSL obrigatório)."""
-    # Lê a variável de ambiente em tempo de execução
+    """Conecta no banco PostgreSQL hospedado no Neon."""
     database_url = os.getenv("DATABASE_URL")
 
+    # Debug para confirmar o carregamento correto nos logs do Railway
     if not database_url:
+        print("[DEBUG ERROR] DATABASE_URL não foi encontrada em os.environ!")
         raise ValueError(
             "A variável de ambiente DATABASE_URL não foi configurada! Adicione-a no Railway/env."
         )
 
-    url_conexao = database_url
+    url_conexao = database_url.strip()
 
-    # Corrige prefixo para compatibilidade com psycopg2
+    # Corrige prefixo antigo postgres:// para postgresql://
     if url_conexao.startswith("postgres://"):
         url_conexao = url_conexao.replace("postgres://", "postgresql://", 1)
 
-    # Garante o parâmetro sslmode=require para o Neon DB
+    # Garante o SSL para o Neon DB sem duplicar parâmetros
     if "sslmode=" not in url_conexao:
         conector = "&" if "?" in url_conexao else "?"
         url_conexao += f"{conector}sslmode=require"

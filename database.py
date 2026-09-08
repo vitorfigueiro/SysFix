@@ -160,35 +160,172 @@ def init_db():
         conn.close()
 
 
-def buscar_por_tombamento(tombamento: str):
+# ==============================================================================
+# FUNÇÕES CRUD INTEGRADAS AO FRONTEND
+# ==============================================================================
+
+def salvar_coleta(dados: dict):
+    """Insere um novo registro de entrada de equipamento no banco de dados."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        query = """
+            INSERT INTO coletas (
+                equipamento, tombamento, tecnico_coleta, data_coleta, 
+                origem, os_coleta, localizacao, problema, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pendente')
+            RETURNING id;
+        """
         cursor.execute(
-            "SELECT * FROM coletas WHERE tombamento = %s;", (tombamento,)
+            query,
+            (
+                dados.get("equipamento"),
+                dados.get("tombamento"),
+                dados.get("tecnico") or dados.get("tecnico_coleta"),
+                dados.get("data_coleta"),
+                dados.get("origem"),
+                dados.get("os_coleta"),
+                dados.get("localizacao"),
+                dados.get("problema"),
+            ),
         )
+        novo_id = cursor.fetchone()["id"]
+        conn.commit()
+        return novo_id
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def listar_coletas(status_filtro: str = "todos"):
+    """Lista os equipamentos filtrando por status (nao_finalizados, finalizados, todos)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        if status_filtro == "nao_finalizados":
+            cursor.execute("SELECT * FROM coletas WHERE status != 'Entregue' ORDER BY id DESC;")
+        elif status_filtro == "finalizados":
+            cursor.execute("SELECT * FROM coletas WHERE status = 'Entregue' ORDER BY id DESC;")
+        else:
+            cursor.execute("SELECT * FROM coletas ORDER BY id DESC;")
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def obter_coleta_por_id(registro_id: int):
+    """Obtém os detalhes de um equipamento pelo ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM coletas WHERE id = %s;", (registro_id,))
         return cursor.fetchone()
     finally:
         cursor.close()
         conn.close()
 
 
-def deletar_registro_e_auditar(tombamento: str, usuario_atual: str):
+def atualizar_coleta_entrada(registro_id: int, dados: dict):
+    """Atualiza as informações de entrada de um equipamento existente."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        query = """
+            UPDATE coletas SET
+                equipamento = %s,
+                tombamento = %s,
+                tecnico_coleta = %s,
+                data_coleta = %s,
+                origem = %s,
+                os_coleta = %s,
+                localizacao = %s,
+                problema = %s
+            WHERE id = %s;
+        """
         cursor.execute(
-            "DELETE FROM coletas WHERE tombamento = %s;", (tombamento,)
+            query,
+            (
+                dados.get("equipamento"),
+                dados.get("tombamento"),
+                dados.get("tecnico") or dados.get("tecnico_coleta"),
+                dados.get("data_coleta"),
+                dados.get("origem"),
+                dados.get("os_coleta"),
+                dados.get("localizacao"),
+                dados.get("problema"),
+                registro_id,
+            ),
         )
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def salvar_saida_coleta(registro_id: int, dados: dict):
+    """Registra a saída/resolução do equipamento e altera o status para Entregue."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        query = """
+            UPDATE coletas SET
+                tecnico_entrega = %s,
+                os_entrega = %s,
+                data_entrega = %s,
+                laudado = %s,
+                status_custo = %s,
+                valor_custo = %s,
+                resolucao = %s,
+                status = 'Entregue'
+            WHERE id = %s;
+        """
+        cursor.execute(
+            query,
+            (
+                dados.get("tecnico_entrega"),
+                dados.get("os_entrega"),
+                dados.get("data_entrega"),
+                dados.get("laudado"),
+                dados.get("status_custo"),
+                dados.get("valor_custo", 0.0),
+                dados.get("resolucao"),
+                registro_id,
+            ),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def deletar_registro_e_auditar(registro_id: int, usuario_atual: str = "Sistema"):
+    """Exclui o equipamento pelo ID e grava o evento no log de auditoria."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM coletas WHERE id = %s;", (registro_id,))
         cursor.execute(
             "INSERT INTO logs_auditoria (usuario, acao, detalhes) VALUES (%s, %s, %s);",
             (
                 usuario_atual,
                 "EXCLUSAO_REGISTRO",
-                f"Tombamento removido: {tombamento}",
+                f"Registro ID {registro_id} removido",
             ),
         )
         conn.commit()
+        return True
     except Exception as e:
         conn.rollback()
         raise e

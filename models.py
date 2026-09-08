@@ -54,7 +54,17 @@ class ColetaModel:
                     prob_san or "",
                 ),
             )
-            novo_id = cursor.fetchone()[0]
+            
+            row = cursor.fetchone()
+            
+            # Compatibilidade tanto com RealDictCursor ({'id': X}) quanto com cursor padrão ((X,))
+            if isinstance(row, dict):
+                novo_id = row.get("id")
+            elif row:
+                novo_id = row[0]
+            else:
+                novo_id = None
+
             conn.commit()
             return novo_id
         except Exception as e:
@@ -117,6 +127,7 @@ class ColetaModel:
                 ),
             )
             conn.commit()
+            return True
         except Exception as e:
             conn.rollback()
             raise e
@@ -180,6 +191,7 @@ class ColetaModel:
                 ),
             )
             conn.commit()
+            return True
         except Exception as e:
             conn.rollback()
             raise e
@@ -197,6 +209,7 @@ class ColetaModel:
         try:
             cursor.execute("DELETE FROM coletas WHERE id = %s;", (registro_id,))
             conn.commit()
+            return True
         except Exception as e:
             conn.rollback()
             raise e

@@ -27,11 +27,9 @@ class ColetaModel:
         loc_san = SecurityValidator.sanitizar_texto(localizacao)
         prob_san = SecurityValidator.sanitizar_texto(problema)
 
-        if not equip_san or not tomb_san or not tec_san or not origem_san:
-            raise ValueError(
-                "Preencha todos os campos obrigatórios (Equipamento,"
-                " Tombamento, Técnico e Origem)."
-            )
+        # Apenas equipamento é estritamente obrigatório no cadastro
+        if not equip_san:
+            raise ValueError("O nome do equipamento é obrigatório.")
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -44,12 +42,12 @@ class ColetaModel:
             """,
                 (
                     equip_san,
-                    tomb_san,
-                    tec_san,
+                    tomb_san or "S/N",
+                    tec_san or "Não informado",
                     data_validada,
-                    origem_san,
+                    origem_san or "Geral",
                     os_san,
-                    loc_san,
+                    loc_san or "Bancada TI",
                     prob_san,
                 ),
             )
@@ -88,7 +86,7 @@ class ColetaModel:
         val_custo = SecurityValidator.validate_cost(valor_custo)
         res_san = SecurityValidator.sanitizar_texto(resolucao)
         laudado_san = SecurityValidator.sanitizar_texto(laudado)
-        entrega_san = SecurityValidator.sanitizar_texto(data_entrega)
+        entrega_san = SecurityValidator.validar_data(data_entrega)
         os_san = SecurityValidator.sanitizar_texto(os_entrega)
 
         conn = get_connection()
@@ -149,6 +147,9 @@ class ColetaModel:
         os_san = SecurityValidator.sanitizar_texto(os_coleta)
         loc_san = SecurityValidator.sanitizar_texto(localizacao)
         prob_san = SecurityValidator.sanitizar_texto(problema)
+
+        if not equip_san:
+            raise ValueError("O nome do equipamento é obrigatório.")
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -214,7 +215,7 @@ class ColetaModel:
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE data_coleta LIKE %s AND (status != 'Entregue' OR status IS NULL)
+                WHERE data_coleta::text LIKE %s AND (status != 'Entregue' OR status IS NULL)
                 ORDER BY id DESC
             """,
                 (f"{mes_atual}%",),
@@ -235,7 +236,7 @@ class ColetaModel:
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE data_coleta LIKE %s AND status = 'Entregue'
+                WHERE data_coleta::text LIKE %s AND status = 'Entregue'
                 ORDER BY id DESC
             """,
                 (f"{mes_atual}%",),
@@ -270,7 +271,7 @@ class ColetaModel:
             cursor.execute(
                 """
                 SELECT * FROM coletas 
-                WHERE data_coleta LIKE %s
+                WHERE data_coleta::text LIKE %s
                 ORDER BY id DESC
             """,
                 (f"{mes_str}%",),

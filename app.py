@@ -264,6 +264,27 @@ def gerar_relatorio_mensal(payload: RelatorioFiltroSchema):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF: {str(e)}")
 
+@app.get("/debug-db")
+def debug_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Listar todas as tabelas no schema public
+    cursor.execute(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+    )
+    tabelas = cursor.fetchall()
+
+    # Contar registros de uma tabela específica (ex: equipamentos)
+    contagem = {}
+    for t in tabelas:
+        nome_tabela = t["table_name"]
+        cursor.execute(f"SELECT COUNT(*) as total FROM {nome_tabela};")
+        contagem[nome_tabela] = cursor.fetchone()["total"]
+
+    conn.close()
+    return {"tabelas_encontradas": tabelas, "quantidade_registros": contagem}
+
 
 if __name__ == "__main__":
     import uvicorn

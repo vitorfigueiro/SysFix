@@ -37,12 +37,12 @@ templates = Jinja2Templates(directory="templates")
 # ----------------------------------------------------
 class EntradaEquipamentoSchema(BaseModel):
     equipamento: str
-    tombamento: str
-    tecnico_coleta: str
-    data_coleta: str
-    origem: str
+    tombamento: Optional[str] = ""
+    tecnico_coleta: Optional[str] = ""
+    data_coleta: Optional[date] = None
+    origem: Optional[str] = ""
     os_coleta: Optional[str] = ""
-    localizacao: Optional[str] = ""
+    localizacao: Optional[str] = "Bancada TI"
     problema: Optional[str] = ""
 
 

@@ -421,32 +421,54 @@
     }
 
     async function salvarEntrada() {
-      const payload = {
-        equipamento: document.getElementById('ent_equip').value,
-        tombamento: document.getElementById('ent_tomb').value,
-        tecnico_coleta: document.getElementById('ent_tec').value,
-        data_coleta: document.getElementById('ent_data').value,
-        origem: document.getElementById('ent_origem').value,
-        os_coleta: document.getElementById('ent_os').value,
-        localizacao: document.getElementById('ent_loc').value,
-        problema: document.getElementById('ent_prob').value
-      };
+  const dataInput = document.getElementById('ent_data').value;
+  // Se o campo de data estiver vazio, usa a data atual no formato YYYY-MM-DD
+  const dataColeta = dataInput || new Date().toISOString().split('T')[0];
 
-      const res = await fetch('/api/equipamentos/entrada', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload) 
-      });
+  const payload = {
+    equipamento: document.getElementById('ent_equip').value.trim(),
+    tombamento: document.getElementById('ent_tomb').value.trim(),
+    tecnico_coleta: document.getElementById('ent_tec').value.trim(),
+    data_coleta: dataColeta,
+    origem: document.getElementById('ent_origem').value.trim(),
+    os_coleta: document.getElementById('ent_os').value.trim(),
+    localizacao: document.getElementById('ent_loc').value,
+    problema: document.getElementById('ent_prob').value.trim()
+  };
 
-      if (res.ok) {
-        alert("Entrada registrada!");
-        limparFormularios();
-        carregarLista('nao_finalizados_mes');
+  // Validação básica antes do envio
+  if (!payload.equipamento) {
+    alert("Por favor, preencha o nome do equipamento.");
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/equipamentos/entrada', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload) 
+    });
+
+    if (res.ok) {
+      alert("Entrada registrada com sucesso!");
+      limparFormularios();
+      carregarLista('nao_finalizados_mes');
+    } else {
+      const err = await res.json();
+      // Mostra o detalhe do erro retornado pelo FastAPI
+      console.error("Erro da API:", err);
+      if (Array.isArray(err.detail)) {
+        const mensagens = err.detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join('\n');
+        alert("Erro de validação:\n" + mensagens);
       } else {
-        const err = await res.json();
-        alert("Erro: " + err.detail);
+        alert("Erro: " + (err.detail || "Falha ao registrar entrada"));
       }
     }
+  } catch (e) {
+    console.error("Erro de conexão:", e);
+    alert("Erro ao se comunicar com o servidor.");
+  }
+}
 
     async function salvarSaida() {
       if (!registroSelecionadoId) return alert("Selecione um item primeiro!");

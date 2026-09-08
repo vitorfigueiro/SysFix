@@ -2,7 +2,7 @@ import os
 import uvicorn
 from datetime import datetime, date
 from typing import Optional, Union
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -10,8 +10,6 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from mensagens import obter_mensagem_erro
 from database import init_db, get_connection
 from models import ColetaModel
-from flask import Flask
-from flask_cors import CORS
 
 # Inicializa o banco de dados e aplica migrações
 init_db()
@@ -21,23 +19,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Exemplo de rota de cadastro utilizando as mensagens amigáveis
-@app.post("/api/equipamentos")
-async def cadastrar_equipamento(dados: dict):
-    if not dados.get("equipamento"):
-        # Retorna erro 400 com mensagem clara
-        erro = obter_mensagem_erro("MISSING_FIELDS", detalhe_tecnico="Campo 'equipamento' ausente")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=erro)
-    
-    try:
-        # Lógica de salvar no BD aqui...
-        return {"status": "sucesso", "mensagem": "Equipamento cadastrado com sucesso!"}
-    except Exception as e:
-        # Tratamento generico para erros de banco ou execução
-        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=erro)
-
-# Configuração de CORS
+# Configuração de CORS para liberar conexões do frontend/Railway
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -76,7 +58,6 @@ def validar_e_formatar_data(v: Union[str, date, None]) -> str:
     except ValueError:
         pass
 
-    # Se for em outro formato de string já aceito
     return v
 
 
@@ -85,7 +66,7 @@ class EntradaSchema(BaseModel):
     equipamento: str
     tombamento: Optional[str] = ""
     tecnico: Optional[str] = ""
-    data_coleta: Optional[Union[str, date]] = ""  # Aceita DD/MM/YYYY, YYYY-MM-DD ou objeto date
+    data_coleta: Optional[Union[str, date]] = ""
     origem: Optional[str] = ""
     os_coleta: Optional[str] = ""
     localizacao: Optional[str] = ""
@@ -101,7 +82,7 @@ class EntradaSchema(BaseModel):
 
 class SaidaSchema(BaseModel):
     tecnico_entrega: str
-    data_entrega: Optional[Union[str, date]] = ""  # Aceita DD/MM/YYYY, YYYY-MM-DD ou objeto date
+    data_entrega: Optional[Union[str, date]] = ""
     os_entrega: Optional[str] = ""
     status_custo: Optional[str] = "Sem Custo"
     valor_custo: Optional[float] = 0.0
@@ -164,7 +145,8 @@ def listar_equipamentos(filtro: Optional[str] = Query("nao_finalizados")):
         
         return dados
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao buscar registros: {str(e)}")
+        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
+        raise HTTPException(status_code=500, detail=erro)
 
 
 @app.get("/api/equipamentos/{registro_id}")
@@ -172,7 +154,8 @@ def obter_equipamento(registro_id: int):
     try:
         dados = ColetaModel.buscar_por_id(registro_id)
         if not dados:
-            raise HTTPException(status_code=404, detail="Equipamento não encontrado.")
+            erro = obter_mensagem_erro("NOT_FOUND")
+            raise HTTPException(status_code=404, detail=erro)
         
         resultado = {}
         for key, val in dados.items():
@@ -185,17 +168,22 @@ def obter_equipamento(registro_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao obter equipamento: {str(e)}")
+        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
+        raise HTTPException(status_code=500, detail=erro)
 
 
 @app.post("/api/equipamentos")
 def criar_entrada(payload: EntradaSchema):
+    if not payload.equipamento:
+        erro = obter_mensagem_erro("MISSING_FIELDS", detalhe_tecnico="Campo 'equipamento' ausente")
+        raise HTTPException(status_code=400, detail=erro)
+
     try:
         novo_id = ColetaModel.registrar_entrada(
             equipamento=payload.equipamento,
             tombamento=payload.tombamento,
             tecnico=payload.tecnico,
-            data_coleta=payload.data_coleta,  # Já normalizada para DD/MM/YYYY
+            data_coleta=payload.data_coleta,
             origem=payload.origem,
             os_coleta=payload.os_coleta,
             localizacao=payload.localizacao,
@@ -205,7 +193,8 @@ def criar_entrada(payload: EntradaSchema):
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
+        raise HTTPException(status_code=500, detail=erro)
 
 
 @app.put("/api/equipamentos/{registro_id}/saida")
@@ -214,7 +203,7 @@ def registrar_saida(registro_id: int, payload: SaidaSchema):
         ColetaModel.registrar_saida(
             registro_id=registro_id,
             tecnico_entrega=payload.tecnico_entrega,
-            data_entrega=payload.data_entrega,  # Já normalizada para DD/MM/YYYY
+            data_entrega=payload.data_entrega,
             os_entrega=payload.os_entrega,
             status_custo=payload.status_custo,
             valor_custo=payload.valor_custo,
@@ -225,7 +214,8 @@ def registrar_saida(registro_id: int, payload: SaidaSchema):
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
+        raise HTTPException(status_code=500, detail=erro)
 
 
 @app.put("/api/equipamentos/{registro_id}")
@@ -236,7 +226,7 @@ def atualizar_entrada(registro_id: int, payload: EntradaSchema):
             equipamento=payload.equipamento,
             tombamento=payload.tombamento,
             tecnico=payload.tecnico,
-            data_coleta=payload.data_coleta,  # Já normalizada para DD/MM/YYYY
+            data_coleta=payload.data_coleta,
             origem=payload.origem,
             os_coleta=payload.os_coleta,
             localizacao=payload.localizacao,
@@ -246,7 +236,8 @@ def atualizar_entrada(registro_id: int, payload: EntradaSchema):
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
+        raise HTTPException(status_code=500, detail=erro)
 
 
 @app.delete("/api/equipamentos/{registro_id}")
@@ -255,11 +246,11 @@ def deletar_equipamento(registro_id: int):
         ColetaModel.excluir(registro_id)
         return {"sucesso": True, "mensagem": "Registro excluído com sucesso."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao excluir registro: {str(e)}")
+        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
+        raise HTTPException(status_code=500, detail=erro)
 
-app = Flask(__name__)
-CORS(app)
 
+# Inicialização do servidor Uvicorn escutando a porta do ambiente
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

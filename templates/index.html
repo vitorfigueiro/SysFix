@@ -591,6 +591,11 @@
         problema: document.getElementById('ent_prob').value.trim()
       };
 
+      if (!payload.equipamento) {
+        alert("Por favor, preencha o nome do equipamento.");
+        return;
+      }
+
       try {
         const res = await fetch(`/api/equipamentos/${registroSelecionadoId}`, {
           method: 'PUT',
@@ -600,11 +605,12 @@
 
         if (res.ok) {
           alert("Registro de entrada atualizado com sucesso!");
-          selecionarItem(registroSelecionadoId);
+          const idAtual = registroSelecionadoId;
           carregarLista('nao_finalizados');
+          selecionarItem(idAtual);
         } else {
           const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao atualizar"));
+          alert("Erro: " + (err.detail || "Falha ao atualizar registro"));
         }
       } catch (e) {
         alert("Erro ao se comunicar com o servidor.");
@@ -612,22 +618,26 @@
     }
 
     async function salvarSaida() {
-      if (!registroSelecionadoId) return alert("Selecione um equipamento da lista para dar saída!");
-
-      const payload = {
-        tecnico_entrega: document.getElementById('sai_tec').value.trim(),
-        data_entrega: document.getElementById('sai_data').value,
-        os_entrega: document.getElementById('sai_os').value.trim(),
-        status_custo: document.getElementById('sai_status_custo').value,
-        valor_custo: parseFloat(document.getElementById('sai_valor').value || 0),
-        resolucao: document.getElementById('sai_resolucao').value.trim(),
-        laudado: document.getElementById('sai_laudado').value
-      };
-
-      if (!payload.tecnico_entrega) {
-        alert("Por favor, informe o técnico responsável pela entrega.");
+      if (!registroSelecionadoId) {
+        alert("Selecione um equipamento na lista para registrar a saída.");
         return;
       }
+
+      const tecEntrega = document.getElementById('sai_tec').value.trim();
+      if (!tecEntrega) {
+        alert("Por favor, preencha o nome do Técnico de Entrega.");
+        return;
+      }
+
+      const payload = {
+        tecnico_entrega: tecEntrega,
+        os_entrega: document.getElementById('sai_os').value.trim(),
+        data_entrega: document.getElementById('sai_data').value,
+        laudado: document.getElementById('sai_laudado').value,
+        status_custo: document.getElementById('sai_status_custo').value,
+        valor_custo: parseFloat(document.getElementById('sai_valor').value) || 0.0,
+        resolucao: document.getElementById('sai_resolucao').value.trim()
+      };
 
       try {
         const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/saida`, {
@@ -638,8 +648,9 @@
 
         if (res.ok) {
           alert("Saída/Entrega registrada com sucesso!");
-          selecionarItem(registroSelecionadoId);
-          carregarLista('finalizados');
+          const idAtual = registroSelecionadoId;
+          carregarLista('nao_finalizados');
+          selecionarItem(idAtual);
         } else {
           const err = await res.json();
           alert("Erro: " + (err.detail || "Falha ao registrar saída"));
@@ -650,25 +661,34 @@
     }
 
     async function excluirRegistroAdmin() {
-      if (!registroSelecionadoId) return alert("Selecione um equipamento da lista para excluir!");
+      if (!registroSelecionadoId) {
+        alert("Selecione um equipamento para excluir.");
+        return;
+      }
 
-      if (confirm(`Tem certeza que deseja excluir permanentemente o registro #${registroSelecionadoId}?`)) {
-        try {
-          const res = await fetch(`/api/equipamentos/${registroSelecionadoId}`, { method: 'DELETE' });
-          if (res.ok) {
-            alert("Registro excluído!");
-            limparFormularios();
-            carregarLista('nao_finalizados');
-          } else {
-            const err = await res.json();
-            alert("Erro ao excluir: " + (err.detail || "Erro desconhecido"));
-          }
-        } catch (e) {
-          alert("Erro ao se comunicar com o servidor.");
+      if (!confirm(`Tem certeza que deseja excluir permanentemente o registro #${registroSelecionadoId}?`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/equipamentos/${registroSelecionadoId}`, {
+          method: 'DELETE'
+        });
+
+        if (res.ok) {
+          alert("Registro excluído com sucesso!");
+          limparFormularios();
+          carregarLista('nao_finalizados');
+        } else {
+          const err = await res.json();
+          alert("Erro: " + (err.detail || "Falha ao excluir registro"));
         }
+      } catch (e) {
+        alert("Erro ao se comunicar com o servidor.");
       }
     }
 
+    // CONTROLE DO MODAL DE RELATÓRIO
     function abrirModalRelatorio() {
       document.getElementById('modalRelatorio').classList.remove('hidden');
     }
@@ -680,47 +700,17 @@
     function baixarRelatorioPDF() {
       const mes = document.getElementById('rel_mes').value;
       const ano = document.getElementById('rel_ano').value;
-      const anonimizar = document.getElementById('rel_anonimizar').checked ? 1 : 0;
+      const anonimizar = document.getElementById('rel_anonimizar').checked ? '1' : '0';
 
-      window.open(`/api/relatorio?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`, '_blank');
+      if (!ano) {
+        alert("Informe o ano para o relatório.");
+        return;
+      }
+
+      const url = `/api/relatorios/pdf?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`;
+      window.open(url, '_blank');
       fecharModalRelatorio();
     }
-
-    // Adicione esta função auxiliar no script do seu index.html
-function exibirErro(errPayload) {
-  if (errPayload && errPayload.detail) {
-    if (typeof errPayload.detail === 'object' && errPayload.detail.mensagem) {
-      alert("⚠️ " + errPayload.detail.mensagem);
-      return;
-    }
-    alert("⚠️ " + errPayload.detail);
-    return;
-  }
-  alert("⚠️ Ocorreu um erro ao processar a requisição.");
-}
-
-// Exemplo de como usar nas chamadas de fetch:
-async function salvarEntrada() {
-  // ... campos do formulário ...
-  try {
-    const res = await fetch('/api/equipamentos', { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload) 
-    });
-
-    if (res.ok) {
-      alert("Entrada registrada com sucesso!");
-      limparFormularios();
-      carregarLista('nao_finalizados');
-    } else {
-      const err = await res.json();
-      exibirErro(err); // Exibe a mensagem amigável vinda do backend
-    }
-  } catch (e) {
-    alert("⚠️ Não foi possível se comunicar com o servidor. Verifique sua conexão.");
-  }
-}
   </script>
 </body>
 </html>

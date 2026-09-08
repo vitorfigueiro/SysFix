@@ -12,7 +12,6 @@ def get_connection():
     """Conecta no banco PostgreSQL hospedado no Neon."""
     database_url = os.getenv("DATABASE_URL")
 
-    # Debug para confirmar o carregamento correto nos logs do Railway
     if not database_url:
         print("[DEBUG ERROR] DATABASE_URL não foi encontrada em os.environ!")
         raise ValueError(
@@ -25,7 +24,7 @@ def get_connection():
     if url_conexao.startswith("postgres://"):
         url_conexao = url_conexao.replace("postgres://", "postgresql://", 1)
 
-    # Garante o SSL para o Neon DB sem duplicar parâmetros
+    # Garante SSL sem duplicar parâmetros
     if "sslmode=" not in url_conexao:
         conector = "&" if "?" in url_conexao else "?"
         url_conexao += f"{conector}sslmode=require"
@@ -34,11 +33,10 @@ def get_connection():
 
 
 def aplicar_migracoes(conn, versao_banco):
-    """Aplica as alterações no banco de dados de acordo com a versão atual."""
+    """Aplica as alterações no banco de dados de acordo com a versão do schema."""
     cursor = conn.cursor()
 
     try:
-        # Migração Versão 1: Criação Inicial
         if versao_banco < 1:
             cursor.execute(
                 """
@@ -74,14 +72,12 @@ def aplicar_migracoes(conn, versao_banco):
             )
             conn.commit()
 
-        # Migração Versão 2
         if versao_banco < 2:
             cursor.execute(
                 "ALTER TABLE coletas ADD COLUMN IF NOT EXISTS tecnico_coleta VARCHAR(255);"
             )
             conn.commit()
 
-        # Migração Versão 4: Adição individual das colunas de O.S. e entregas
         if versao_banco < 4:
             colunas_para_adicionar = [
                 ("os_coleta", "VARCHAR(255)"),
@@ -100,11 +96,8 @@ def aplicar_migracoes(conn, versao_banco):
                     conn.commit()
                 except Exception as err_coluna:
                     conn.rollback()
-                    print(
-                        f"Aviso ao adicionar coluna {nome_coluna}: {err_coluna}"
-                    )
+                    print(f"Aviso ao adicionar coluna {nome_coluna}: {err_coluna}")
 
-        # Migração Versão 5: Remove restrições NOT NULL antigas caso a tabela já exista
         if versao_banco < 5:
             colunas_flexiveis = ["tombamento", "tecnico_coleta", "origem", "localizacao"]
             for col in colunas_flexiveis:
@@ -115,7 +108,6 @@ def aplicar_migracoes(conn, versao_banco):
                     conn.rollback()
                     print(f"Aviso ao alterar NOT NULL da coluna {col}: {err_drop}")
 
-        # Atualiza a versão registrada no banco
         cursor.execute(
             "UPDATE schema_version SET versao = %s WHERE id = 1;",
             (VERSAO_ATUAL_SCHEMA,),
@@ -130,7 +122,7 @@ def aplicar_migracoes(conn, versao_banco):
 
 
 def init_db():
-    """Inicializa e atualiza o banco de dados automaticamente na nuvem."""
+    """Inicializa a tabela de controle de versão e executa migrações necessárias."""
     conn = get_connection()
     cursor = conn.cursor()
 

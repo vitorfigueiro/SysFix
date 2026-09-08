@@ -206,19 +206,20 @@ class ColetaModel:
 
     @staticmethod
     def buscar_nao_finalizados_mes_atual():
-        """Busca equipamentos cadastrados no mês atual que ainda NÃO foram entregues."""
+        """
+        Retorna TODOS os equipamentos pendentes na bancada (não entregues),
+        independentemente do mês em que deram entrada.
+        """
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        mes_atual = datetime.now().strftime("%Y-%m")
 
         try:
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE data_coleta::text LIKE %s AND (status != 'Entregue' OR status IS NULL)
+                WHERE (LOWER(status) != 'entregue' OR status IS NULL)
                 ORDER BY id DESC;
-            """,
-                (f"{mes_atual}%",),
+            """
             )
             return cursor.fetchall()
         finally:
@@ -227,19 +228,28 @@ class ColetaModel:
 
     @staticmethod
     def buscar_finalizados_mes_atual():
-        """Busca equipamentos entregues no mês atual."""
+        """
+        Retorna os equipamentos entregues no mês atual (suporta formatos YYYY-MM e DD/MM/YYYY).
+        """
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        mes_atual = datetime.now().strftime("%Y-%m")
+        mes_iso = datetime.now().strftime("%Y-%m")      # Ex: '2026-09'
+        mes_br = datetime.now().strftime("/%m/%Y")      # Ex: '/09/2026'
 
         try:
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE data_coleta::text LIKE %s AND status = 'Entregue'
+                WHERE LOWER(status) = 'entregue'
+                  AND (
+                    data_coleta::text LIKE %s 
+                    OR data_coleta::text LIKE %s
+                    OR data_entrega::text LIKE %s
+                    OR data_entrega::text LIKE %s
+                  )
                 ORDER BY id DESC;
             """,
-                (f"{mes_atual}%",),
+                (f"{mes_iso}%", f"%{mes_br}", f"{mes_iso}%", f"%{mes_br}"),
             )
             return cursor.fetchall()
         finally:
@@ -248,7 +258,7 @@ class ColetaModel:
 
     @staticmethod
     def buscar_todos():
-        """Busca todos os registros do banco de dados."""
+        """Busca todos os registros do banco de dados sem restrições."""
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
@@ -264,17 +274,19 @@ class ColetaModel:
 
     @staticmethod
     def buscar_por_mes_ano(mes: int, ano: int):
-        mes_str = f"{ano:04d}-{mes:02d}"
+        mes_iso = f"{ano:04d}-{mes:02d}"
+        mes_br = f"/{mes:02d}/{ano:04d}"
+        
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
             cursor.execute(
                 """
                 SELECT * FROM coletas 
-                WHERE data_coleta::text LIKE %s
+                WHERE data_coleta::text LIKE %s OR data_coleta::text LIKE %s
                 ORDER BY id DESC;
             """,
-                (f"{mes_str}%",),
+                (f"{mes_iso}%", f"%{mes_br}"),
             )
             return cursor.fetchall()
         finally:

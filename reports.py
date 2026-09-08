@@ -4,12 +4,15 @@ from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+
 from models import ColetaModel
+from security import SecurityValidator
+
 
 class PDFReportGenerator:
 
     @staticmethod
-    def _gerar_pdf_buffer(titulo, dados):
+    def _gerar_pdf_buffer(titulo, dados, anonimizar: bool = False):
         """Gera o arquivo PDF diretamente em um buffer de memória (BytesIO)."""
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
@@ -45,31 +48,41 @@ class PDFReportGenerator:
             except (ValueError, TypeError):
                 val_fmt = "R$ 0,00"
 
-            # Formatação segura de datas (YYYY-MM-DD)
+            # Formatação de datas resiliente
             raw_data = str(reg.get('data_coleta') or '')
-            if len(raw_data) >= 10:
+            data_fmt = "-"
+            if raw_data:
                 try:
-                    data_fmt = datetime.strptime(raw_data[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+                    # Usa o SecurityValidator para converter qualquer formato de data recebido para YYYY-MM-DD
+                    iso_date = SecurityValidator.validar_data(raw_data)
+                    data_fmt = datetime.strptime(iso_date, "%Y-%m-%d").strftime("%d/%m/%Y")
                 except ValueError:
                     data_fmt = raw_data
-            else:
-                data_fmt = raw_data or "-"
-            
+
+            # Tratamento de dados pessoais (LGPD)
+            tec_coleta = str(reg.get('tecnico_coleta') or '-')
+            tec_entrega = str(reg.get('tecnico_entrega') or '-')
+            if anonimizar:
+                tec_coleta = SecurityValidator.mask_personal_data(tec_coleta)
+                tec_entrega = SecurityValidator.mask_personal_data(tec_entrega)
+
             table_data.append([
                 str(reg.get('id', '')),
                 Paragraph(str(reg.get('equipamento') or '-'), cell_style),
                 Paragraph(str(reg.get('tombamento') or '-'), cell_style),
-                Paragraph(str(reg.get('tecnico_coleta') or '-'), cell_style),
+                Paragraph(tec_coleta, cell_style),
                 data_fmt,
                 Paragraph(str(reg.get('origem') or '-'), cell_style),
                 str(reg.get('status') or '-'),
                 val_fmt,
                 Paragraph(str(reg.get('resolucao') or '-'), cell_style),
-                Paragraph(str(reg.get('tecnico_entrega') or '-'), cell_style)
+                Paragraph(tec_entrega, cell_style)
             ])
 
+        # Estilização da Tabela com suporte a linhas zebradas
         t = Table(table_data, colWidths=[30, 110, 60, 85, 60, 95, 65, 65, 110, 85])
-        t.setStyle(TableStyle([
+        
+        t_style = [
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2C3E50")),
             ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
             ('ALIGN', (0,0), (-1,-1), 'LEFT'),
@@ -77,7 +90,14 @@ class PDFReportGenerator:
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#BDC3C7")),
             ('FONTSIZE', (0,0), (-1,-1), 8),
             ('BOTTOMPADDING', (0,0), (-1,0), 6),
-        ]))
+        ]
+
+        # Adiciona fundo zebrado (cinza claro) para linhas pares
+        for i in range(1, len(table_data)):
+            if i % 2 == 0:
+                t_style.append(('BACKGROUND', (0, i), (-1, i), colors.HexColor("#F8F9FA")))
+
+        t.setStyle(TableStyle(t_style))
         
         elements.append(t)
         doc.build(elements)
@@ -85,8 +105,8 @@ class PDFReportGenerator:
         return buffer
 
     @classmethod
-    def relatorio_por_mes(cls, mes: int, ano: int):
+    def relatorio_por_mes(cls, mes: int, ano: int, anonimizar: bool = False):
         nome_meses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
         dados = ColetaModel.buscar_por_mes_ano(mes, ano)
         titulo = f"Relatório de Equipamentos - {nome_meses[mes]} / {ano}"
-        return cls._gerar_pdf_buffer(titulo, dados)
+        return cls._gerar_pdf_buffer(titulo, dados, anonimizar=anonimizar)

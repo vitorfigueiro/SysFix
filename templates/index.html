@@ -341,83 +341,96 @@
     }
 
     async function carregarLista(filtro) {
-      const res = await fetch(`/api/equipamentos?filtro=${filtro}`);
-      const dados = await res.json();
-      const tbody = document.getElementById('tabelaCorpo');
-      tbody.innerHTML = '';
+      try {
+        const res = await fetch(`/api/equipamentos?filtro=${filtro}`);
+        const dados = await res.json();
+        const tbody = document.getElementById('tabelaCorpo');
+        tbody.innerHTML = '';
 
-      dados.forEach(item => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100";
-        tr.onclick = () => selecionarItem(item.id);
-        
-        const badge = item.status === "Entregue" 
-          ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>'
-          : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente</span>';
+        dados.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100";
+          tr.onclick = (e) => {
+            e.stopPropagation(); // Evita reset pelo listener global
+            selecionarItem(item.id);
+          };
+          
+          const badge = item.status === "Entregue" 
+            ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>'
+            : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente</span>';
 
-        tr.innerHTML = `
-          <td class="p-2.5 font-bold text-slate-500">#${item.id}</td>
-          <td class="p-2.5 font-semibold text-slate-800">${item.equipamento}</td>
-          <td class="p-2.5 text-slate-600">${item.tombamento}</td>
-          <td class="p-2.5">${badge}</td>
-        `;
-        tbody.appendChild(tr);
-      });
+          tr.innerHTML = `
+            <td class="p-2.5 font-bold text-slate-500">#${item.id}</td>
+            <td class="p-2.5 font-semibold text-slate-800">${item.equipamento}</td>
+            <td class="p-2.5 text-slate-600">${item.tombamento || '-'}</td>
+            <td class="p-2.5">${badge}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        console.error("Erro ao carregar lista:", e);
+      }
     }
 
     async function selecionarItem(id) {
       registroSelecionadoId = id;
-      const res = await fetch(`/api/equipamentos/${id}`);
-      const d = await res.json();
+      try {
+        const res = await fetch(`/api/equipamentos/${id}`);
+        const d = await res.json();
 
-      // Preencher formulários
-      document.getElementById('ent_equip').value = d.equipamento || '';
-      document.getElementById('ent_tomb').value = d.tombamento || '';
-      document.getElementById('ent_tec').value = d.tecnico_coleta || '';
-      document.getElementById('ent_data').value = d.data_coleta || '';
-      document.getElementById('ent_origem').value = d.origem || '';
-      document.getElementById('ent_os').value = d.os_coleta || '';
-      document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
-      document.getElementById('ent_prob').value = d.problema || '';
+        // Preencher formulários
+        document.getElementById('ent_equip').value = d.equipamento || '';
+        document.getElementById('ent_tomb').value = d.tombamento || '';
+        document.getElementById('ent_tec').value = d.tecnico_coleta || '';
+        document.getElementById('ent_data').value = d.data_coleta || '';
+        document.getElementById('ent_origem').value = d.origem || '';
+        document.getElementById('ent_os').value = d.os_coleta || '';
+        document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
+        document.getElementById('ent_prob').value = d.problema || '';
 
-      document.getElementById('sai_tec').value = d.tecnico_entrega || '';
-      document.getElementById('sai_os').value = d.os_entrega || '';
-      document.getElementById('sai_data').value = d.data_entrega || new Date().toISOString().split('T')[0];
-      document.getElementById('sai_laudado').value = d.laudado || 'Não';
-      document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
-      document.getElementById('sai_valor').value = d.valor_custo || '0.00';
-      document.getElementById('sai_resolucao').value = d.resolucao || '';
-      alternarCampoCusto();
+        document.getElementById('sai_tec').value = d.tecnico_entrega || '';
+        document.getElementById('sai_os').value = d.os_entrega || '';
+        document.getElementById('sai_data').value = d.data_entrega || new Date().toISOString().split('T')[0];
+        document.getElementById('sai_laudado').value = d.laudado || 'Não';
+        document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
+        document.getElementById('sai_valor').value = d.valor_custo || '0.00';
+        document.getElementById('sai_resolucao').value = d.resolucao || '';
+        alternarCampoCusto();
 
-      document.getElementById('badgeStatusSelecao').className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
-      document.getElementById('badgeStatusSelecao').innerText = `✔ Selecionado: #${d.id} - ${d.equipamento}`;
+        document.getElementById('badgeStatusSelecao').className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
+        document.getElementById('badgeStatusSelecao').innerText = `✔ Selecionado: #${d.id} - ${d.equipamento}`;
 
-      // Exibir Ficha Técnica
-      document.getElementById('fichaVazia').classList.add('hidden');
-      document.getElementById('fichaConteudo').classList.remove('hidden');
+        // Exibir Ficha Técnica
+        document.getElementById('fichaVazia').classList.add('hidden');
+        document.getElementById('fichaConteudo').classList.remove('hidden');
 
-      document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
-      document.getElementById('f_equipamento').innerText = d.equipamento;
-      document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento}`;
-      document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || 'N/A';
-      document.getElementById('f_data_coleta').innerText = d.data_coleta || 'N/A';
-      document.getElementById('f_os_coleta').innerText = d.os_coleta || 'N/A';
-      document.getElementById('f_origem').innerText = d.origem || 'N/A';
-      document.getElementById('f_localizacao').innerText = d.localizacao || 'N/A';
-      document.getElementById('f_problema').innerText = d.problema || 'Nenhum problema informado';
+        document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
+        document.getElementById('f_equipamento').innerText = d.equipamento;
+        document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || 'N/A'}`;
+        document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || 'N/A';
+        document.getElementById('f_data_coleta').innerText = d.data_coleta || 'N/A';
+        document.getElementById('f_os_coleta').innerText = d.os_coleta || 'N/A';
+        document.getElementById('f_origem').innerText = d.origem || 'N/A';
+        document.getElementById('f_localizacao').innerText = d.localizacao || 'N/A';
+        document.getElementById('f_problema').innerText = d.problema || 'Nenhum problema informado';
 
-      document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || 'Pendente';
-      document.getElementById('f_data_entrega').innerText = d.data_entrega || 'Pendente';
-      document.getElementById('f_os_entrega').innerText = d.os_entrega || 'N/A';
-      document.getElementById('f_custo').innerText = `${d.status_custo || 'Sem Custo'} (R$ ${d.valor_custo || '0.00'})`;
-      document.getElementById('f_laudado').innerText = d.laudado || 'Não';
-      document.getElementById('f_resolucao').innerText = d.resolucao || 'Em andamento';
+        document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || 'Pendente';
+        document.getElementById('f_data_entrega').innerText = d.data_entrega || 'Pendente';
+        document.getElementById('f_os_entrega').innerText = d.os_entrega || 'N/A';
+        
+        const valorFmt = parseFloat(d.valor_custo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('f_custo').innerText = `${d.status_custo || 'Sem Custo'} (R$ ${valorFmt})`;
+        document.getElementById('f_laudado').innerText = d.laudado || 'Não';
+        document.getElementById('f_resolucao').innerText = d.resolucao || 'Em andamento';
 
-      const isEntregue = d.status === "Entregue";
-      document.getElementById('f_badge_status').className = isEntregue 
-        ? "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200"
-        : "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
-      document.getElementById('f_badge_status').innerText = isEntregue ? "✔ ENTREGUE" : "⏳ PENDENTE";
+        const isEntregue = d.status === "Entregue";
+        document.getElementById('f_badge_status').className = isEntregue 
+          ? "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200"
+          : "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
+        document.getElementById('f_badge_status').innerText = isEntregue ? "✔ ENTREGUE" : "⏳ PENDENTE";
+      } catch (e) {
+        console.error("Erro ao carregar detalhes do equipamento:", e);
+      }
     }
 
     async function salvarEntrada() {
@@ -460,158 +473,40 @@
       }
     }
 
-    async function atualizarEntradaAdmin() {
-      if (!registroSelecionadoId) {
-        alert("Selecione um equipamento na lista para editar.");
-        return;
-      }
-
-      const senha = prompt("Informe a senha de administrador para salvar as alterações:");
-      if (!senha) return;
-
-      const dataInput = document.getElementById('ent_data').value;
-      const dataColeta = dataInput || new Date().toISOString().split('T')[0];
-
-      const payload = {
-        equipamento: document.getElementById('ent_equip').value.trim(),
-        tombamento: document.getElementById('ent_tomb').value.trim(),
-        tecnico_coleta: document.getElementById('ent_tec').value.trim(),
-        data_coleta: dataColeta,
-        origem: document.getElementById('ent_origem').value.trim(),
-        os_coleta: document.getElementById('ent_os').value.trim(),
-        localizacao: document.getElementById('ent_loc').value,
-        problema: document.getElementById('ent_prob').value.trim(),
-        admin_password: senha
-      };
-
-      try {
-        const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/entrada`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          alert("Entrada atualizada com sucesso!");
-          carregarLista('nao_finalizados_mes');
-          selecionarItem(registroSelecionadoId);
-        } else {
-          const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao atualizar registro"));
-        }
-      } catch (e) {
-        alert("Erro ao se comunicar com o servidor.");
-      }
-    }
-
     async function salvarSaida() {
       if (!registroSelecionadoId) return alert("Selecione um item primeiro!");
 
+      const rawValor = document.getElementById('sai_valor').value;
+      const valorCusto = isNaN(parseFloat(rawValor)) ? 0.0 : parseFloat(rawValor);
+
       const payload = {
-        tecnico_entrega: document.getElementById('sai_tec').value,
-        os_entrega: document.getElementById('sai_os').value,
+        tecnico_entrega: document.getElementById('sai_tec').value.trim(),
+        os_entrega: document.getElementById('sai_os').value.trim(),
         data_entrega: document.getElementById('sai_data').value,
         laudado: document.getElementById('sai_laudado').value,
         status_custo: document.getElementById('sai_status_custo').value,
-        valor_custo: parseFloat(document.getElementById('sai_valor').value) || 0.0,
-        resolucao: document.getElementById('sai_resolucao').value
+        valor_custo: valorCusto,
+        resolucao: document.getElementById('sai_resolucao').value.trim()
       };
 
-      const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/saida`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload) 
-      });
-
-      if (res.ok) {
-        alert("Saída registrada!");
-        limparFormularios();
-        carregarLista('nao_finalizados_mes');
-      } else {
-        const err = await res.json();
-        alert("Erro: " + err.detail);
-      }
-    }
-
-    async function excluirRegistroAdmin() {
-      if (!registroSelecionadoId) {
-        alert("Selecione um registro para excluir.");
-        return;
-      }
-
-      const senha = prompt("Informe a senha de administrador para excluir este registro:");
-      if (!senha) return;
-
       try {
-        const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/excluir`, {
-          method: 'POST',
+        const res = await fetch(`/api/equipamentos/${registroSelecionadoId}/saida`, { 
+          method: 'POST', 
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ admin_password: senha })
+          body: JSON.stringify(payload) 
         });
 
         if (res.ok) {
-          alert("Registro excluído com sucesso!");
+          alert("Saída registrada!");
           limparFormularios();
           carregarLista('nao_finalizados_mes');
         } else {
           const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao excluir registro"));
+          alert("Erro: " + (err.detail || "Falha ao registrar saída"));
         }
       } catch (e) {
         alert("Erro ao se comunicar com o servidor.");
       }
-    }
-
-    async function abrirModalRelatorio() {
-      const mesStr = prompt("Informe o mês (1-12):", new Date().getMonth() + 1);
-      if (!mesStr) return;
-      const anoStr = prompt("Informe o ano (ex: 2026):", new Date().getFullYear());
-      if (!anoStr) return;
-
-      const mes = parseInt(mesStr);
-      const ano = parseInt(anoStr);
-
-      try {
-        const res = await fetch('/api/relatorios/mensal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mes, ano })
-        });
-
-        if (res.ok) {
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `relatorio_coletas_${ano}_${mes.toString().padStart(2, '0')}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        } else {
-          const err = await res.json();
-          alert("Erro ao gerar relatório: " + (err.detail || "Falha interna"));
-        }
-      } catch (e) {
-        alert("Erro ao solicitar relatório.");
-      }
-    }
-
-    function limparFormularios() {
-      registroSelecionadoId = null;
-      document.querySelectorAll('input').forEach(i => {
-        if (i.type === "number") {
-          i.value = "0.00";
-        } else if (i.type !== "date") {
-          i.value = '';
-        }
-      });
-      document.querySelectorAll('textarea').forEach(i => i.value = '');
-      document.getElementById('ent_data').valueAsDate = new Date();
-      document.getElementById('sai_data').valueAsDate = new Date();
-      document.getElementById('fichaVazia').classList.remove('hidden');
-      document.getElementById('fichaConteudo').classList.add('hidden');
-      document.getElementById('badgeStatusSelecao').className = "p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2";
-      document.getElementById('badgeStatusSelecao').innerText = "⚠️ Nenhum item selecionado na lista";
     }
   </script>
 </body>

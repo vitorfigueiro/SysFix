@@ -685,6 +685,42 @@
       window.open(`/api/relatorio?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`, '_blank');
       fecharModalRelatorio();
     }
+
+    // Adicione esta função auxiliar no script do seu index.html
+function exibirErro(errPayload) {
+  if (errPayload && errPayload.detail) {
+    if (typeof errPayload.detail === 'object' && errPayload.detail.mensagem) {
+      alert("⚠️ " + errPayload.detail.mensagem);
+      return;
+    }
+    alert("⚠️ " + errPayload.detail);
+    return;
+  }
+  alert("⚠️ Ocorreu um erro ao processar a requisição.");
+}
+
+// Exemplo de como usar nas chamadas de fetch:
+async function salvarEntrada() {
+  // ... campos do formulário ...
+  try {
+    const res = await fetch('/api/equipamentos', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload) 
+    });
+
+    if (res.ok) {
+      alert("Entrada registrada com sucesso!");
+      limparFormularios();
+      carregarLista('nao_finalizados');
+    } else {
+      const err = await res.json();
+      exibirErro(err); // Exibe a mensagem amigável vinda do backend
+    }
+  } catch (e) {
+    alert("⚠️ Não foi possível se comunicar com o servidor. Verifique sua conexão.");
+  }
+}
   </script>
 </body>
 </html>

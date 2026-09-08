@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, field_validator
-
+from mensagens import obter_mensagem_erro
 from database import init_db, get_connection
 from models import ColetaModel
 
@@ -17,6 +17,22 @@ app = FastAPI(
     title="API de Gerenciamento de Coletas",
     version="1.0.0"
 )
+
+# Exemplo de rota de cadastro utilizando as mensagens amigáveis
+@app.post("/api/equipamentos")
+async def cadastrar_equipamento(dados: dict):
+    if not dados.get("equipamento"):
+        # Retorna erro 400 com mensagem clara
+        erro = obter_mensagem_erro("MISSING_FIELDS", detalhe_tecnico="Campo 'equipamento' ausente")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=erro)
+    
+    try:
+        # Lógica de salvar no BD aqui...
+        return {"status": "sucesso", "mensagem": "Equipamento cadastrado com sucesso!"}
+    except Exception as e:
+        # Tratamento generico para erros de banco ou execução
+        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=erro)
 
 # Configuração de CORS
 app.add_middleware(
@@ -100,7 +116,7 @@ class SaidaSchema(BaseModel):
 # Rota Principal: Servir o Frontend (index.html)
 @app.get("/", response_class=FileResponse)
 def read_index():
-    index_path = os.path.join(os.path.dirname(__file__), "index.html")
+    index_path = os.path.join(os.path.dirname(__file__), "templates/index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     raise HTTPException(status_code=404, detail="Arquivo index.html não encontrado no servidor.")

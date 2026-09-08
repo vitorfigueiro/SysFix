@@ -2,8 +2,15 @@ from datetime import datetime
 
 
 class SecurityValidator:
-    # Whitelist de localizações válidas
-    LOCALIZACOES_PERMITIDAS = ["Bancada", "PlayLan", "Sede"]
+    # Whitelist atualizada com todas as opções presentes no front-end HTML
+    LOCALIZACOES_PERMITIDAS = [
+        "Bancada TI",
+        "PlayLan",
+        "Central Informática",
+        "Aguardando Peça",
+        "Bancada",
+        "Sede",
+    ]
 
     @staticmethod
     def sanitizar_texto(texto: str) -> str:
@@ -16,11 +23,12 @@ class SecurityValidator:
     def validate_location(location: str) -> str:
         """Valida se a localização pertence à Whitelist."""
         if not location:
-            return ""
+            return "Bancada TI"  # Valor padrão amigável
+            
         clean_loc = str(location).strip()
         if clean_loc not in SecurityValidator.LOCALIZACOES_PERMITIDAS:
             raise ValueError(
-                f"Localização inválida. Opções permitidas: {', '.join(SecurityValidator.LOCALIZACOES_PERMITIDAS)}"
+                f"Localização inválida ('{clean_loc}'). Opções permitidas: {', '.join(SecurityValidator.LOCALIZACOES_PERMITIDAS)}"
             )
         return clean_loc
 
@@ -29,17 +37,18 @@ class SecurityValidator:
         """
         Valida se a data enviada está correta e converte SEMPRE 
         para o formato ISO padrão do banco de dados (YYYY-MM-DD).
+        Se a data for vazia ou nula, retorna a data atual.
         """
         if not data_str or not str(data_str).strip():
-            raise ValueError("A data não pode estar vazia.")
+            return datetime.now().strftime("%Y-%m-%d")
 
-        data_limpa = str(data_str).replace(" ","").strip()
+        # Mantém apenas o trecho da data caso venha acompanhado de horário
+        data_limpa = str(data_str).strip().split(" ")[0]
 
-        # Aceita DD/MM/AAAA, DD-MM-AAAA, AAAA-MM-DD e AAAA/MM/DD
         formatos = (
+            "%Y-%m-%d",  # 2026-09-08 (ISO / HTML5 input)
             "%d/%m/%Y",  # 08/09/2026
-            "%d-%m-%Y",  # 08-09-2026 (Adicionado)
-            "%Y-%m-%d",  # 2026-09-08 (ISO)
+            "%d-%m-%Y",  # 08-09-2026
             "%Y/%m/%d",  # 2026/09/08
         )
 
@@ -51,7 +60,7 @@ class SecurityValidator:
                 continue
 
         raise ValueError(
-            f"Data '{data_limpa}' em formato inválido. Use o formato DD/MM/AAAA, DD-MM-AAAA ou AAAA-MM-DD."
+            f"Data '{data_str}' em formato inválido. Use o formato AAAA-MM-DD ou DD/MM/AAAA."
         )
 
     @staticmethod
@@ -64,7 +73,6 @@ class SecurityValidator:
             val = float(value_str)
         else:
             clean_value = str(value_str).replace("R$", "").strip()
-            # Se contiver vírgula, trata como formato brasileiro (ex: 1.500,50 -> 1500.50)
             if "," in clean_value:
                 clean_value = clean_value.replace(".", "").replace(",", ".")
 
@@ -81,8 +89,7 @@ class SecurityValidator:
     @staticmethod
     def mask_personal_data(name: str) -> str:
         """
-        Função de conformidade com a LGPD:
-        Anonimiza o nome de pessoas físicas ao gerar relatórios públicos.
+        Anonimiza o nome de pessoas físicas ao gerar relatórios públicos (LGPD).
         Exemplo: 'Carlos Eduardo' -> 'C***** E******'
         """
         if not name:

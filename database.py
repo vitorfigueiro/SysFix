@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-VERSAO_ATUAL_SCHEMA = 4
+VERSAO_ATUAL_SCHEMA = 5  # Incrementado para refletir a remoção de NOT NULL
 
 
 def get_connection():
@@ -28,18 +28,18 @@ def aplicar_migracoes(conn, versao_banco):
     cursor = conn.cursor()
 
     try:
-        # Migração Versão 1: Criação Inicial
+        # Migração Versão 1: Criação Inicial (Flexibilizando NOT NULL nos campos opcionais)
         if versao_banco < 1:
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS coletas (
                     id SERIAL PRIMARY KEY,
                     equipamento VARCHAR(255) NOT NULL,
-                    tombamento VARCHAR(255) NOT NULL,
-                    tecnico_coleta VARCHAR(255) NOT NULL,
+                    tombamento VARCHAR(255),
+                    tecnico_coleta VARCHAR(255),
                     data_coleta VARCHAR(50) NOT NULL,
-                    origem VARCHAR(255) NOT NULL,
-                    localizacao VARCHAR(255) NOT NULL,
+                    origem VARCHAR(255),
+                    localizacao VARCHAR(255),
                     problema TEXT,
                     status VARCHAR(50) DEFAULT 'Pendente',
                     status_custo VARCHAR(50) DEFAULT 'Sem Custo',
@@ -71,7 +71,7 @@ def aplicar_migracoes(conn, versao_banco):
             )
             conn.commit()
 
-        # Migração Versão 4: Adição individual e segura das colunas de O.S. e entregas
+        # Migração Versão 4: Adição individual das colunas de O.S. e entregas
         if versao_banco < 4:
             colunas_para_adicionar = [
                 ("os_coleta", "VARCHAR(255)"),
@@ -93,6 +93,17 @@ def aplicar_migracoes(conn, versao_banco):
                     print(
                         f"Aviso ao adicionar coluna {nome_coluna}: {err_coluna}"
                     )
+
+        # Migração Versão 5: Remove restrições NOT NULL antigas caso a tabela já exista
+        if versao_banco < 5:
+            colunas_flexiveis = ["tombamento", "tecnico_coleta", "origem", "localizacao"]
+            for col in colunas_flexiveis:
+                try:
+                    cursor.execute(f"ALTER TABLE coletas ALTER COLUMN {col} DROP NOT NULL;")
+                    conn.commit()
+                except Exception as err_drop:
+                    conn.rollback()
+                    print(f"Aviso ao alterar NOT NULL da coluna {col}: {err_drop}")
 
         # Atualiza a versão registrada no banco
         cursor.execute(

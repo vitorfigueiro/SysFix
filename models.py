@@ -21,13 +21,16 @@ class ColetaModel:
         equip_san = SecurityValidator.sanitizar_texto(equipamento)
         tomb_san = SecurityValidator.sanitizar_texto(tombamento)
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
-        data_validada = SecurityValidator.validar_data(data_coleta)
+        
+        # Se data_coleta vier vazia, injeta a data de hoje
+        data_para_validar = data_coleta if data_coleta else datetime.now().strftime("%Y-%m-%d")
+        data_validada = SecurityValidator.validar_data(data_para_validar)
+        
         origem_san = SecurityValidator.sanitizar_texto(origem)
         os_san = SecurityValidator.sanitizar_texto(os_coleta)
         loc_san = SecurityValidator.sanitizar_texto(localizacao)
         prob_san = SecurityValidator.sanitizar_texto(problema)
 
-        # Apenas equipamento é estritamente obrigatório no cadastro
         if not equip_san:
             raise ValueError("O nome do equipamento é obrigatório.")
 

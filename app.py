@@ -1,22 +1,24 @@
 import os
 from contextlib import asynccontextmanager
 from typing import Optional
+from datetime import datetime
+
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 # Imports das camadas do sistema
 from database import init_db
 from models import ColetaModel
 from reports import PDFReportGenerator
+from security import SecurityValidator
 
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 
-# Ciclo de vida moderno do FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -33,7 +35,7 @@ templates = Jinja2Templates(directory="templates")
 
 
 # ----------------------------------------------------
-# MODELOS PYDANTIC (Ajustados para evitar erro 400/500)
+# MODELOS PYDANTIC TRATADOS (Prevenção de Erros 400/422)
 # ----------------------------------------------------
 class EntradaEquipamentoSchema(BaseModel):
     equipamento: str
@@ -45,16 +47,30 @@ class EntradaEquipamentoSchema(BaseModel):
     localizacao: Optional[str] = "Bancada TI"
     problema: Optional[str] = ""
 
+    @field_validator("equipamento")
+    @classmethod
+    def validar_equipamento(cls, v: str) -> str:
+        txt = SecurityValidator.sanitizar_texto(v)
+        if not txt:
+            raise ValueError("O campo 'equipamento' é obrigatório.")
+        return txt
 
-class AtualizarEntradaSchema(BaseModel):
-    equipamento: str
-    tombamento: Optional[str] = ""
-    tecnico_coleta: Optional[str] = ""
-    data_coleta: Optional[str] = ""
-    origem: Optional[str] = ""
-    os_coleta: Optional[str] = ""
-    localizacao: Optional[str] = "Bancada TI"
-    problema: Optional[str] = ""
+    @field_validator("data_coleta", mode="before")
+    @classmethod
+    def normalizar_data(cls, v: Optional[str]) -> str:
+        if not v or not str(v).strip():
+            return datetime.now().strftime("%Y-%m-%d")
+        return SecurityValidator.validar_data(v)
+
+    @field_validator("localizacao", mode="before")
+    @classmethod
+    def normalizar_localizacao(cls, v: Optional[str]) -> str:
+        if not v:
+            return "Bancada TI"
+        return SecurityValidator.validate_location(v)
+
+
+class AtualizarEntradaSchema(EntradaEquipamentoSchema):
     admin_password: str
 
 
@@ -67,6 +83,18 @@ class SaidaEquipamentoSchema(BaseModel):
     resolucao: Optional[str] = ""
     laudado: Optional[str] = "Não"
 
+    @field_validator("data_entrega", mode="before")
+    @classmethod
+    def normalizar_data_entrega(cls, v: Optional[str]) -> str:
+        if not v or not str(v).strip():
+            return datetime.now().strftime("%Y-%m-%d")
+        return SecurityValidator.validar_data(v)
+
+    @field_validator("valor_custo", mode="before")
+    @classmethod
+    def normalizar_custo(cls, v) -> float:
+        return SecurityValidator.validate_cost(v)
+
 
 class AcaoAdminSchema(BaseModel):
     admin_password: str
@@ -77,7 +105,7 @@ class RelatorioFiltroSchema(BaseModel):
     ano: int
 
 
-# Reconstrução explicita dos esquemas para compatibilidade com Python 3.14 / Pydantic v2
+# Reconstrução explícita dos esquemas
 EntradaEquipamentoSchema.model_rebuild()
 AtualizarEntradaSchema.model_rebuild()
 SaidaEquipamentoSchema.model_rebuild()
@@ -121,7 +149,7 @@ def obter_equipamento(registro_id: int):
     dados = ColetaModel.buscar_por_id(registro_id)
     if not dados:
         raise HTTPException(status_code=404, detail="Registro não encontrado.")
-    
+
     for key, val in dados.items():
         if val is None:
             dados[key] = ""
@@ -138,10 +166,10 @@ def registrar_entrada(payload: EntradaEquipamentoSchema):
             payload.equipamento,
             payload.tombamento or "",
             payload.tecnico_coleta or "",
-            payload.data_coleta or "",
+            payload.data_coleta,
             payload.origem or "",
             payload.os_coleta or "",
-            payload.localizacao or "Bancada TI",
+            payload.localizacao,
             payload.problema or "",
         )
         return {"success": True, "id": reg_id, "message": "Entrada registrada com sucesso!"}
@@ -160,10 +188,10 @@ def atualizar_entrada(registro_id: int, payload: AtualizarEntradaSchema):
             payload.equipamento,
             payload.tombamento or "",
             payload.tecnico_coleta or "",
-            payload.data_coleta or "",
+            payload.data_coleta,
             payload.origem or "",
             payload.os_coleta or "",
-            payload.localizacao or "Bancada TI",
+            payload.localizacao,
             payload.problema or "",
         )
         return {"success": True, "message": "Dados de entrada atualizados!"}
@@ -177,7 +205,7 @@ def registrar_saida(registro_id: int, payload: SaidaEquipamentoSchema):
         ColetaModel.registrar_saida(
             registro_id,
             payload.tecnico_entrega or "",
-            payload.data_entrega or "",
+            payload.data_entrega,
             payload.os_entrega or "",
             payload.status_custo or "Sem Custo",
             payload.valor_custo or 0.0,

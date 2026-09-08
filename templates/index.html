@@ -396,6 +396,27 @@
       return dataStr;
     }
 
+    function formatarMensagemErro(err) {
+      if (!err) return "Erro desconhecido no servidor.";
+      
+      if (typeof err.detail === 'string') {
+        return err.detail;
+      }
+      
+      if (Array.isArray(err.detail)) {
+        return err.detail.map(e => {
+          const campo = e.loc ? e.loc.filter(item => item !== 'body').join('.') : 'Campo';
+          return `• ${campo}: ${e.msg}`;
+        }).join('\n');
+      }
+      
+      if (typeof err.detail === 'object') {
+        return JSON.stringify(err.detail, null, 2);
+      }
+
+      return JSON.stringify(err);
+    }
+
     function alternarTab(tab) {
       const isEntrada = tab === 'entrada';
       document.getElementById('formEntradaContainer').classList.toggle('hidden', !isEntrada);
@@ -580,7 +601,7 @@
           carregarLista('nao_finalizados');
         } else {
           const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao registrar entrada"));
+          alert("Erro ao salvar entrada:\n\n" + formatarMensagemErro(err));
         }
       } catch (e) {
         alert("Erro ao se comunicar com o servidor.");
@@ -614,7 +635,7 @@
           selecionarItem(registroSelecionadoId);
         } else {
           const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao atualizar dados"));
+          alert("Erro ao atualizar entrada:\n\n" + formatarMensagemErro(err));
         }
       } catch (e) {
         alert("Erro ao se comunicar com o servidor.");
@@ -648,7 +669,7 @@
           carregarLista('nao_finalizados');
         } else {
           const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao registrar saída"));
+          alert("Erro ao registrar saída:\n\n" + formatarMensagemErro(err));
         }
       } catch (e) {
         alert("Erro ao se comunicar com o servidor.");
@@ -671,7 +692,7 @@
           carregarLista('nao_finalizados');
         } else {
           const err = await res.json();
-          alert("Erro: " + (err.detail || "Falha ao excluir registro"));
+          alert("Erro ao excluir registro:\n\n" + formatarMensagemErro(err));
         }
       } catch (e) {
         alert("Erro ao se comunicar com o servidor.");

@@ -35,8 +35,15 @@ class SecurityValidator:
 
         data_limpa = str(data_str).strip()
 
-        # Tenta converter os formatos comuns para YYYY-MM-DD
-        for formato in ("%d/%m/%Y", "%Y-%m-%d"):
+        # Aceita DD/MM/AAAA, DD-MM-AAAA, AAAA-MM-DD e AAAA/MM/DD
+        formatos = (
+            "%d/%m/%Y",  # 08/09/2026
+            "%d-%m-%Y",  # 08-09-2026 (Adicionado)
+            "%Y-%m-%d",  # 2026-09-08 (ISO)
+            "%Y/%m/%d",  # 2026/09/08
+        )
+
+        for formato in formatos:
             try:
                 dt = datetime.strptime(data_limpa, formato)
                 return dt.strftime("%Y-%m-%d")
@@ -44,7 +51,7 @@ class SecurityValidator:
                 continue
 
         raise ValueError(
-            f"Data '{data_limpa}' em formato inválido. Use o formato DD/MM/AAAA ou AAAA-MM-DD."
+            f"Data '{data_limpa}' em formato inválido. Use o formato DD/MM/AAAA, DD-MM-AAAA ou AAAA-MM-DD."
         )
 
     @staticmethod
@@ -60,7 +67,7 @@ class SecurityValidator:
             # Se contiver vírgula, trata como formato brasileiro (ex: 1.500,50 -> 1500.50)
             if "," in clean_value:
                 clean_value = clean_value.replace(".", "").replace(",", ".")
-            
+
             try:
                 val = float(clean_value)
             except ValueError:
@@ -68,7 +75,7 @@ class SecurityValidator:
 
         if val < 0:
             raise ValueError("O valor do custo não pode ser negativo.")
-        
+
         return round(val, 2)
 
     @staticmethod
@@ -81,5 +88,7 @@ class SecurityValidator:
         if not name:
             return ""
         parts = str(name).strip().split()
-        masked_parts = [p[0] + "*" * (len(p) - 1) if len(p) > 1 else p for p in parts]
+        masked_parts = [
+            p[0] + "*" * (len(p) - 1) if len(p) > 1 else p for p in parts
+        ]
         return " ".join(masked_parts)

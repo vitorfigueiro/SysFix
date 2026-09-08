@@ -35,16 +35,21 @@ templates = Jinja2Templates(directory="templates")
 # ----------------------------------------------------
 # MODELOS PYDANTIC (Para aceitar payloads JSON e Form)
 # ----------------------------------------------------
+from pydantic import BaseModel
+from typing import Optional
+
 class EntradaEquipamentoSchema(BaseModel):
     equipamento: str
     tombamento: Optional[str] = ""
     tecnico_coleta: Optional[str] = ""
-    data_coleta: Optional[date] = None
+    data_coleta: Optional[str] = ""
     origem: Optional[str] = ""
     os_coleta: Optional[str] = ""
     localizacao: Optional[str] = "Bancada TI"
     problema: Optional[str] = ""
 
+# ESSENCIAL PARA RESOLVER O ERRO DO PYDANTIC NO PYTHON 3.14:
+EntradaEquipamentoSchema.model_rebuild()
 
 class AtualizarEntradaSchema(EntradaEquipamentoSchema):
     admin_password: str

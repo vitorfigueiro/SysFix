@@ -60,7 +60,7 @@ class SaidaSchema(BaseModel):
 # Rota Principal: Servir o Frontend (index.html)
 @app.get("/", response_class=FileResponse)
 def read_index():
-    index_path = os.path.join(os.path.dirname(__file__), "index.html")
+    index_path = os.path.join(os.path.dirname(__file__), "templates/index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     raise HTTPException(status_code=404, detail="Arquivo index.html não encontrado no servidor.")

@@ -217,7 +217,7 @@ def listar_coletas(status_filtro: str = "todos"):
                    OR status IS NULL 
                 ORDER BY id DESC;
             """)
-        elif filtro in ["finalizados", "entregues", "entregue", "finalizado"]:
+        elif filtro in ["finalizados", "entregues", "Entregue", "finalizado"]:
             cursor.execute("""
                 SELECT * FROM coletas 
                 WHERE LOWER(TRIM(status)) IN ('entregue', 'finalizado') 

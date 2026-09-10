@@ -22,7 +22,6 @@ class ColetaModel:
         tomb_san = SecurityValidator.sanitizar_texto(tombamento)
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
 
-        # Se data_coleta vier vazia, injeta a data de hoje no formato brasileiro DD/MM/YYYY
         data_para_validar = data_coleta if data_coleta else datetime.now().strftime("%d/%m/%Y")
         data_validada = SecurityValidator.validar_data(data_para_validar)
 
@@ -39,8 +38,8 @@ class ColetaModel:
         try:
             cursor.execute(
                 """
-                INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, os_coleta, localizacao, problema)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, os_coleta, localizacao, problema, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pendente')
                 RETURNING id;
             """,
                 (
@@ -56,8 +55,6 @@ class ColetaModel:
             )
             
             row = cursor.fetchone()
-            
-            # Compatibilidade tanto com RealDictCursor ({'id': X}) quanto com cursor padrão ((X,))
             if isinstance(row, dict):
                 novo_id = row.get("id")
             elif row:
@@ -96,7 +93,6 @@ class ColetaModel:
         res_san = SecurityValidator.sanitizar_texto(resolucao)
         laudado_san = SecurityValidator.sanitizar_texto(laudado)
         
-        # Se data_entrega for vazia, assume a data atual
         data_validada = data_entrega if data_entrega else datetime.now().strftime("%d/%m/%Y")
         entrega_san = SecurityValidator.validar_data(data_validada)
         
@@ -230,7 +226,7 @@ class ColetaModel:
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE (LOWER(TRIM(status)) != 'entregue' AND LOWER(TRIM(status)) != 'finalizado' OR status IS NULL)
+                WHERE (LOWER(TRIM(status)) NOT IN ('entregue', 'finalizado') OR status IS NULL)
                 ORDER BY id DESC;
             """
             )
@@ -241,10 +237,6 @@ class ColetaModel:
 
     @staticmethod
     def buscar_finalizados_mes_atual():
-        """
-        Retorna TODOS os registros finalizados/entregues.
-        Garante que qualquer item com status 'Entregue' ou 'Finalizado' seja listado.
-        """
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 

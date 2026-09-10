@@ -512,16 +512,23 @@
       atualizarBotoesFiltro(filtro);
 
       try {
-        const res = await fetch(`${API_BASE}/equipamentos?status=${filtro}`);
+        // Busca todos os equipamentos para garantir que o backend não filtre por parâmetro incompatível
+        const res = await fetch(`${API_BASE}/equipamentos`);
         let dados = await res.json();
 
         if (!Array.isArray(dados)) {
           dados = [];
         }
 
-        // Filtro adicional no client-side para garantia absoluta de exibição
+        // Filtragem flexível no client-side
         dados = dados.filter(item => {
-          const isEntregue = (item.status || '').toLowerCase() === 'entregue';
+          const statusLower = (item.status || '').toLowerCase().trim();
+          
+          // Identifica se está entregue por status ou por existência de data de entrega
+          const isEntregue = statusLower === 'entregue' || 
+                            statusLower === 'finalizado' || 
+                            (item.data_entrega && item.data_entrega.trim() !== '');
+
           if (filtro === 'nao_finalizados') return !isEntregue;
           if (filtro === 'finalizados') return isEntregue;
           return true; // todos
@@ -537,7 +544,9 @@
 
         dados.forEach(item => {
           const tr = document.createElement('tr');
-          const isEntregue = (item.status || '').toLowerCase() === 'entregue';
+          const statusLower = (item.status || '').toLowerCase().trim();
+          const isEntregue = statusLower === 'entregue' || statusLower === 'finalizado' || (item.data_entrega && item.data_entrega.trim() !== '');
+          
           const diasPendente = !isEntregue ? calcularDiasPendente(item.data_coleta) : 0;
           const estaAtrasado = !isEntregue && diasPendente > 3;
 

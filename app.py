@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from mensagens import obter_mensagem_erro
 from database import init_db, get_connection
 from models import ColetaModel
-from pdf_generator import PDFReportGenerator
+from reports import PDFReportGenerator
 
 # Inicializa o banco de dados e aplica migrações
 init_db()

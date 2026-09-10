@@ -161,7 +161,7 @@ def init_db():
 
 
 # ==============================================================================
-# FUNÇÕES CRUD INTEGRADAS AO FRONTEND
+# FUNÇÕES CRUD INTEGRADAS
 # ==============================================================================
 
 def salvar_coleta(dados: dict):
@@ -189,7 +189,8 @@ def salvar_coleta(dados: dict):
                 dados.get("problema"),
             ),
         )
-        novo_id = cursor.fetchone()["id"]
+        row = cursor.fetchone()
+        novo_id = row["id"] if isinstance(row, dict) else row[0]
         conn.commit()
         return novo_id
     except Exception as e:
@@ -201,16 +202,30 @@ def salvar_coleta(dados: dict):
 
 
 def listar_coletas(status_filtro: str = "todos"):
-    """Lista os equipamentos filtrando por status (nao_finalizados, finalizados, todos)."""
+    """Lista os equipamentos filtrando por status flexível (pendentes, entregues, finalizados, todos)."""
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # Normaliza o termo de busca enviado pelo frontend
+    filtro = str(status_filtro).strip().lower() if status_filtro else "todos"
+
     try:
-        if status_filtro == "nao_finalizados":
-            cursor.execute("SELECT * FROM coletas WHERE status != 'Entregue' ORDER BY id DESC;")
-        elif status_filtro == "finalizados":
-            cursor.execute("SELECT * FROM coletas WHERE status = 'Entregue' ORDER BY id DESC;")
+        if filtro in ["nao_finalizados", "pendentes", "pendente"]:
+            cursor.execute("""
+                SELECT * FROM coletas 
+                WHERE LOWER(TRIM(status)) NOT IN ('entregue', 'finalizado') 
+                   OR status IS NULL 
+                ORDER BY id DESC;
+            """)
+        elif filtro in ["finalizados", "entregues", "entregue", "finalizado"]:
+            cursor.execute("""
+                SELECT * FROM coletas 
+                WHERE LOWER(TRIM(status)) IN ('entregue', 'finalizado') 
+                ORDER BY id DESC;
+            """)
         else:
             cursor.execute("SELECT * FROM coletas ORDER BY id DESC;")
+            
         return cursor.fetchall()
     finally:
         cursor.close()

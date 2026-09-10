@@ -33,8 +33,8 @@ if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# Função para converter de forma flexível datas enviadas como String (ISO, BR ou Objeto date)
 def validar_e_formatar_data(v: Union[str, date, None]) -> str:
+    """Converte de forma flexível datas enviadas como String (ISO, BR) ou Objeto date."""
     if not v:
         return ""
     if isinstance(v, date):
@@ -61,7 +61,20 @@ def validar_e_formatar_data(v: Union[str, date, None]) -> str:
     return v
 
 
-# Modelos Pydantic ajustados para aceitar str e date flexivelmente
+def serializar_registro(registro: dict) -> dict:
+    """Garante que objetos date/datetime ou None sejam convertidos para strings válidas para o JSON."""
+    if not registro:
+        return {}
+    
+    resultado = {}
+    for key, val in registro.items():
+        if isinstance(val, (date, datetime)):
+            resultado[key] = val.strftime("%d/%m/%Y")
+        else:
+            resultado[key] = "" if val is None else val
+    return resultado
+
+
 class EntradaSchema(BaseModel):
     equipamento: str
     tombamento: Optional[str] = ""
@@ -118,11 +131,12 @@ def debug_db():
 
         cursor.execute("SELECT id, equipamento, status, data_coleta FROM coletas ORDER BY id DESC LIMIT 5;")
         ultimos_registros = cursor.fetchall()
+        registros_formatados = [serializar_registro(dict(r)) for r in ultimos_registros]
 
         return {
             "status": "online",
             "total_registros_coletas": total_coletas,
-            "ultimos_5_registros": ultimos_registros
+            "ultimos_5_registros": registros_formatados
         }
     except Exception as e:
         return {"error": str(e)}
@@ -139,7 +153,6 @@ def listar_equipamentos(
     status: Optional[str] = None
 ):
     try:
-        # Aceita tanto 'filtro' quanto 'status' enviados pela URL
         valor_filtro = (status or filtro or "nao_finalizados").lower().strip()
 
         if valor_filtro in ["finalizados", "entregues", "entregue", "finalizado"]:
@@ -149,7 +162,7 @@ def listar_equipamentos(
         else:
             dados = ColetaModel.buscar_nao_finalizados_mes_atual()
         
-        return dados
+        return [serializar_registro(dict(item)) for item in dados]
     except Exception as e:
         erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
         raise HTTPException(status_code=500, detail=erro)
@@ -163,14 +176,7 @@ def obter_equipamento(registro_id: int):
             erro = obter_mensagem_erro("NOT_FOUND")
             raise HTTPException(status_code=404, detail=erro)
         
-        resultado = {}
-        for key, val in dados.items():
-            if isinstance(val, date):
-                resultado[key] = val.strftime("%d/%m/%Y")
-            else:
-                resultado[key] = "" if val is None else val
-
-        return resultado
+        return serializar_registro(dict(dados))
     except HTTPException:
         raise
     except Exception as e:
@@ -256,7 +262,6 @@ def deletar_equipamento(registro_id: int):
         raise HTTPException(status_code=500, detail=erro)
 
 
-# Inicialização do servidor Uvicorn escutando a porta do ambiente
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=port)

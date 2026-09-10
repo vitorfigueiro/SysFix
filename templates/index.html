@@ -396,7 +396,6 @@
       return dataStr;
     }
 
-    // Função para calcular quantos dias o equipamento está pendente
     function calcularDiasPendente(dataStr) {
       if (!dataStr) return 0;
       let dataColeta;
@@ -499,8 +498,9 @@
       alternarCampoCusto();
 
       // Resetar Badges
-      document.getElementById('badgeStatusSelecao').className = "p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2";
-      document.getElementById('badgeStatusSelecao').innerText = "⚠️ Nenhum item selecionado na lista";
+      const badge = document.getElementById('badgeStatusSelecao');
+      badge.className = "p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2";
+      badge.innerText = "⚠️ Nenhum item selecionado na lista";
 
       // Esconder Ficha Técnica
       document.getElementById('fichaConteudo').classList.add('hidden');
@@ -512,26 +512,20 @@
       atualizarBotoesFiltro(filtro);
 
       try {
-        // Busca todos os equipamentos para garantir que o backend não filtre por parâmetro incompatível
         const res = await fetch(`${API_BASE}/equipamentos`);
         let dados = await res.json();
 
-        if (!Array.isArray(dados)) {
-          dados = [];
-        }
+        if (!Array.isArray(dados)) dados = [];
 
-        // Filtragem flexível no client-side
         dados = dados.filter(item => {
           const statusLower = (item.status || '').toLowerCase().trim();
-          
-          // Identifica se está entregue por status ou por existência de data de entrega
           const isEntregue = statusLower === 'entregue' || 
                             statusLower === 'finalizado' || 
                             (item.data_entrega && item.data_entrega.trim() !== '');
 
           if (filtro === 'nao_finalizados') return !isEntregue;
           if (filtro === 'finalizados') return isEntregue;
-          return true; // todos
+          return true;
         });
 
         const tbody = document.getElementById('tabelaCorpo');
@@ -550,7 +544,6 @@
           const diasPendente = !isEntregue ? calcularDiasPendente(item.data_coleta) : 0;
           const estaAtrasado = !isEntregue && diasPendente > 3;
 
-          // Estilização visual caso esteja mais de 3 dias pendente
           if (estaAtrasado) {
             tr.className = "bg-rose-50 hover:bg-rose-100/80 border-l-4 border-l-rose-500 cursor-pointer transition-colors border-b border-rose-100";
           } else {
@@ -590,7 +583,7 @@
         const res = await fetch(`${API_BASE}/equipamentos/${id}`);
         const d = await res.json();
 
-        // Preencher formulários
+        // Preencher Entrada
         document.getElementById('ent_equip').value = d.equipamento || '';
         document.getElementById('ent_tomb').value = d.tombamento || '';
         document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
@@ -600,65 +593,74 @@
         document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
         document.getElementById('ent_prob').value = d.problema || '';
 
+        // Preencher Saída
         document.getElementById('sai_tec').value = d.tecnico_entrega || '';
         document.getElementById('sai_os').value = d.os_entrega || '';
         document.getElementById('sai_data').value = converterDataParaInput(d.data_entrega);
         document.getElementById('sai_laudado').value = d.laudado || 'Não';
         document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
-        document.getElementById('sai_valor').value = d.valor_custo || '0.00';
-        document.getElementById('sai_resolucao').value = d.resolucao || '';
+        document.getElementById('sai_valor').value = d.valor || '0.00';
+        document.getElementById('sai_resolucao').value = d.resolucao || d.servico_realizado || '';
         alternarCampoCusto();
 
-        document.getElementById('badgeStatusSelecao').className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
-        document.getElementById('badgeStatusSelecao').innerText = `✔ Selecionado: #${d.id} - ${d.equipamento}`;
+        // Badge de Seleção
+        const badge = document.getElementById('badgeStatusSelecao');
+        badge.className = "p-3 bg-sky-50 border border-sky-100 rounded-lg text-xs font-semibold text-sky-700 flex items-center gap-2";
+        badge.innerText = `📌 Item #${d.id} selecionado: ${d.equipamento}`;
 
-        // Exibir Ficha Técnica
+        // Preencher Ficha Técnica
+        document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
+        document.getElementById('f_equipamento').innerText = d.equipamento || '---';
+        document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || '---'}`;
+
+        const statusLower = (d.status || '').toLowerCase().trim();
+        const isEntregue = statusLower === 'entregue' || statusLower === 'finalizado' || (d.data_entrega && d.data_entrega.trim() !== '');
+        const badgeFicha = document.getElementById('f_badge_status');
+
+        if (isEntregue) {
+          badgeFicha.className = "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200";
+          badgeFicha.innerText = "✅ ENTREGUE";
+        } else {
+          badgeFicha.className = "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
+          badgeFicha.innerText = "⏳ PENDENTE";
+        }
+
+        document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || '---';
+        document.getElementById('f_data_coleta').innerText = d.data_coleta || '---';
+        document.getElementById('f_os_coleta').innerText = d.os_coleta || '---';
+        document.getElementById('f_origem').innerText = d.origem || '---';
+        document.getElementById('f_localizacao').innerText = d.localizacao || '---';
+        document.getElementById('f_problema').innerText = d.problema || '---';
+
+        document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || '---';
+        document.getElementById('f_data_entrega').innerText = d.data_entrega || '---';
+        document.getElementById('f_os_entrega').innerText = d.os_entrega || '---';
+        document.getElementById('f_custo').innerText = d.status_custo ? `${d.status_custo} (R$ ${d.valor || '0.00'})` : '---';
+        document.getElementById('f_laudado').innerText = d.laudado || '---';
+        document.getElementById('f_resolucao').innerText = d.resolucao || d.servico_realizado || '---';
+
         document.getElementById('fichaVazia').classList.add('hidden');
         document.getElementById('fichaConteudo').classList.remove('hidden');
-
-        document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
-        document.getElementById('f_equipamento').innerText = d.equipamento;
-        document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || 'N/A'}`;
-        document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || 'N/A';
-        document.getElementById('f_data_coleta').innerText = d.data_coleta || 'N/A';
-        document.getElementById('f_os_coleta').innerText = d.os_coleta || 'N/A';
-        document.getElementById('f_origem').innerText = d.origem || 'N/A';
-        document.getElementById('f_localizacao').innerText = d.localizacao || 'N/A';
-        document.getElementById('f_problema').innerText = d.problema || 'Nenhum problema informado';
-
-        document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || 'Pendente';
-        document.getElementById('f_data_entrega').innerText = d.data_entrega || 'Pendente';
-        document.getElementById('f_os_entrega').innerText = d.os_entrega || 'N/A';
-        
-        const valorFmt = parseFloat(d.valor_custo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-        document.getElementById('f_custo').innerText = `${d.status_custo || 'Sem Custo'} (R$ ${valorFmt})`;
-        document.getElementById('f_laudado').innerText = d.laudado || 'Não';
-        document.getElementById('f_resolucao').innerText = d.resolucao || 'Em andamento';
-
-        const isEntregue = (d.status || '').toLowerCase() === "entregue";
-        document.getElementById('f_badge_status').className = isEntregue 
-          ? "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200"
-          : "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
-        document.getElementById('f_badge_status').innerText = isEntregue ? "✔ ENTREGUE" : "⏳ PENDENTE";
-      } catch (e) {
-        console.error("Erro ao carregar detalhes do equipamento:", e);
+      } catch (err) {
+        console.error("Erro ao carregar detalhes do equipamento:", err);
       }
     }
 
     async function salvarEntrada() {
       const payload = {
-        equipamento: document.getElementById('ent_equip').value.trim(),
-        tombamento: document.getElementById('ent_tomb').value.trim(),
-        tecnico: document.getElementById('ent_tec').value.trim(),
+        equipamento: document.getElementById('ent_equip').value,
+        tombamento: document.getElementById('ent_tomb').value,
+        tecnico_coleta: document.getElementById('ent_tec').value,
         data_coleta: document.getElementById('ent_data').value,
-        origem: document.getElementById('ent_origem').value.trim(),
-        os_coleta: document.getElementById('ent_os').value.trim(),
+        origem: document.getElementById('ent_origem').value,
+        os_coleta: document.getElementById('ent_os').value,
         localizacao: document.getElementById('ent_loc').value,
-        problema: document.getElementById('ent_prob').value.trim()
+        problema: document.getElementById('ent_prob').value,
+        status: 'Pendente'
       };
 
       if (!payload.equipamento) {
-        alert("Por favor, preencha o nome do equipamento.");
+        alert("O campo Equipamento é obrigatório.");
         return;
       }
 
@@ -668,37 +670,33 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
         if (!res.ok) {
           const err = await res.json();
           alert(formatarMensagemErro(err));
           return;
         }
-
         limparFormularios();
-        carregarLista(filtroAtual);
-        alert("Entrada registrada com sucesso!");
-      } catch (e) {
-        console.error("Erro ao registrar entrada:", e);
-        alert("Erro de conexão ao registrar entrada.");
+        carregarLista();
+      } catch (err) {
+        alert("Erro ao conectar com o servidor.");
       }
     }
 
     async function atualizarEntradaAdmin() {
       if (!registroSelecionadoId) {
-        alert("Selecione um equipamento na lista para editar.");
+        alert("Selecione um registro na lista para editar.");
         return;
       }
 
       const payload = {
-        equipamento: document.getElementById('ent_equip').value.trim(),
-        tombamento: document.getElementById('ent_tomb').value.trim(),
-        tecnico: document.getElementById('ent_tec').value.trim(),
+        equipamento: document.getElementById('ent_equip').value,
+        tombamento: document.getElementById('ent_tomb').value,
+        tecnico_coleta: document.getElementById('ent_tec').value,
         data_coleta: document.getElementById('ent_data').value,
-        origem: document.getElementById('ent_origem').value.trim(),
-        os_coleta: document.getElementById('ent_os').value.trim(),
+        origem: document.getElementById('ent_origem').value,
+        os_coleta: document.getElementById('ent_os').value,
         localizacao: document.getElementById('ent_loc').value,
-        problema: document.getElementById('ent_prob').value.trim()
+        problema: document.getElementById('ent_prob').value
       };
 
       try {
@@ -707,88 +705,74 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
         if (!res.ok) {
           const err = await res.json();
           alert(formatarMensagemErro(err));
           return;
         }
-
-        carregarLista(filtroAtual);
+        carregarLista();
         selecionarItem(registroSelecionadoId);
-        alert("Registro atualizado com sucesso!");
-      } catch (e) {
-        console.error("Erro ao atualizar entrada:", e);
-        alert("Erro de conexão ao atualizar registro.");
+      } catch (err) {
+        alert("Erro ao atualizar o registro.");
       }
     }
 
     async function salvarSaida() {
       if (!registroSelecionadoId) {
-        alert("Selecione um equipamento na lista para dar saída.");
+        alert("Selecione um registro na lista para registrar a saída.");
         return;
       }
 
       const payload = {
-        tecnico_entrega: document.getElementById('sai_tec').value.trim(),
-        os_entrega: document.getElementById('sai_os').value.trim(),
+        tecnico_entrega: document.getElementById('sai_tec').value,
+        os_entrega: document.getElementById('sai_os').value,
         data_entrega: document.getElementById('sai_data').value,
         laudado: document.getElementById('sai_laudado').value,
         status_custo: document.getElementById('sai_status_custo').value,
-        valor_custo: parseFloat(document.getElementById('sai_valor').value) || 0,
-        resolucao: document.getElementById('sai_resolucao').value.trim(),
+        valor: parseFloat(document.getElementById('sai_valor').value || 0),
+        resolucao: document.getElementById('sai_resolucao').value,
         status: 'Entregue'
       };
 
       try {
-        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}/saida`, {
+        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
         if (!res.ok) {
           const err = await res.json();
           alert(formatarMensagemErro(err));
           return;
         }
-
         limparFormularios();
-        carregarLista(filtroAtual);
-        alert("Saída registrada com sucesso!");
-      } catch (e) {
-        console.error("Erro ao registrar saída:", e);
-        alert("Erro de conexão ao registrar saída.");
+        carregarLista();
+      } catch (err) {
+        alert("Erro ao finalizar a saída.");
       }
     }
 
     async function excluirRegistroAdmin() {
       if (!registroSelecionadoId) {
-        alert("Selecione um equipamento para excluir.");
+        alert("Selecione um registro na lista para excluir.");
         return;
       }
 
-      if (!confirm(`Tem certeza que deseja excluir o registro #${registroSelecionadoId}?`)) {
-        return;
-      }
+      if (!confirm(`Tem certeza que deseja excluir o registro #${registroSelecionadoId}?`)) return;
 
       try {
         const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, {
           method: 'DELETE'
         });
-
         if (!res.ok) {
           const err = await res.json();
           alert(formatarMensagemErro(err));
           return;
         }
-
         limparFormularios();
-        carregarLista(filtroAtual);
-        alert("Registro excluído com sucesso!");
-      } catch (e) {
-        console.error("Erro ao excluir registro:", e);
-        alert("Erro de conexão ao excluir o registro.");
+        carregarLista();
+      } catch (err) {
+        alert("Erro ao excluir o registro.");
       }
     }
 
@@ -800,36 +784,14 @@
       document.getElementById('modalRelatorio').classList.add('hidden');
     }
 
-    async function baixarRelatorioPDF() {
+    function baixarRelatorioPDF() {
       const mes = document.getElementById('rel_mes').value;
       const ano = document.getElementById('rel_ano').value;
       const anonimizar = document.getElementById('rel_anonimizar').checked;
 
       const url = `${API_BASE}/relatorio/pdf?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`;
-
-      try {
-        const res = await fetch(url);
-        if (!res.ok) {
-          const err = await res.json();
-          alert(formatarMensagemErro(err));
-          return;
-        }
-
-        const blob = await res.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = `Relatorio_SysFix_${mes}_${ano}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-
-        fecharModalRelatorio();
-      } catch (e) {
-        console.error("Erro ao gerar PDF:", e);
-        alert("Erro ao baixar o relatório em PDF.");
-      }
+      window.open(url, '_blank');
+      fecharModalRelatorio();
     }
   </script>
 </body>

@@ -34,12 +34,14 @@ class ColetaModel:
             raise ValueError("O nome do equipamento é obrigatório.")
 
         conn = get_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
             cursor.execute(
                 """
-                INSERT INTO coletas (equipamento, tombamento, tecnico_coleta, data_coleta, origem, os_coleta, localizacao, problema, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pendente')
+                INSERT INTO coletas (
+                    equipamento, tombamento, tecnico_coleta, data_coleta, 
+                    origem, os_coleta, localizacao, problema, status
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pendente')
                 RETURNING id;
             """,
                 (
@@ -93,8 +95,8 @@ class ColetaModel:
         res_san = SecurityValidator.sanitizar_texto(resolucao)
         laudado_san = SecurityValidator.sanitizar_texto(laudado)
         
-        data_validada = data_entrega if data_entrega else datetime.now().strftime("%d/%m/%Y")
-        entrega_san = SecurityValidator.validar_data(data_validada)
+        data_para_validar = data_entrega if data_entrega else datetime.now().strftime("%d/%m/%Y")
+        entrega_san = SecurityValidator.validar_data(data_para_validar)
         
         os_san = SecurityValidator.sanitizar_texto(os_entrega)
         status_custo_san = SecurityValidator.sanitizar_texto(status_custo) or "Sem Custo"
@@ -127,7 +129,7 @@ class ColetaModel:
                 ),
             )
             conn.commit()
-            return True
+            return cursor.rowcount > 0
         except Exception as e:
             conn.rollback()
             raise e
@@ -153,7 +155,10 @@ class ColetaModel:
         equip_san = SecurityValidator.sanitizar_texto(equipamento)
         tomb_san = SecurityValidator.sanitizar_texto(tombamento)
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
-        data_validada = SecurityValidator.validar_data(data_coleta)
+        
+        data_para_validar = data_coleta if data_coleta else datetime.now().strftime("%d/%m/%Y")
+        data_validada = SecurityValidator.validar_data(data_para_validar)
+        
         origem_san = SecurityValidator.sanitizar_texto(origem)
         os_san = SecurityValidator.sanitizar_texto(os_coleta)
         loc_san = SecurityValidator.sanitizar_texto(localizacao)
@@ -191,7 +196,7 @@ class ColetaModel:
                 ),
             )
             conn.commit()
-            return True
+            return cursor.rowcount > 0
         except Exception as e:
             conn.rollback()
             raise e
@@ -209,7 +214,7 @@ class ColetaModel:
         try:
             cursor.execute("DELETE FROM coletas WHERE id = %s;", (registro_id,))
             conn.commit()
-            return True
+            return cursor.rowcount > 0
         except Exception as e:
             conn.rollback()
             raise e

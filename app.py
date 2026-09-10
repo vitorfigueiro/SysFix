@@ -134,11 +134,17 @@ def debug_db():
 # Rotas da API
 
 @app.get("/api/equipamentos")
-def listar_equipamentos(filtro: Optional[str] = Query("nao_finalizados")):
+def listar_equipamentos(
+    filtro: Optional[str] = None,
+    status: Optional[str] = None
+):
     try:
-        if filtro == "finalizados":
+        # Aceita tanto 'filtro' quanto 'status' enviados pela URL
+        valor_filtro = (status or filtro or "nao_finalizados").lower().strip()
+
+        if valor_filtro in ["finalizados", "entregues", "entregue", "finalizado"]:
             dados = ColetaModel.buscar_finalizados_mes_atual()
-        elif filtro == "todos":
+        elif valor_filtro == "todos":
             dados = ColetaModel.buscar_todos()
         else:
             dados = ColetaModel.buscar_nao_finalizados_mes_atual()
@@ -253,4 +259,4 @@ def deletar_equipamento(registro_id: int):
 # Inicialização do servidor Uvicorn escutando a porta do ambiente
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)

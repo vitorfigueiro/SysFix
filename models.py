@@ -95,7 +95,11 @@ class ColetaModel:
         val_custo = SecurityValidator.validate_cost(valor_custo)
         res_san = SecurityValidator.sanitizar_texto(resolucao)
         laudado_san = SecurityValidator.sanitizar_texto(laudado)
-        entrega_san = SecurityValidator.validar_data(data_entrega)
+        
+        # Se data_entrega for vazia, assume a data atual
+        data_validada = data_entrega if data_entrega else datetime.now().strftime("%d/%m/%Y")
+        entrega_san = SecurityValidator.validar_data(data_validada)
+        
         os_san = SecurityValidator.sanitizar_texto(os_entrega)
         status_custo_san = SecurityValidator.sanitizar_texto(status_custo) or "Sem Custo"
 
@@ -226,7 +230,7 @@ class ColetaModel:
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE (LOWER(status) != 'entregue' OR status IS NULL)
+                WHERE (LOWER(TRIM(status)) != 'entregue' AND LOWER(TRIM(status)) != 'finalizado' OR status IS NULL)
                 ORDER BY id DESC;
             """
             )
@@ -237,25 +241,20 @@ class ColetaModel:
 
     @staticmethod
     def buscar_finalizados_mes_atual():
+        """
+        Retorna TODOS os registros finalizados/entregues.
+        Garante que qualquer item com status 'Entregue' ou 'Finalizado' seja listado.
+        """
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        mes_iso = datetime.now().strftime("%Y-%m")
-        mes_br = datetime.now().strftime("/%m/%Y")
 
         try:
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE LOWER(status) = 'entregue'
-                  AND (
-                    data_coleta::text LIKE %s 
-                    OR data_coleta::text LIKE %s
-                    OR data_entrega::text LIKE %s
-                    OR data_entrega::text LIKE %s
-                  )
+                WHERE LOWER(TRIM(status)) IN ('entregue', 'finalizado')
                 ORDER BY id DESC;
-            """,
-                (f"{mes_iso}%", f"%{mes_br}", f"{mes_iso}%", f"%{mes_br}"),
+            """
             )
             return cursor.fetchall()
         finally:

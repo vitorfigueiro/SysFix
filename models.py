@@ -233,7 +233,7 @@ class ColetaModel:
                 SELECT * FROM coletas
                 WHERE (LOWER(TRIM(status)) NOT IN ('entregue', 'finalizado') OR status IS NULL)
                 ORDER BY id DESC;
-            """
+                """
             )
             return cursor.fetchall()
         finally:
@@ -246,12 +246,13 @@ class ColetaModel:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         try:
+            # CORRIGIDO: 'entregue' em minúsculo para bater com o LOWER()
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE LOWER(TRIM(status)) IN ('Entregue', 'finalizado')
+                WHERE LOWER(TRIM(status)) IN ('entregue', 'finalizado')
                 ORDER BY id DESC;
-            """
+                """
             )
             return cursor.fetchall()
         finally:
@@ -281,14 +282,19 @@ class ColetaModel:
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
-            cursor.execute(
-                """
+            # A query agora busca registros onde A DATA DE COLETA OU A DATA DE ENTREGA
+            # correspondem ao mês e ano solicitados (tanto no formato ISO YYYY-MM quanto no BR /MM/YYYY)
+            query = """
                 SELECT * FROM coletas 
-                WHERE data_coleta::text LIKE %s OR data_coleta::text LIKE %s
+                WHERE (data_coleta::text LIKE %s OR data_coleta::text LIKE %s)
+                   OR (data_entrega::text LIKE %s OR data_entrega::text LIKE %s)
                 ORDER BY id DESC;
-            """,
-                (f"{mes_iso}%", f"%{mes_br}"),
-            )
+            """
+            
+            p_iso = f"{mes_iso}%"
+            p_br = f"%{mes_br}"
+
+            cursor.execute(query, (p_iso, p_br, p_iso, p_br))
             return cursor.fetchall()
         finally:
             cursor.close()

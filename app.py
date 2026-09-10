@@ -1,21 +1,23 @@
 import os
 import uvicorn
 from datetime import datetime, date
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, field_validator
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+
 from mensagens import obter_mensagem_erro
 from database import init_db, get_connection
 from models import ColetaModel
+from pdf_generator import PDFReportGenerator
 
 # Inicializa o banco de dados e aplica migrações
 init_db()
 
 app = FastAPI(
-    title="API de Gerenciamento de Coletas",
+    title="API de Gerenciamento de Coletas - SysFix",
     version="1.0.0"
 )
 
@@ -76,9 +78,10 @@ def serializar_registro(registro: dict) -> dict:
 
 
 class EntradaSchema(BaseModel):
-    equipamento: str
+    equipamento: Optional[str] = ""
     tombamento: Optional[str] = ""
     tecnico: Optional[str] = ""
+    tecnico_coleta: Optional[str] = ""
     data_coleta: Optional[Union[str, date]] = ""
     origem: Optional[str] = ""
     os_coleta: Optional[str] = ""
@@ -87,6 +90,15 @@ class EntradaSchema(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
+    @model_validator(mode="before")
+    @classmethod
+    def compatibilizar_campos_entrada(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Mapeia tecnico_coleta para tecnico se enviado do frontend
+            if "tecnico_coleta" in data and not data.get("tecnico"):
+                data["tecnico"] = data["tecnico_coleta"]
+        return data
+
     @field_validator("data_coleta", mode="before")
     @classmethod
     def normalizar_data(cls, v):
@@ -94,15 +106,25 @@ class EntradaSchema(BaseModel):
 
 
 class SaidaSchema(BaseModel):
-    tecnico_entrega: str
+    tecnico_entrega: Optional[str] = ""
     data_entrega: Optional[Union[str, date]] = ""
     os_entrega: Optional[str] = ""
     status_custo: Optional[str] = "Sem Custo"
     valor_custo: Optional[float] = 0.0
+    valor: Optional[float] = 0.0
     resolucao: Optional[str] = ""
     laudado: Optional[str] = "Não"
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="before")
+    @classmethod
+    def compatibilizar_campos_saida(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Mapeia valor para valor_custo se enviado do frontend
+            if "valor" in data and ("valor_custo" not in data or data["valor_custo"] == 0.0):
+                data["valor_custo"] = data["valor"]
+        return data
 
     @field_validator("data_entrega", mode="before")
     @classmethod
@@ -145,7 +167,7 @@ def debug_db():
         conn.close()
 
 
-# Rotas da API
+# Rotas da API de Equipamentos
 
 @app.get("/api/equipamentos")
 def listar_equipamentos(
@@ -194,7 +216,7 @@ def criar_entrada(payload: EntradaSchema):
         novo_id = ColetaModel.registrar_entrada(
             equipamento=payload.equipamento,
             tombamento=payload.tombamento,
-            tecnico=payload.tecnico,
+            tecnico=payload.tecnico or payload.tecnico_coleta,
             data_coleta=payload.data_coleta,
             origem=payload.origem,
             os_coleta=payload.os_coleta,
@@ -218,7 +240,7 @@ def registrar_saida(registro_id: int, payload: SaidaSchema):
             data_entrega=payload.data_entrega,
             os_entrega=payload.os_entrega,
             status_custo=payload.status_custo,
-            valor_custo=payload.valor_custo,
+            valor_custo=payload.valor_custo or payload.valor,
             resolucao=payload.resolucao,
             laudado=payload.laudado,
         )
@@ -231,20 +253,42 @@ def registrar_saida(registro_id: int, payload: SaidaSchema):
 
 
 @app.put("/api/equipamentos/{registro_id}")
-def atualizar_entrada(registro_id: int, payload: EntradaSchema):
+def atualizar_equipamento_unificado(registro_id: int, payload: dict):
+    """
+    Endpoint unificado PUT para atualização de Entrada ou registro de Saída,
+    dependendo dos campos enviados pelo Frontend.
+    """
     try:
+        # Verifica se é uma requisição de saída/entrega
+        if "tecnico_entrega" in payload or payload.get("status") in ["Entregue", "Finalizado"]:
+            saida_data = SaidaSchema(**payload)
+            ColetaModel.registrar_saida(
+                registro_id=registro_id,
+                tecnico_entrega=saida_data.tecnico_entrega,
+                data_entrega=saida_data.data_entrega,
+                os_entrega=saida_data.os_entrega,
+                status_custo=saida_data.status_custo,
+                valor_custo=saida_data.valor_custo or saida_data.valor,
+                resolucao=saida_data.resolucao,
+                laudado=saida_data.laudado,
+            )
+            return {"sucesso": True, "mensagem": "Saída registrada com sucesso."}
+        
+        # Caso contrário, trata como atualização de dados de Entrada
+        entrada_data = EntradaSchema(**payload)
         ColetaModel.atualizar_entrada(
             registro_id=registro_id,
-            equipamento=payload.equipamento,
-            tombamento=payload.tombamento,
-            tecnico=payload.tecnico,
-            data_coleta=payload.data_coleta,
-            origem=payload.origem,
-            os_coleta=payload.os_coleta,
-            localizacao=payload.localizacao,
-            problema=payload.problema,
+            equipamento=entrada_data.equipamento,
+            tombamento=entrada_data.tombamento,
+            tecnico=entrada_data.tecnico or entrada_data.tecnico_coleta,
+            data_coleta=entrada_data.data_coleta,
+            origem=entrada_data.origem,
+            os_coleta=entrada_data.os_coleta,
+            localizacao=entrada_data.localizacao,
+            problema=entrada_data.problema,
         )
         return {"sucesso": True, "mensagem": "Registro atualizado com sucesso."}
+
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -260,6 +304,32 @@ def deletar_equipamento(registro_id: int):
     except Exception as e:
         erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
         raise HTTPException(status_code=500, detail=erro)
+
+
+# Rota para Geração de Relatórios PDF
+
+@app.get("/api/relatorio/pdf")
+def gerar_relatorio_pdf(
+    mes: int = Query(..., ge=1, le=12),
+    ano: int = Query(..., ge=2000, le=2100),
+    anonimizar: bool = Query(False)
+):
+    try:
+        pdf_buffer = PDFReportGenerator.relatorio_por_mes(mes=mes, ano=ano, anonimizar=anonimizar)
+        
+        filename = f"Relatorio_SysFix_{mes:02d}_{ano}.pdf"
+        headers = {
+            "Content-Disposition": f'inline; filename="{filename}"'
+        }
+        
+        return StreamingResponse(
+            pdf_buffer, 
+            media_type="application/pdf", 
+            headers=headers
+        )
+    except Exception as e:
+        erro = obter_mensagem_erro("REPORT_ERROR", detalhe_tecnico=str(e)) if "obter_mensagem_erro" in globals() else str(e)
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar relatório PDF: {str(e)}")
 
 
 if __name__ == "__main__":

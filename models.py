@@ -249,7 +249,7 @@ class ColetaModel:
             cursor.execute(
                 """
                 SELECT * FROM coletas
-                WHERE LOWER(TRIM(status)) IN ('entregue', 'finalizado')
+                WHERE LOWER(TRIM(status)) IN ('Entregue', 'finalizado')
                 ORDER BY id DESC;
             """
             )

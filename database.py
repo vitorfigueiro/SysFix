@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-VERSAO_ATUAL_SCHEMA = 5
+VERSAO_ATUAL_SCHEMA = 6
 
 
 def get_connection():
@@ -108,6 +108,21 @@ def aplicar_migracoes(conn, versao_banco):
                     conn.rollback()
                     print(f"Aviso ao alterar NOT NULL da coluna {col}: {err_drop}")
 
+        if versao_banco < 6:
+            # Migração v6: Higieniza e atualiza registros antigos com status NULO ou entregues anteriormente
+            try:
+                cursor.execute("UPDATE coletas SET status = 'Pendente' WHERE status IS NULL OR TRIM(status) = '';")
+                cursor.execute("""
+                    UPDATE coletas 
+                    SET status = 'Entregue' 
+                    WHERE (data_entrega IS NOT NULL AND TRIM(data_entrega) != '') 
+                       OR (tecnico_entrega IS NOT NULL AND TRIM(tecnico_entrega) != '');
+                """)
+                conn.commit()
+            except Exception as err_v6:
+                conn.rollback()
+                print(f"Aviso ao executar migração v6: {err_v6}")
+
         cursor.execute(
             "UPDATE schema_version SET versao = %s WHERE id = 1;",
             (VERSAO_ATUAL_SCHEMA,),
@@ -189,7 +204,8 @@ def salvar_coleta(dados: dict):
                 dados.get("problema"),
             ),
         )
-        novo_id = cursor.fetchone()["id"]
+        row = cursor.fetchone()
+        novo_id = row.get("id") if isinstance(row, dict) else row[0]
         conn.commit()
         return novo_id
     except Exception as e:
@@ -201,14 +217,24 @@ def salvar_coleta(dados: dict):
 
 
 def listar_coletas(status_filtro: str = "todos"):
-    """Lista os equipamentos filtrando por status (nao_finalizados, finalizados, todos)."""
+    """Lista os equipamentos filtrando por status (nao_finalizados, finalizados/entregues, todos)."""
     conn = get_connection()
     cursor = conn.cursor()
+    filtro = (status_filtro or "").strip().lower()
+
     try:
-        if status_filtro == "nao_finalizados":
-            cursor.execute("SELECT * FROM coletas WHERE status != 'Entregue' ORDER BY id DESC;")
-        elif status_filtro == "finalizados":
-            cursor.execute("SELECT * FROM coletas WHERE status = 'Entregue' ORDER BY id DESC;")
+        if filtro in ["nao_finalizados", "pendentes", "pendente"]:
+            cursor.execute("""
+                SELECT * FROM coletas 
+                WHERE LOWER(TRIM(status)) NOT IN ('entregue', 'finalizado') OR status IS NULL 
+                ORDER BY id DESC;
+            """)
+        elif filtro in ["finalizados", "entregues", "entregue", "finalizado"]:
+            cursor.execute("""
+                SELECT * FROM coletas 
+                WHERE LOWER(TRIM(status)) IN ('entregue', 'finalizado') 
+                ORDER BY id DESC;
+            """)
         else:
             cursor.execute("SELECT * FROM coletas ORDER BY id DESC;")
         return cursor.fetchall()

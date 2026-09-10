@@ -214,9 +214,9 @@
       <div class="p-3 border-b border-pastel-border bg-slate-50 flex items-center justify-between">
         <span class="text-xs font-bold text-slate-700">Equipamentos Cadastrados</span>
         <div class="flex gap-1">
-          <button onclick="carregarLista('nao_finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Pendentes</button>
-          <button onclick="carregarLista('finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Entregues</button>
-          <button onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100">Todos</button>
+          <button id="btnFiltroPendentes" onclick="carregarLista('nao_finalizados')" class="px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white rounded-md shadow-sm transition-all">Pendentes</button>
+          <button id="btnFiltroEntregues" onclick="carregarLista('finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all">Entregues</button>
+          <button id="btnFiltroTodos" onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all">Todos</button>
         </div>
       </div>
 
@@ -341,12 +341,12 @@
 
   <!-- JAVASCRIPT DE INTERATIVIDADE -->
   <script>
-    // Configuração base da API (detecta Railway ou ambiente local)
     const API_BASE = window.location.origin.includes('railway.app') 
       ? '/api' 
       : 'https://web-production-04cf6.up.railway.app/api';
 
     let registroSelecionadoId = null;
+    let filtroAtual = 'nao_finalizados';
 
     document.addEventListener("DOMContentLoaded", () => {
       const hoje = new Date();
@@ -357,7 +357,7 @@
 
       carregarLista('nao_finalizados');
 
-      // ESCUTA CLIQUES GLOBAIS NA TELA PARA LIMPAR SE CLICAR FORA
+      // Escuta cliques fora dos painéis para desmarcar seleção
       document.addEventListener("click", (event) => {
         if (!registroSelecionadoId) return;
 
@@ -396,24 +396,46 @@
       return dataStr;
     }
 
+    // Função para calcular quantos dias o equipamento está pendente
+    function calcularDiasPendente(dataStr) {
+      if (!dataStr) return 0;
+      let dataColeta;
+      
+      if (dataStr.includes('/')) {
+        const partes = dataStr.split('/');
+        if (partes.length === 3) {
+          dataColeta = new Date(partes[2], partes[1] - 1, partes[0]);
+        }
+      } else if (dataStr.includes('-')) {
+        const partes = dataStr.split('-');
+        if (partes.length === 3) {
+          dataColeta = new Date(partes[0], partes[1] - 1, partes[2]);
+        }
+      } else {
+        dataColeta = new Date(dataStr);
+      }
+
+      if (!dataColeta || isNaN(dataColeta.getTime())) return 0;
+
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      dataColeta.setHours(0, 0, 0, 0);
+
+      const diffTime = hoje.getTime() - dataColeta.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays > 0 ? diffDays : 0;
+    }
+
     function formatarMensagemErro(err) {
       if (!err) return "Erro desconhecido no servidor.";
-      
-      if (typeof err.detail === 'string') {
-        return err.detail;
-      }
-      
+      if (typeof err.detail === 'string') return err.detail;
       if (Array.isArray(err.detail)) {
         return err.detail.map(e => {
           const campo = e.loc ? e.loc.filter(item => item !== 'body').join('.') : 'Campo';
           return `• ${campo}: ${e.msg}`;
         }).join('\n');
       }
-      
-      if (typeof err.detail === 'object') {
-        return JSON.stringify(err.detail, null, 2);
-      }
-
+      if (typeof err.detail === 'object') return JSON.stringify(err.detail, null, 2);
       return JSON.stringify(err);
     }
 
@@ -438,6 +460,19 @@
       campo.className = isComCusto 
         ? "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white text-slate-800"
         : "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all";
+    }
+
+    function atualizarBotoesFiltro(filtro) {
+      const btnPendentes = document.getElementById('btnFiltroPendentes');
+      const btnEntregues = document.getElementById('btnFiltroEntregues');
+      const btnTodos = document.getElementById('btnFiltroTodos');
+
+      const activeClass = "px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white rounded-md shadow-sm transition-all";
+      const inactiveClass = "px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all";
+
+      if (btnPendentes) btnPendentes.className = filtro === 'nao_finalizados' ? activeClass : inactiveClass;
+      if (btnEntregues) btnEntregues.className = filtro === 'finalizados' ? activeClass : inactiveClass;
+      if (btnTodos) btnTodos.className = filtro === 'todos' ? activeClass : inactiveClass;
     }
 
     function limparFormularios() {
@@ -472,34 +507,65 @@
       document.getElementById('fichaVazia').classList.remove('hidden');
     }
 
-    async function carregarLista(filtro) {
+    async function carregarLista(filtro = filtroAtual) {
+      filtroAtual = filtro;
+      atualizarBotoesFiltro(filtro);
+
       try {
         const res = await fetch(`${API_BASE}/equipamentos?status=${filtro}`);
-        const dados = await res.json();
+        let dados = await res.json();
+
+        if (!Array.isArray(dados)) {
+          dados = [];
+        }
+
+        // Filtro adicional no client-side para garantia absoluta de exibição
+        dados = dados.filter(item => {
+          const isEntregue = (item.status || '').toLowerCase() === 'entregue';
+          if (filtro === 'nao_finalizados') return !isEntregue;
+          if (filtro === 'finalizados') return isEntregue;
+          return true; // todos
+        });
+
         const tbody = document.getElementById('tabelaCorpo');
         tbody.innerHTML = '';
 
-        if (!Array.isArray(dados) || dados.length === 0) {
+        if (dados.length === 0) {
           tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400">Nenhum equipamento encontrado.</td></tr>';
           return;
         }
 
         dados.forEach(item => {
           const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100";
+          const isEntregue = (item.status || '').toLowerCase() === 'entregue';
+          const diasPendente = !isEntregue ? calcularDiasPendente(item.data_coleta) : 0;
+          const estaAtrasado = !isEntregue && diasPendente > 3;
+
+          // Estilização visual caso esteja mais de 3 dias pendente
+          if (estaAtrasado) {
+            tr.className = "bg-rose-50 hover:bg-rose-100/80 border-l-4 border-l-rose-500 cursor-pointer transition-colors border-b border-rose-100";
+          } else {
+            tr.className = "hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100";
+          }
+
           tr.onclick = (e) => {
             e.stopPropagation();
             selecionarItem(item.id);
           };
-          
-          const badge = item.status === "Entregue" 
-            ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>'
-            : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente</span>';
+
+          let badge = '';
+          if (isEntregue) {
+            badge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>';
+          } else if (estaAtrasado) {
+            badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 text-rose-700 border border-rose-300">🚨 ${diasPendente} dias</span>`;
+          } else {
+            badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente (${diasPendente}d)</span>`;
+          }
 
           tr.innerHTML = `
-            <td class="p-2.5 font-bold text-slate-500">#${item.id}</td>
-            <td class="p-2.5 font-semibold text-slate-800">${escapeHtml(item.equipamento)}</td>
-            <td class="p-2.5 text-slate-600">${escapeHtml(item.tombamento || '-')}</td>
+            <td class="p-2.5 font-bold ${estaAtrasado ? 'text-rose-700' : 'text-slate-500'}">#${item.id}</td>
+            <td class="p-2.5 font-semibold ${estaAtrasado ? 'text-rose-900' : 'text-slate-800'}">${escapeHtml(item.equipamento)}</td>
+            <td class="p-2.5 ${estaAtrasado ? 'text-rose-700' : 'text-slate-600'}">${escapeHtml(item.tombamento || '-')}</td>
             <td class="p-2.5">${badge}</td>
           `;
           tbody.appendChild(tr);
@@ -560,7 +626,7 @@
         document.getElementById('f_laudado').innerText = d.laudado || 'Não';
         document.getElementById('f_resolucao').innerText = d.resolucao || 'Em andamento';
 
-        const isEntregue = d.status === "Entregue";
+        const isEntregue = (d.status || '').toLowerCase() === "entregue";
         document.getElementById('f_badge_status').className = isEntregue 
           ? "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200"
           : "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
@@ -601,7 +667,7 @@
         }
 
         limparFormularios();
-        carregarLista('nao_finalizados');
+        carregarLista(filtroAtual);
         alert("Entrada registrada com sucesso!");
       } catch (e) {
         console.error("Erro ao registrar entrada:", e);
@@ -639,7 +705,7 @@
           return;
         }
 
-        carregarLista('nao_finalizados');
+        carregarLista(filtroAtual);
         selecionarItem(registroSelecionadoId);
         alert("Registro atualizado com sucesso!");
       } catch (e) {
@@ -679,7 +745,7 @@
         }
 
         limparFormularios();
-        carregarLista('nao_finalizados');
+        carregarLista(filtroAtual);
         alert("Saída registrada com sucesso!");
       } catch (e) {
         console.error("Erro ao registrar saída:", e);
@@ -709,7 +775,7 @@
         }
 
         limparFormularios();
-        carregarLista('nao_finalizados');
+        carregarLista(filtroAtual);
         alert("Registro excluído com sucesso!");
       } catch (e) {
         console.error("Erro ao excluir registro:", e);

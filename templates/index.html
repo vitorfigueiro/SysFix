@@ -571,12 +571,11 @@
     }
 
     async function salvarEntrada() {
-      const dataInput = document.getElementById('ent_data').value;
       const payload = {
         equipamento: document.getElementById('ent_equip').value.trim(),
         tombamento: document.getElementById('ent_tomb').value.trim(),
         tecnico: document.getElementById('ent_tec').value.trim(),
-        data_coleta: dataInput,
+        data_coleta: document.getElementById('ent_data').value,
         origem: document.getElementById('ent_origem').value.trim(),
         os_coleta: document.getElementById('ent_os').value.trim(),
         localizacao: document.getElementById('ent_loc').value,
@@ -589,27 +588,32 @@
       }
 
       try {
-        const res = await fetch(`${API_BASE}/equipamentos`, { 
-          method: 'POST', 
+        const res = await fetch(`${API_BASE}/equipamentos`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload) 
+          body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-          alert("Entrada registrada com sucesso!");
-          limparFormularios();
-          carregarLista('nao_finalizados');
-        } else {
+        if (!res.ok) {
           const err = await res.json();
-          alert("Erro ao salvar entrada:\n\n" + formatarMensagemErro(err));
+          alert(formatarMensagemErro(err));
+          return;
         }
+
+        limparFormularios();
+        carregarLista('nao_finalizados');
+        alert("Entrada registrada com sucesso!");
       } catch (e) {
-        alert("Erro ao se comunicar com o servidor.");
+        console.error("Erro ao registrar entrada:", e);
+        alert("Erro de conexão ao registrar entrada.");
       }
     }
 
     async function atualizarEntradaAdmin() {
-      if (!registroSelecionadoId) return alert("Selecione um equipamento da lista para editar!");
+      if (!registroSelecionadoId) {
+        alert("Selecione um equipamento na lista para editar.");
+        return;
+      }
 
       const payload = {
         equipamento: document.getElementById('ent_equip').value.trim(),
@@ -629,21 +633,26 @@
           body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-          alert("Registro de entrada atualizado com sucesso!");
-          carregarLista('nao_finalizados');
-          selecionarItem(registroSelecionadoId);
-        } else {
+        if (!res.ok) {
           const err = await res.json();
-          alert("Erro ao atualizar entrada:\n\n" + formatarMensagemErro(err));
+          alert(formatarMensagemErro(err));
+          return;
         }
+
+        carregarLista('nao_finalizados');
+        selecionarItem(registroSelecionadoId);
+        alert("Registro atualizado com sucesso!");
       } catch (e) {
-        alert("Erro ao se comunicar com o servidor.");
+        console.error("Erro ao atualizar entrada:", e);
+        alert("Erro de conexão ao atualizar registro.");
       }
     }
 
     async function salvarSaida() {
-      if (!registroSelecionadoId) return alert("Selecione um equipamento da lista para registrar a saída!");
+      if (!registroSelecionadoId) {
+        alert("Selecione um equipamento na lista para dar saída.");
+        return;
+      }
 
       const payload = {
         tecnico_entrega: document.getElementById('sai_tec').value.trim(),
@@ -653,49 +662,58 @@
         status_custo: document.getElementById('sai_status_custo').value,
         valor_custo: parseFloat(document.getElementById('sai_valor').value) || 0,
         resolucao: document.getElementById('sai_resolucao').value.trim(),
-        status: "Entregue"
+        status: 'Entregue'
       };
 
       try {
         const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}/saida`, {
-          method: 'POST',
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-          alert("Saída registrada e status atualizado para Entregue!");
-          limparFormularios();
-          carregarLista('nao_finalizados');
-        } else {
+        if (!res.ok) {
           const err = await res.json();
-          alert("Erro ao registrar saída:\n\n" + formatarMensagemErro(err));
+          alert(formatarMensagemErro(err));
+          return;
         }
+
+        limparFormularios();
+        carregarLista('nao_finalizados');
+        alert("Saída registrada com sucesso!");
       } catch (e) {
-        alert("Erro ao se comunicar com o servidor.");
+        console.error("Erro ao registrar saída:", e);
+        alert("Erro de conexão ao registrar saída.");
       }
     }
 
     async function excluirRegistroAdmin() {
-      if (!registroSelecionadoId) return alert("Selecione um registro para excluir!");
+      if (!registroSelecionadoId) {
+        alert("Selecione um equipamento para excluir.");
+        return;
+      }
 
-      if (!confirm(`Tem certeza que deseja excluir o registro #${registroSelecionadoId}?`)) return;
+      if (!confirm(`Tem certeza que deseja excluir o registro #${registroSelecionadoId}?`)) {
+        return;
+      }
 
       try {
-        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, { 
-          method: 'DELETE' 
+        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, {
+          method: 'DELETE'
         });
 
-        if (res.ok) {
-          alert("Registro excluído com sucesso!");
-          limparFormularios();
-          carregarLista('nao_finalizados');
-        } else {
+        if (!res.ok) {
           const err = await res.json();
-          alert("Erro ao excluir registro:\n\n" + formatarMensagemErro(err));
+          alert(formatarMensagemErro(err));
+          return;
         }
+
+        limparFormularios();
+        carregarLista('nao_finalizados');
+        alert("Registro excluído com sucesso!");
       } catch (e) {
-        alert("Erro ao se comunicar com o servidor.");
+        console.error("Erro ao excluir registro:", e);
+        alert("Erro de conexão ao excluir o registro.");
       }
     }
 
@@ -707,13 +725,36 @@
       document.getElementById('modalRelatorio').classList.add('hidden');
     }
 
-    function baixarRelatorioPDF() {
+    async function baixarRelatorioPDF() {
       const mes = document.getElementById('rel_mes').value;
       const ano = document.getElementById('rel_ano').value;
       const anonimizar = document.getElementById('rel_anonimizar').checked;
 
-      window.open(`${API_BASE}/relatorio/pdf?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`, '_blank');
-      fecharModalRelatorio();
+      const url = `${API_BASE}/relatorio/pdf?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.json();
+          alert(formatarMensagemErro(err));
+          return;
+        }
+
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `Relatorio_SysFix_${mes}_${ano}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+
+        fecharModalRelatorio();
+      } catch (e) {
+        console.error("Erro ao gerar PDF:", e);
+        alert("Erro ao baixar o relatório em PDF.");
+      }
     }
   </script>
 </body>

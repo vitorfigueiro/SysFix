@@ -45,7 +45,7 @@
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
   </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
+<body class="h-screen flex flex-col overflow-hidden relative">
 
   <!-- BARRA DE NAVEGAÇÃO SUPERIOR -->
   <header class="bg-white border-b border-pastel-border px-6 py-3.5 flex justify-between items-center shadow-sm z-10">
@@ -292,6 +292,9 @@
     </section>
   </div>
 
+  <!-- CONTAINER PARA NOTIFICAÇÕES (TOASTS) -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
   <!-- MODAL DE EXPORTAÇÃO DE RELATÓRIO PDF -->
   <div id="modalRelatorio" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-2xl border border-slate-200 p-6 w-96 shadow-xl space-y-4">
@@ -357,7 +360,6 @@
 
       carregarLista('nao_finalizados');
 
-      // Escuta cliques fora dos painéis para desmarcar seleção
       document.addEventListener("click", (event) => {
         if (!registroSelecionadoId) return;
 
@@ -376,6 +378,39 @@
         }
       });
     });
+
+    function mostrarToast(mensagem, tipo = 'sucesso') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+
+      const toast = document.createElement('div');
+      
+      const estilos = {
+        sucesso: 'bg-slate-900 text-emerald-400 border-emerald-500/30',
+        erro: 'bg-slate-900 text-rose-400 border-rose-500/30',
+        info: 'bg-slate-900 text-sky-400 border-sky-500/30'
+      };
+
+      const icones = {
+        sucesso: '✨',
+        erro: '🚨',
+        info: 'ℹ️'
+      };
+
+      toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold transform transition-all duration-300 translate-y-4 opacity-0 ${estilos[tipo] || estilos.info}`;
+      toast.innerHTML = `<span class="text-sm">${icones[tipo] || 'ℹ️'}</span><span>${mensagem}</span>`;
+
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-4', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-4', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
 
     function escapeHtml(text) {
       if (!text) return '';
@@ -431,10 +466,10 @@
       if (Array.isArray(err.detail)) {
         return err.detail.map(e => {
           const campo = e.loc ? e.loc.filter(item => item !== 'body').join('.') : 'Campo';
-          return `• ${campo}: ${e.msg}`;
-        }).join('\n');
+          return `${campo}: ${e.msg}`;
+        }).join(' | ');
       }
-      if (typeof err.detail === 'object') return JSON.stringify(err.detail, null, 2);
+      if (typeof err.detail === 'object') return JSON.stringify(err.detail);
       return JSON.stringify(err);
     }
 
@@ -477,7 +512,6 @@
     function limparFormularios() {
       registroSelecionadoId = null;
       
-      // Limpar formulário de Entrada
       document.getElementById('ent_equip').value = '';
       document.getElementById('ent_tomb').value = '';
       document.getElementById('ent_tec').value = '';
@@ -487,7 +521,6 @@
       document.getElementById('ent_loc').value = 'Bancada TI';
       document.getElementById('ent_prob').value = '';
 
-      // Limpar formulário de Saída
       document.getElementById('sai_tec').value = '';
       document.getElementById('sai_os').value = '';
       document.getElementById('sai_data').valueAsDate = new Date();
@@ -497,12 +530,10 @@
       document.getElementById('sai_resolucao').value = '';
       alternarCampoCusto();
 
-      // Resetar Badges
       const badge = document.getElementById('badgeStatusSelecao');
       badge.className = "p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2";
       badge.innerText = "⚠️ Nenhum item selecionado na lista";
 
-      // Esconder Ficha Técnica
       document.getElementById('fichaConteudo').classList.add('hidden');
       document.getElementById('fichaVazia').classList.remove('hidden');
     }
@@ -563,6 +594,7 @@
         });
       } catch (e) {
         console.error("Erro ao carregar lista:", e);
+        mostrarToast("Erro ao conectar com o servidor.", "erro");
       }
     }
 
@@ -572,7 +604,7 @@
         const res = await fetch(`${API_BASE}/equipamentos/${id}`);
         const d = await res.json();
 
-        // Preencher Entrada
+        // Preencher formulário de Entrada
         document.getElementById('ent_equip').value = d.equipamento || '';
         document.getElementById('ent_tomb').value = d.tombamento || '';
         document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
@@ -582,7 +614,7 @@
         document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
         document.getElementById('ent_prob').value = d.problema || '';
 
-        // Preencher Saída
+        // Preencher formulário de Saída
         document.getElementById('sai_tec').value = d.tecnico_entrega || '';
         document.getElementById('sai_os').value = d.os_entrega || '';
         document.getElementById('sai_data').value = converterDataParaInput(d.data_entrega);
@@ -592,55 +624,58 @@
         document.getElementById('sai_resolucao').value = d.resolucao || d.servico_realizado || '';
         alternarCampoCusto();
 
-        // Badge Status Seleção
+        // Atualizar Badge de Seleção no painel de saída
         const statusLower = (d.status || '').toLowerCase().trim();
         const isEntregue = statusLower === 'entregue' || statusLower === 'finalizado' || (d.data_entrega && d.data_entrega.trim() !== '');
         
         const badge = document.getElementById('badgeStatusSelecao');
         if (isEntregue) {
           badge.className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
-          badge.innerText = `✅ Item #${d.id} (${d.equipamento}) - Entregue`;
+          badge.innerText = `✅ Item #${d.id} selecionado (Entregue)`;
         } else {
-          badge.className = "p-3 bg-amber-50 border border-amber-100 rounded-lg text-xs font-semibold text-amber-700 flex items-center gap-2";
-          badge.innerText = `⏳ Item #${d.id} (${d.equipamento}) - Selecionado (Pendente)`;
+          badge.className = "p-3 bg-sky-50 border border-sky-100 rounded-lg text-xs font-semibold text-sky-700 flex items-center gap-2";
+          badge.innerText = `📦 Item #${d.id} selecionado para saída`;
         }
 
-        // Ficha Técnica Header
+        // Atualizar Ficha Técnica
         document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
-        document.getElementById('f_equipamento').innerText = d.equipamento || 'Sem Nome';
-        document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || 'N/A'}`;
+        document.getElementById('f_equipamento').innerText = d.equipamento || '---';
+        document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || '---'}`;
         
-        const badgeFicha = document.getElementById('f_badge_status');
+        const fBadge = document.getElementById('f_badge_status');
         if (isEntregue) {
-          badgeFicha.className = "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200";
-          badgeFicha.innerText = "✅ ENTREGUE";
+          fBadge.className = "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200";
+          fBadge.innerText = "✅ ENTREGUE";
         } else {
-          badgeFicha.className = "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
-          badgeFicha.innerText = "⏳ PENDENTE";
+          const dias = calcularDiasPendente(d.data_coleta);
+          if (dias > 3) {
+            fBadge.className = "px-3 py-1 text-xs font-bold rounded-full bg-rose-50 text-rose-600 border border-rose-200";
+            fBadge.innerText = `🚨 ATRASADO (${dias}d)`;
+          } else {
+            fBadge.className = "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
+            fBadge.innerText = `⏳ PENDENTE (${dias}d)`;
+          }
         }
 
-        // Dados de Entrada Ficha
         document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || '---';
         document.getElementById('f_data_coleta').innerText = d.data_coleta || '---';
         document.getElementById('f_os_coleta').innerText = d.os_coleta || '---';
         document.getElementById('f_origem').innerText = d.origem || '---';
         document.getElementById('f_localizacao').innerText = d.localizacao || '---';
-        document.getElementById('f_problema').innerText = d.problema || 'Nenhum problema informado.';
+        document.getElementById('f_problema').innerText = d.problema || 'Nenhum detalhe relatado.';
 
-        // Dados de Saída Ficha
         document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || '---';
         document.getElementById('f_data_entrega').innerText = d.data_entrega || '---';
         document.getElementById('f_os_entrega').innerText = d.os_entrega || '---';
-        document.getElementById('f_custo').innerText = d.status_custo === 'Com Custo' ? `Com Custo (R$ ${parseFloat(d.valor_custo || d.valor || 0).toFixed(2)})` : (d.status_custo || '---');
+        document.getElementById('f_custo').innerText = d.status_custo === 'Com Custo' ? `Com Custo (R$ ${parseFloat(d.valor_custo || 0).toFixed(2)})` : (d.status_custo || '---');
         document.getElementById('f_laudado').innerText = d.laudado || '---';
-        document.getElementById('f_resolucao').innerText = d.resolucao || d.servico_realizado || 'Aguardando manutenção...';
+        document.getElementById('f_resolucao').innerText = d.resolucao || d.servico_realizado || 'Pendente de atendimento.';
 
-        // Alterna visualização da ficha
         document.getElementById('fichaVazia').classList.add('hidden');
         document.getElementById('fichaConteudo').classList.remove('hidden');
       } catch (e) {
         console.error("Erro ao carregar detalhes:", e);
-        alert("Erro ao buscar detalhes do registro.");
+        mostrarToast("Não foi possível carregar os detalhes do registro.", "erro");
       }
     }
 
@@ -657,7 +692,7 @@
       };
 
       if (!payload.equipamento) {
-        alert("O campo 'Equipamento' é obrigatório!");
+        mostrarToast("Preencha o nome do equipamento para continuar.", "erro");
         return;
       }
 
@@ -670,22 +705,22 @@
 
         if (!res.ok) {
           const err = await res.json();
-          alert(formatarMensagemErro(err));
+          mostrarToast(formatarMensagemErro(err), "erro");
           return;
         }
 
-        alert("Entrada registrada com sucesso!");
+        mostrarToast(`Entrada de "${payload.equipamento}" registrada com sucesso!`, "sucesso");
         limparFormularios();
         carregarLista();
       } catch (e) {
         console.error("Erro ao salvar entrada:", e);
-        alert("Erro de conexão ao salvar a entrada.");
+        mostrarToast("Falha na conexão ao tentar registrar entrada.", "erro");
       }
     }
 
     async function atualizarEntradaAdmin() {
       if (!registroSelecionadoId) {
-        alert("Selecione um registro na lista para editar.");
+        mostrarToast("Selecione um equipamento na lista para atualizar.", "erro");
         return;
       }
 
@@ -709,22 +744,22 @@
 
         if (!res.ok) {
           const err = await res.json();
-          alert(formatarMensagemErro(err));
+          mostrarToast(formatarMensagemErro(err), "erro");
           return;
         }
 
-        alert("Registro atualizado com sucesso!");
+        mostrarToast(`Dados do item #${registroSelecionadoId} atualizados!`, "sucesso");
         carregarLista();
         selecionarItem(registroSelecionadoId);
       } catch (e) {
-        console.error("Erro ao atualizar entrada:", e);
-        alert("Erro de conexão ao atualizar a entrada.");
+        console.error("Erro ao atualizar registro:", e);
+        mostrarToast("Falha de conexão ao tentar atualizar o registro.", "erro");
       }
     }
 
     async function salvarSaida() {
       if (!registroSelecionadoId) {
-        alert("Selecione um registro na lista para dar saída.");
+        mostrarToast("Selecione um equipamento na lista para dar saída.", "erro");
         return;
       }
 
@@ -747,28 +782,26 @@
 
         if (!res.ok) {
           const err = await res.json();
-          alert(formatarMensagemErro(err));
+          mostrarToast(formatarMensagemErro(err), "erro");
           return;
         }
 
-        alert("Saída registrada e item marcado como Entregue!");
+        mostrarToast(`Saída finalizada! Item #${registroSelecionadoId} marcado como Entregue.`, "sucesso");
         limparFormularios();
         carregarLista();
       } catch (e) {
         console.error("Erro ao registrar saída:", e);
-        alert("Erro de conexão ao registrar saída.");
+        mostrarToast("Falha de conexão ao registrar a saída do item.", "erro");
       }
     }
 
     async function excluirRegistroAdmin() {
       if (!registroSelecionadoId) {
-        alert("Selecione um registro para excluir.");
+        mostrarToast("Selecione um registro na lista para excluir.", "erro");
         return;
       }
 
-      if (!confirm(`Tem certeza que deseja excluir o registro #${registroSelecionadoId}?`)) {
-        return;
-      }
+      if (!confirm(`Tem certeza que deseja excluir permanentemente o item #${registroSelecionadoId}?`)) return;
 
       try {
         const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, {
@@ -776,17 +809,16 @@
         });
 
         if (!res.ok) {
-          const err = await res.json();
-          alert(formatarMensagemErro(err));
+          mostrarToast("Não foi possível excluir o registro.", "erro");
           return;
         }
 
-        alert("Registro excluído com sucesso!");
+        mostrarToast(`Registro #${registroSelecionadoId} removido do sistema.`, "info");
         limparFormularios();
         carregarLista();
       } catch (e) {
         console.error("Erro ao excluir registro:", e);
-        alert("Erro de conexão ao excluir o registro.");
+        mostrarToast("Erro ao tentar conectar com o servidor.", "erro");
       }
     }
 
@@ -801,11 +833,12 @@
     function baixarRelatorioPDF() {
       const mes = document.getElementById('rel_mes').value;
       const ano = document.getElementById('rel_ano').value;
-      const anonimizar = document.getElementById('rel_anonimizar').checked;
+      const anonimizar = document.getElementById('rel_anonimizar').checked ? 'true' : 'false';
 
-      const url = `${API_BASE}/relatorio/pdf?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`;
-      window.open(url, '_blank');
       fecharModalRelatorio();
+      mostrarToast(`Gerando PDF do mês ${mes}/${ano}...`, "info");
+      
+      window.open(`${API_BASE}/relatorio/pdf?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`, '_blank');
     }
   </script>
 </body>

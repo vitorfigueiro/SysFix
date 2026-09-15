@@ -21,19 +21,26 @@ class ColetaModel:
         equip_san = SecurityValidator.sanitizar_texto(equipamento)
         tomb_san = SecurityValidator.sanitizar_texto(tombamento)
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
-
-        data_para_validar = (
-            data_coleta if data_coleta else datetime.now().strftime("%d/%m/%Y")
-        )
-        data_validada = SecurityValidator.validar_data(data_para_validar)
-
         origem_san = SecurityValidator.sanitizar_texto(origem)
         os_san = SecurityValidator.sanitizar_texto(os_coleta)
-        loc_san = SecurityValidator.sanitizar_texto(localizacao)
+        loc_san = SecurityValidator.validate_location(localizacao)
         prob_san = SecurityValidator.sanitizar_texto(problema)
 
+        # Validação de campos obrigatórios de Entrada
         if not equip_san:
-            raise ValueError("O nome do equipamento é obrigatório.")
+            raise ValueError("O campo 'Equipamento' é obrigatório.")
+        if not tomb_san:
+            raise ValueError("O campo 'Tombamento' é obrigatório.")
+        if not tec_san:
+            raise ValueError("O campo 'Técnico de Coleta' é obrigatório.")
+        if not data_coleta or not str(data_coleta).strip():
+            raise ValueError("O campo 'Data de Coleta' é obrigatório.")
+        if not origem_san:
+            raise ValueError("O campo 'Origem' é obrigatório.")
+        if not os_san:
+            raise ValueError("O campo 'O.S. de Coleta' é obrigatório.")
+
+        data_validada = SecurityValidator.validar_data(data_coleta)
 
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -48,23 +55,22 @@ class ColetaModel:
             """,
                 (
                     equip_san,
-                    tomb_san or "S/N",
-                    tec_san or "Não informado",
+                    tomb_san,
+                    tec_san,
                     data_validada,
-                    origem_san or "Geral",
-                    os_san or "",
-                    loc_san or "Bancada TI",
+                    origem_san,
+                    os_san,
+                    loc_san,
                     prob_san or "",
                 ),
             )
 
             row = cursor.fetchone()
-            if isinstance(row, dict):
-                novo_id = row.get("id")
-            elif row:
-                novo_id = row[0]
-            else:
-                novo_id = None
+            novo_id = (
+                row.get("id")
+                if isinstance(row, dict)
+                else (row[0] if row else None)
+            )
 
             conn.commit()
             return novo_id
@@ -77,44 +83,48 @@ class ColetaModel:
 
     @staticmethod
     def registrar_entrada_em_lote(lista_coletas: list) -> list:
-        """Processa e cadastra múltiplos equipamentos em uma única transação atômica."""
+        """Processa e cadastra múltiplos equipamentos em lote com validações obrigatórias."""
         if not lista_coletas or not isinstance(lista_coletas, list):
             raise ValueError("Uma lista válida de registros deve ser fornecida.")
 
-        # Sanitização e validação prévia de todos os itens da lista
         coletas_preparadas = []
         for idx, item in enumerate(lista_coletas, start=1):
             equip_san = SecurityValidator.sanitizar_texto(item.get("equipamento"))
-            if not equip_san:
-                raise ValueError(
-                    f"O nome do equipamento é obrigatório no item {idx}."
-                )
-
             tomb_san = SecurityValidator.sanitizar_texto(item.get("tombamento"))
             tec_san = SecurityValidator.sanitizar_texto(
                 item.get("tecnico") or item.get("tecnico_coleta")
             )
-
             data_coleta = item.get("data_coleta")
-            data_para_validar = (
-                data_coleta if data_coleta else datetime.now().strftime("%d/%m/%Y")
-            )
-            data_validada = SecurityValidator.validar_data(data_para_validar)
-
             origem_san = SecurityValidator.sanitizar_texto(item.get("origem"))
             os_san = SecurityValidator.sanitizar_texto(item.get("os_coleta"))
-            loc_san = SecurityValidator.sanitizar_texto(item.get("localizacao"))
+            loc_san = SecurityValidator.validate_location(item.get("localizacao"))
             prob_san = SecurityValidator.sanitizar_texto(item.get("problema"))
+
+            # Validação rigorosa para cada item do lote
+            if not equip_san:
+                raise ValueError(f"Item {idx}: O campo 'Equipamento' é obrigatório.")
+            if not tomb_san:
+                raise ValueError(f"Item {idx}: O campo 'Tombamento' é obrigatório.")
+            if not tec_san:
+                raise ValueError(f"Item {idx}: O campo 'Técnico de Coleta' é obrigatório.")
+            if not data_coleta or not str(data_coleta).strip():
+                raise ValueError(f"Item {idx}: O campo 'Data de Coleta' é obrigatório.")
+            if not origem_san:
+                raise ValueError(f"Item {idx}: O campo 'Origem' é obrigatório.")
+            if not os_san:
+                raise ValueError(f"Item {idx}: O campo 'O.S. de Coleta' é obrigatório.")
+
+            data_validada = SecurityValidator.validar_data(data_coleta)
 
             coletas_preparadas.append(
                 (
                     equip_san,
-                    tomb_san or "S/N",
-                    tec_san or "Não informado",
+                    tomb_san,
+                    tec_san,
                     data_validada,
-                    origem_san or "Geral",
-                    os_san or "",
-                    loc_san or "Bancada TI",
+                    origem_san,
+                    os_san,
+                    loc_san,
                     prob_san or "",
                 )
             )
@@ -134,12 +144,11 @@ class ColetaModel:
             for params in coletas_preparadas:
                 cursor.execute(query, params)
                 row = cursor.fetchone()
-                if isinstance(row, dict):
-                    novo_id = row.get("id")
-                elif row:
-                    novo_id = row[0]
-                else:
-                    novo_id = None
+                novo_id = (
+                    row.get("id")
+                    if isinstance(row, dict)
+                    else (row[0] if row else None)
+                )
 
                 if novo_id:
                     ids_criados.append(novo_id)
@@ -169,18 +178,19 @@ class ColetaModel:
 
         tec_entrega_san = SecurityValidator.sanitizar_texto(tecnico_entrega)
         if not tec_entrega_san:
-            raise ValueError("Informe o técnico responsável por realizar a entrega.")
+            raise ValueError("O campo 'Técnico de Entrega/Saída' é obrigatório.")
 
+        os_san = SecurityValidator.sanitizar_texto(os_entrega)
+        if not os_san:
+            raise ValueError("O campo 'O.S. de Entrega/Saída' é obrigatório.")
+
+        if not data_entrega or not str(data_entrega).strip():
+            raise ValueError("O campo 'Data de Entrega/Saída' é obrigatório.")
+
+        entrega_san = SecurityValidator.validar_data(data_entrega)
         val_custo = SecurityValidator.validate_cost(valor_custo)
         res_san = SecurityValidator.sanitizar_texto(resolucao)
         laudado_san = SecurityValidator.sanitizar_texto(laudado)
-
-        data_para_validar = (
-            data_entrega if data_entrega else datetime.now().strftime("%d/%m/%Y")
-        )
-        entrega_san = SecurityValidator.validar_data(data_para_validar)
-
-        os_san = SecurityValidator.sanitizar_texto(os_entrega)
         status_custo_san = (
             SecurityValidator.sanitizar_texto(status_custo) or "Sem Custo"
         )
@@ -204,7 +214,7 @@ class ColetaModel:
                 (
                     tec_entrega_san,
                     entrega_san,
-                    os_san or "",
+                    os_san,
                     status_custo_san,
                     val_custo,
                     res_san or "",
@@ -239,19 +249,26 @@ class ColetaModel:
         equip_san = SecurityValidator.sanitizar_texto(equipamento)
         tomb_san = SecurityValidator.sanitizar_texto(tombamento)
         tec_san = SecurityValidator.sanitizar_texto(tecnico)
-
-        data_para_validar = (
-            data_coleta if data_coleta else datetime.now().strftime("%d/%m/%Y")
-        )
-        data_validada = SecurityValidator.validar_data(data_para_validar)
-
         origem_san = SecurityValidator.sanitizar_texto(origem)
         os_san = SecurityValidator.sanitizar_texto(os_coleta)
-        loc_san = SecurityValidator.sanitizar_texto(localizacao)
+        loc_san = SecurityValidator.validate_location(localizacao)
         prob_san = SecurityValidator.sanitizar_texto(problema)
 
+        # Validação de campos obrigatórios
         if not equip_san:
-            raise ValueError("O nome do equipamento é obrigatório.")
+            raise ValueError("O campo 'Equipamento' é obrigatório.")
+        if not tomb_san:
+            raise ValueError("O campo 'Tombamento' é obrigatório.")
+        if not tec_san:
+            raise ValueError("O campo 'Técnico de Coleta' é obrigatório.")
+        if not data_coleta or not str(data_coleta).strip():
+            raise ValueError("O campo 'Data de Coleta' é obrigatório.")
+        if not origem_san:
+            raise ValueError("O campo 'Origem' é obrigatório.")
+        if not os_san:
+            raise ValueError("O campo 'O.S. de Coleta' é obrigatório.")
+
+        data_validada = SecurityValidator.validar_data(data_coleta)
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -271,12 +288,12 @@ class ColetaModel:
             """,
                 (
                     equip_san,
-                    tomb_san or "",
-                    tec_san or "",
+                    tomb_san,
+                    tec_san,
                     data_validada,
-                    origem_san or "",
-                    os_san or "",
-                    loc_san or "Bancada TI",
+                    origem_san,
+                    os_san,
+                    loc_san,
                     prob_san or "",
                     registro_id,
                 ),
@@ -291,7 +308,13 @@ class ColetaModel:
             conn.close()
 
     @staticmethod
-    def excluir(registro_id):
+    def excluir(registro_id, is_admin: bool = False):
+        """Exclui um registro do banco de dados. Operação restrita a administradores."""
+        if not is_admin:
+            raise PermissionError(
+                "Acesso negado: Apenas administradores possuem permissão para excluir registros."
+            )
+
         if not registro_id:
             raise ValueError("ID de registro inválido para exclusão.")
 
@@ -312,7 +335,6 @@ class ColetaModel:
     def buscar_nao_finalizados_mes_atual():
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
         try:
             cursor.execute(
                 """
@@ -330,7 +352,6 @@ class ColetaModel:
     def buscar_finalizados_mes_atual():
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
         try:
             cursor.execute(
                 """
@@ -348,14 +369,8 @@ class ColetaModel:
     def buscar_todos():
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
         try:
-            cursor.execute(
-                """
-                SELECT * FROM coletas
-                ORDER BY id DESC;
-            """
-            )
+            cursor.execute("SELECT * FROM coletas ORDER BY id DESC;")
             return cursor.fetchall()
         finally:
             cursor.close()
@@ -375,7 +390,6 @@ class ColetaModel:
                    OR (data_entrega::text LIKE %s OR data_entrega::text LIKE %s)
                 ORDER BY id DESC;
             """
-
             p_iso = f"{mes_iso}%"
             p_br = f"%{mes_br}"
 
@@ -393,9 +407,7 @@ class ColetaModel:
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
-            cursor.execute(
-                "SELECT * FROM coletas WHERE id = %s;", (registro_id,)
-            )
+            cursor.execute("SELECT * FROM coletas WHERE id = %s;", (registro_id,))
             return cursor.fetchone()
         finally:
             cursor.close()

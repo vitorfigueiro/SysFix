@@ -1,24 +1,23 @@
+from datetime import date, datetime
 import os
-import uvicorn
-from datetime import datetime, date
-from typing import Optional, Union, Any, List
-from fastapi import FastAPI, HTTPException, Depends, Query, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from typing import Any, List, Optional, Union
 
+from database import get_connection, init_db
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from mensagens import obter_mensagem_erro
-from database import init_db, get_connection
 from models import ColetaModel
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from reports import PDFReportGenerator
+import uvicorn
 
 # Inicializa o banco de dados e aplica migrações
 init_db()
 
 app = FastAPI(
-    title="API de Gerenciamento de Coletas - SysFix",
-    version="1.1.0"
+    title="API de Gerenciamento de Coletas - SysFix", version="1.1.0"
 )
 
 # Configuração de CORS para liberar conexões do frontend/Railway
@@ -41,7 +40,7 @@ def validar_e_formatar_data(v: Union[str, date, None]) -> str:
         return ""
     if isinstance(v, date):
         return v.strftime("%d/%m/%Y")
-    
+
     v = str(v).strip()
     if not v:
         return ""
@@ -67,7 +66,7 @@ def serializar_registro(registro: dict) -> dict:
     """Garante que objetos date/datetime ou None sejam convertidos para strings válidas para o JSON."""
     if not registro:
         return {}
-    
+
     resultado = {}
     for key, val in registro.items():
         if isinstance(val, (date, datetime)):
@@ -122,7 +121,9 @@ class SaidaSchema(BaseModel):
     def compatibilizar_campos_saida(cls, data: Any) -> Any:
         if isinstance(data, dict):
             # Mapeia valor para valor_custo se enviado do frontend
-            if "valor" in data and ("valor_custo" not in data or data["valor_custo"] == 0.0):
+            if "valor" in data and (
+                "valor_custo" not in data or data["valor_custo"] == 0.0
+            ):
                 data["valor_custo"] = data["valor"]
         return data
 
@@ -132,13 +133,23 @@ class SaidaSchema(BaseModel):
         return validar_e_formatar_data(v)
 
 
+class DeleteSchema(BaseModel):
+    """Schema para validação do corpo da requisição de exclusão."""
+
+    senha_adm: str
+
+
 # Rota Principal: Servir o Frontend (index.html)
 @app.get("/", response_class=FileResponse)
 def read_index():
-    index_path = os.path.join(os.path.dirname(__file__), "templates/index.html")
+    index_path = os.path.join(
+        os.path.dirname(__file__), "templates/index.html"
+    )
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    raise HTTPException(status_code=404, detail="Arquivo index.html não encontrado no servidor.")
+    raise HTTPException(
+        status_code=404, detail="Arquivo index.html não encontrado no servidor."
+    )
 
 
 # Rota de Diagnóstico do Banco de Dados
@@ -151,14 +162,18 @@ def debug_db():
         res = cursor.fetchone()
         total_coletas = res["count"] if isinstance(res, dict) else res[0]
 
-        cursor.execute("SELECT id, equipamento, status, data_coleta FROM coletas ORDER BY id DESC LIMIT 5;")
+        cursor.execute(
+            "SELECT id, equipamento, status, data_coleta FROM coletas ORDER BY id DESC LIMIT 5;"
+        )
         ultimos_registros = cursor.fetchall()
-        registros_formatados = [serializar_registro(dict(r)) for r in ultimos_registros]
+        registros_formatados = [
+            serializar_registro(dict(r)) for r in ultimos_registros
+        ]
 
         return {
             "status": "online",
             "total_registros_coletas": total_coletas,
-            "ultimos_5_registros": registros_formatados
+            "ultimos_5_registros": registros_formatados,
         }
     except Exception as e:
         return {"error": str(e)}
@@ -169,10 +184,10 @@ def debug_db():
 
 # Rotas da API de Equipamentos
 
+
 @app.get("/api/equipamentos")
 def listar_equipamentos(
-    filtro: Optional[str] = None,
-    status: Optional[str] = None
+    filtro: Optional[str] = None, status: Optional[str] = None
 ):
     try:
         valor_filtro = (status or filtro or "nao_finalizados").lower().strip()
@@ -183,7 +198,7 @@ def listar_equipamentos(
             dados = ColetaModel.buscar_todos()
         else:
             dados = ColetaModel.buscar_nao_finalizados_mes_atual()
-        
+
         return [serializar_registro(dict(item)) for item in dados]
     except Exception as e:
         erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
@@ -197,7 +212,7 @@ def obter_equipamento(registro_id: int):
         if not dados:
             erro = obter_mensagem_erro("NOT_FOUND")
             raise HTTPException(status_code=404, detail=erro)
-        
+
         return serializar_registro(dict(dados))
     except HTTPException:
         raise
@@ -208,20 +223,17 @@ def obter_equipamento(registro_id: int):
 
 @app.post("/api/equipamentos")
 def criar_entrada(payload: Union[EntradaSchema, List[EntradaSchema]]):
-    """
-    Endpoint flexível: aceita um único objeto de entrada ou uma lista de múltiplos equipamentos em lote.
-    """
+    """Endpoint flexível: aceita um único objeto de entrada ou uma lista em lote."""
     try:
         if isinstance(payload, list):
             if not payload:
-                raise HTTPException(status_code=400, detail="A lista de equipamentos enviados está vazia.")
-            
+                raise HTTPException(
+                    status_code=400,
+                    detail="A lista de equipamentos enviados está vazia.",
+                )
+
             ids_criados = []
             for item in payload:
-                if not item.equipamento:
-                    erro = obter_mensagem_erro("MISSING_FIELDS", detalhe_tecnico="Campo 'equipamento' ausente em um dos itens")
-                    raise HTTPException(status_code=400, detail=erro)
-
                 novo_id = ColetaModel.registrar_entrada(
                     equipamento=item.equipamento,
                     tombamento=item.tombamento,
@@ -235,16 +247,12 @@ def criar_entrada(payload: Union[EntradaSchema, List[EntradaSchema]]):
                 ids_criados.append(novo_id)
 
             return {
-                "sucesso": True, 
-                "ids": ids_criados, 
-                "mensagem": f"{len(ids_criados)} entrada(s) registrada(s) com sucesso."
+                "sucesso": True,
+                "ids": ids_criados,
+                "mensagem": f"{len(ids_criados)} entrada(s) registrada(s) com sucesso.",
             }
 
         else:
-            if not payload.equipamento:
-                erro = obter_mensagem_erro("MISSING_FIELDS", detalhe_tecnico="Campo 'equipamento' ausente")
-                raise HTTPException(status_code=400, detail=erro)
-
             novo_id = ColetaModel.registrar_entrada(
                 equipamento=payload.equipamento,
                 tombamento=payload.tombamento,
@@ -255,7 +263,11 @@ def criar_entrada(payload: Union[EntradaSchema, List[EntradaSchema]]):
                 localizacao=payload.localizacao,
                 problema=payload.problema,
             )
-            return {"sucesso": True, "id": novo_id, "mensagem": "Entrada registrada com sucesso."}
+            return {
+                "sucesso": True,
+                "id": novo_id,
+                "mensagem": "Entrada registrada com sucesso.",
+            }
 
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
@@ -279,7 +291,10 @@ def registrar_saida(registro_id: int, payload: SaidaSchema):
             resolucao=payload.resolucao,
             laudado=payload.laudado,
         )
-        return {"sucesso": True, "mensagem": "Saída/Entrega registrada com sucesso."}
+        return {
+            "sucesso": True,
+            "mensagem": "Saída/Entrega registrada com sucesso.",
+        }
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -289,13 +304,13 @@ def registrar_saida(registro_id: int, payload: SaidaSchema):
 
 @app.put("/api/equipamentos/{registro_id}")
 def atualizar_equipamento_unificado(registro_id: int, payload: dict):
-    """
-    Endpoint unificado PUT para atualização de Entrada ou registro de Saída,
-    dependendo dos campos enviados pelo Frontend.
-    """
+    """Endpoint unificado PUT para atualização de Entrada ou registro de Saída."""
     try:
         # Verifica se é uma requisição de saída/entrega
-        if "tecnico_entrega" in payload or payload.get("status") in ["Entregue", "Finalizado"]:
+        if "tecnico_entrega" in payload or payload.get("status") in [
+            "Entregue",
+            "Finalizado",
+        ]:
             saida_data = SaidaSchema(**payload)
             ColetaModel.registrar_saida(
                 registro_id=registro_id,
@@ -307,8 +322,11 @@ def atualizar_equipamento_unificado(registro_id: int, payload: dict):
                 resolucao=saida_data.resolucao,
                 laudado=saida_data.laudado,
             )
-            return {"sucesso": True, "mensagem": "Saída registrada com sucesso."}
-        
+            return {
+                "sucesso": True,
+                "mensagem": "Saída registrada com sucesso.",
+            }
+
         # Caso contrário, trata como atualização de dados de Entrada
         entrada_data = EntradaSchema(**payload)
         ColetaModel.atualizar_entrada(
@@ -322,7 +340,10 @@ def atualizar_equipamento_unificado(registro_id: int, payload: dict):
             localizacao=entrada_data.localizacao,
             problema=entrada_data.problema,
         )
-        return {"sucesso": True, "mensagem": "Registro atualizado com sucesso."}
+        return {
+            "sucesso": True,
+            "mensagem": "Registro atualizado com sucesso.",
+        }
 
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
@@ -332,39 +353,70 @@ def atualizar_equipamento_unificado(registro_id: int, payload: dict):
 
 
 @app.delete("/api/equipamentos/{registro_id}")
-def deletar_equipamento(registro_id: int):
+def deletar_equipamento(
+    registro_id: int,
+    payload: Optional[DeleteSchema] = None,
+    x_admin_password: Optional[str] = Header(None, alias="X-Admin-Password"),
+    senha_query: Optional[str] = Query(None, alias="senha_adm"),
+):
+    """
+    Exclui um registro do banco de dados. 
+    Exige a senha administrativa (pode ser enviada via Body JSON, Header 'X-Admin-Password' ou Query 'senha_adm').
+    """
+    senha_fornecida = (
+        (payload.senha_adm if payload else None)
+        or x_admin_password
+        or senha_query
+    )
+
+    if not senha_fornecida:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Senha administrativa não fornecida.",
+        )
+
     try:
-        ColetaModel.excluir(registro_id)
+        ColetaModel.excluir(registro_id, senha_adm=senha_fornecida)
         return {"sucesso": True, "mensagem": "Registro excluído com sucesso."}
+    except PermissionError as pe:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(pe)
+        )
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve)
+        )
     except Exception as e:
         erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
-        raise HTTPException(status_code=500, detail=erro)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=erro
+        )
 
 
 # Rota para Geração de Relatórios PDF
+
 
 @app.get("/api/relatorio/pdf")
 def gerar_relatorio_pdf(
     mes: int = Query(..., ge=1, le=12),
     ano: int = Query(..., ge=2000, le=2100),
-    anonimizar: bool = Query(False)
+    anonimizar: bool = Query(False),
 ):
     try:
-        pdf_buffer = PDFReportGenerator.relatorio_por_mes(mes=mes, ano=ano, anonimizar=anonimizar)
-        
+        pdf_buffer = PDFReportGenerator.relatorio_por_mes(
+            mes=mes, ano=ano, anonimizar=anonimizar
+        )
+
         filename = f"Relatorio_SysFix_{mes:02d}_{ano}.pdf"
-        headers = {
-            "Content-Disposition": f'inline; filename="{filename}"'
-        }
-        
+        headers = {"Content-Disposition": f'inline; filename="{filename}"'}
+
         return StreamingResponse(
-            pdf_buffer, 
-            media_type="application/pdf", 
-            headers=headers
+            pdf_buffer, media_type="application/pdf", headers=headers
         )
     except Exception as e:
-        erro = obter_mensagem_erro("REPORT_ERROR", detalhe_tecnico=str(e)) if "obter_mensagem_erro" in globals() else str(e)
-        raise HTTPException(status_code=500, detail=f"Erro ao gerar relatório PDF: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Erro ao gerar relatório PDF: {str(e)}"
+        )
 
 
 if __name__ == "__main__":

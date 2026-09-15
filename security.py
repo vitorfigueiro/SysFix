@@ -1,4 +1,6 @@
 from datetime import date, datetime
+import hmac
+import os
 import re
 from typing import Union
 
@@ -25,11 +27,29 @@ class SecurityValidator:
         "padrão",
     }
 
+    # Senha administrativa carregada via variável de ambiente (ou fallback 'admin123')
+    _ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
     # Pré-compilação de Regex e mapas de busca para alta performance
     _REGEX_ESPACOS = re.compile(r"\s+")
     _MAPA_LOCALIZACOES = {
         loc.lower(): loc for loc in LOCALIZACOES_PERMITIDAS
     }
+
+    @staticmethod
+    def validar_senha_admin(senha_fornecida: Union[str, None]) -> bool:
+        """
+        Valida se a senha digitada corresponde à senha administrativa.
+        Utiliza hmac.compare_digest para impedir ataques de tempo (timing attacks).
+        """
+        if not senha_fornecida or not isinstance(senha_fornecida, str):
+            return False
+
+        senha_limpa = senha_fornecida.strip()
+        return hmac.compare_digest(
+            senha_limpa.encode("utf-8"),
+            SecurityValidator._ADMIN_PASSWORD.encode("utf-8"),
+        )
 
     @staticmethod
     def sanitizar_texto(texto: Union[str, int, float, None]) -> str:

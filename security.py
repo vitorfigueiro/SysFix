@@ -1,10 +1,10 @@
+from datetime import date, datetime
 import re
-from datetime import datetime, date
 from typing import Union
 
 
 class SecurityValidator:
-    # Whitelist atualizada com todas as opções presentes no front-end HTML
+    # Whitelist de localizações permitidas
     LOCALIZACOES_PERMITIDAS = [
         "Bancada TI",
         "PlayLan",
@@ -14,53 +14,58 @@ class SecurityValidator:
         "Sede",
     ]
 
+    # Termos comuns que não devem ser mascarados como nome de pessoa física
+    _TERMOS_IGNORAR_MASCARA = {
+        "-",
+        "s/n",
+        "não informado",
+        "nao informado",
+        "geral",
+        "bancada ti",
+        "padrão",
+    }
+
+    # Pré-compilação de Regex e mapas de busca para alta performance
+    _REGEX_ESPACOS = re.compile(r"\s+")
+    _MAPA_LOCALIZACOES = {
+        loc.lower(): loc for loc in LOCALIZACOES_PERMITIDAS
+    }
+
     @staticmethod
     def sanitizar_texto(texto: Union[str, int, float, None]) -> str:
-        """
-        Limpa espaços extras nas extremidades de entradas de texto 
-        e previne injeção de múltiplos espaços em branco.
-        """
+        """Limpa espaços nas extremidades e consolida múltiplos espaços em branco."""
         if texto is None:
             return ""
-        
+
         texto_str = str(texto).strip()
         if not texto_str:
             return ""
-            
-        # Remove múltiplos espaços em branco consecutivos
-        clean = re.sub(r"\s+", " ", texto_str)
-        return clean.strip()
+
+        return SecurityValidator._REGEX_ESPACOS.sub(" ", texto_str).strip()
 
     @staticmethod
-    def validate_location(location: str) -> str:
-        """Valida se a localização pertence à Whitelist e aplica valor padrão seguro."""
+    def validate_location(location: Union[str, None]) -> str:
+        """Valida a localização contra a whitelist (insensível a maiúsculas/minúsculas)."""
         if not location or not str(location).strip():
             return "Bancada TI"
 
         clean_loc = SecurityValidator.sanitizar_texto(location)
-        
-        # Busca insensível a maiúsculas/minúsculas para maior tolerância
-        mapa_loc = {loc.lower(): loc for loc in SecurityValidator.LOCALIZACOES_PERMITIDAS}
-        
-        if clean_loc.lower() in mapa_loc:
-            return mapa_loc[clean_loc.lower()]
+        clean_loc_lower = clean_loc.lower()
 
+        if clean_loc_lower in SecurityValidator._MAPA_LOCALIZACOES:
+            return SecurityValidator._MAPA_LOCALIZACOES[clean_loc_lower]
+
+        options_str = ", ".join(SecurityValidator.LOCALIZACOES_PERMITIDAS)
         raise ValueError(
-            f"Localização inválida ('{clean_loc}'). Opções permitidas: {', '.join(SecurityValidator.LOCALIZACOES_PERMITIDAS)}"
+            f"Localização inválida ('{clean_loc}'). Opções permitidas: {options_str}"
         )
 
     @staticmethod
     def validar_data(data_input: Union[str, date, datetime, None]) -> str:
-        """
-        Valida se a data enviada está correta e converte SEMPRE 
-        para o formato ISO padrão do banco de dados (YYYY-MM-DD).
-        Aceita objetos date/datetime, formatos brasileiros (DD/MM/YYYY) e ISO.
-        Se a data for vazia ou nula, retorna a data atual em formato ISO.
-        """
+        """Converte a data de entrada para o formato ISO padrão (YYYY-MM-DD)."""
         if not data_input:
             return datetime.now().strftime("%Y-%m-%d")
 
-        # Se já for um objeto date ou datetime do Python
         if isinstance(data_input, (date, datetime)):
             return data_input.strftime("%Y-%m-%d")
 
@@ -68,14 +73,14 @@ class SecurityValidator:
         if not data_str:
             return datetime.now().strftime("%Y-%m-%d")
 
-        # Trata separadores de data/hora ISO (ex: "2026-09-08T14:30:00" -> "2026-09-08")
+        # Separa a parte de data caso venha no formato datetime ISO (ex: "2026-09-15T14:30:00")
         data_limpa = data_str.replace("T", " ").split(" ")[0]
 
         formatos = (
-            "%Y-%m-%d",  # 2026-09-08 (ISO / HTML5 input)
-            "%d/%m/%Y",  # 08/09/2026 (BR)
-            "%d-%m-%Y",  # 08-09-2026
-            "%Y/%m/%d",  # 2026/09/08
+            "%Y-%m-%d",  # ISO / HTML5 date input
+            "%d/%m/%Y",  # Formato BR
+            "%d-%m-%Y",
+            "%Y/%m/%d",
         )
 
         for formato in formatos:
@@ -86,31 +91,30 @@ class SecurityValidator:
                 continue
 
         raise ValueError(
-            f"Data '{data_str}' em formato inválido. Use o formato AAAA-MM-DD ou DD/MM/AAAA."
+            f"Data '{data_str}' em formato inválido. Use AAAA-MM-DD ou DD/MM/AAAA."
         )
 
     @staticmethod
     def validate_cost(value_input: Union[str, int, float, None]) -> float:
-        """
-        Valida e converte valores monetários nos formatos numérico ou string (R$),
-        rejeitando valores negativos.
-        """
+        """Normaliza e valida valores monetários (aceita R$, ponto ou vírgula decimal)."""
         if value_input is None or value_input == "":
             return 0.0
 
         if isinstance(value_input, (int, float)):
             val = float(value_input)
         else:
-            clean_value = str(value_input).replace("R$", "").replace(" ", "").strip()
-            
-            # Converte formato brasileiro (1.250,50 -> 1250.50)
+            clean_value = (
+                str(value_input).replace("R$", "").replace(" ", "").strip()
+            )
+
+            # Trata notação PT-BR (ex: 1.250,50 -> 1250.50)
             if "," in clean_value:
                 clean_value = clean_value.replace(".", "").replace(",", ".")
 
             try:
                 val = float(clean_value)
             except ValueError:
-                raise ValueError("Valor de custo inválido.")
+                raise ValueError("Valor de custo numérico inválido.")
 
         if val < 0:
             raise ValueError("O valor do custo não pode ser negativo.")
@@ -119,14 +123,17 @@ class SecurityValidator:
 
     @staticmethod
     def mask_personal_data(name: str) -> str:
-        """
-        Anonimiza o nome de pessoas físicas ao gerar relatórios públicos (LGPD).
-        Exemplo: 'Carlos Eduardo' -> 'C***** E******'
-        """
+        """Anonimiza nomes próprios mantendo a inicial (ex: 'Carlos Silva' -> 'C***** S****')."""
         if not name:
             return ""
-        
-        parts = SecurityValidator.sanitizar_texto(name).split()
+
+        clean_name = SecurityValidator.sanitizar_texto(name)
+
+        # Não anonimiza placeholders do sistema
+        if clean_name.lower() in SecurityValidator._TERMOS_IGNORAR_MASCARA:
+            return clean_name
+
+        parts = clean_name.split()
         masked_parts = [
             p[0] + "*" * (len(p) - 1) if len(p) > 1 else p for p in parts
         ]

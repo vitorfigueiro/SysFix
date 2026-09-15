@@ -9,7 +9,7 @@ VERSAO_ATUAL_SCHEMA = 5
 
 
 def get_connection():
-    """Conecta no banco PostgreSQL hospedado no Neon."""
+    """Conecta no banco PostgreSQL hospedado no Neon com suporte a SSL."""
     database_url = os.getenv("DATABASE_URL")
 
     if not database_url:
@@ -164,8 +164,8 @@ def init_db():
 # FUNÇÕES CRUD INTEGRADAS
 # ==============================================================================
 
-def salvar_coleta(dados: dict):
-    """Insere um novo registro de entrada de equipamento no banco de dados."""
+def salvar_coleta(dados: dict) -> int:
+    """Insere um único registro de entrada de equipamento no banco de dados."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -201,12 +201,55 @@ def salvar_coleta(dados: dict):
         conn.close()
 
 
+def salvar_coletas_em_lote(lista_dados: list) -> list:
+    """Insere múltiplos registros de equipamentos em lote dentro de uma única transação atômica."""
+    if not lista_dados:
+        return []
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        ids_criados = []
+        query = """
+            INSERT INTO coletas (
+                equipamento, tombamento, tecnico_coleta, data_coleta, 
+                origem, os_coleta, localizacao, problema, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pendente')
+            RETURNING id;
+        """
+        for dados in lista_dados:
+            cursor.execute(
+                query,
+                (
+                    dados.get("equipamento"),
+                    dados.get("tombamento"),
+                    dados.get("tecnico") or dados.get("tecnico_coleta"),
+                    dados.get("data_coleta"),
+                    dados.get("origem"),
+                    dados.get("os_coleta"),
+                    dados.get("localizacao"),
+                    dados.get("problema"),
+                ),
+            )
+            row = cursor.fetchone()
+            novo_id = row["id"] if isinstance(row, dict) else row[0]
+            ids_criados.append(novo_id)
+
+        conn.commit()
+        return ids_criados
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def listar_coletas(status_filtro: str = "todos"):
     """Lista os equipamentos filtrando por status flexível (pendentes, entregues, finalizados, todos)."""
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Normaliza o termo de busca enviado pelo frontend
     filtro = str(status_filtro).strip().lower() if status_filtro else "todos"
 
     try:
@@ -217,7 +260,7 @@ def listar_coletas(status_filtro: str = "todos"):
                    OR status IS NULL 
                 ORDER BY id DESC;
             """)
-        elif filtro in ["finalizados", "entregues", "Entregue", "finalizado"]:
+        elif filtro in ["finalizados", "entregues", "entregue", "finalizado"]:
             cursor.execute("""
                 SELECT * FROM coletas 
                 WHERE LOWER(TRIM(status)) IN ('entregue', 'finalizado') 

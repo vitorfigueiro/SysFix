@@ -68,8 +68,8 @@
   <!-- CORPO PRINCIPAL -->
   <div class="flex-1 flex overflow-hidden">
     
-    <!-- PAINEL ESQUERDO: FORMULÁRIOS (ENTRADA / SAÍDA) -->
-    <aside id="painelFormularios" class="w-[410px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
+    <!-- PAINEL ESQUERDO: FORMULÁRIOS (ENTRADA EM LOTE / SAÍDA) -->
+    <aside id="painelFormularios" class="w-[420px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
       
       <!-- TABS DE NAVEGAÇÃO DO FORMULÁRIO -->
       <div class="grid grid-cols-2 p-3 gap-2 border-b border-pastel-border bg-slate-50">
@@ -81,43 +81,38 @@
         </button>
       </div>
 
-      <!-- FORMULÁRIO DE ENTRADA -->
-      <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Equipamento</label>
-          <input type="text" id="ent_equip" placeholder="Ex: Notebook Dell Vostro" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-        </div>
+      <!-- FORMULÁRIO DE ENTRADA (MÚLTIPLOS EQUIPAMENTOS) -->
+      <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
         
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Tombamento</label>
-            <input type="text" id="ent_tomb" placeholder="Ex: 123456" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+        <!-- DADOS GERAIS DA COLETA -->
+        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2.5">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Dados da Coleta</span>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Téc. Coleta</label>
+              <input type="text" id="ent_tec" placeholder="Ex: Carlos Silva" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Data Coleta</label>
+              <input type="date" id="ent_data" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Coleta</label>
-            <input type="text" id="ent_tec" placeholder="Ex: Carlos Silva" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-        </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Data Coleta</label>
-            <input type="date" id="ent_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Origem</label>
+              <input type="text" id="ent_origem" placeholder="Ex: Financeiro" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">O.S Coleta</label>
+              <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Origem</label>
-            <input type="text" id="ent_origem" placeholder="Ex: Setor Financeiro" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-        </div>
 
-        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Coleta</label>
-            <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Localização</label>
-            <select id="ent_loc" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Localização Inicial</label>
+            <select id="ent_loc" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
               <option value="Bancada TI">Bancada TI</option>
               <option value="PlayLan">PlayLan</option>
               <option value="Central Informática">Central Informática</option>
@@ -128,17 +123,47 @@
           </div>
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Problema Relatado</label>
-          <textarea id="ent_prob" rows="3" placeholder="Descreva a falha..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
+        <!-- LISTA DINÂMICA DE EQUIPAMENTOS -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-700">Equipamentos (<span id="countItens">1</span>)</span>
+            <button onclick="adicionarItemEntrada()" class="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-lg border border-sky-200 transition-all flex items-center gap-1">
+              ➕ Adicionar Outro
+            </button>
+          </div>
+
+          <div id="listaItensEntrada" class="space-y-3">
+            <!-- Item Card 1 -->
+            <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
+              <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #1</span>
+                <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento</label>
+                <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Notebook Dell Vostro">
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento</label>
+                <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 123456">
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
+                <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="pt-2 space-y-2">
           <button onclick="salvarEntrada()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
-            ➕ Registrar Entrada
+            📥 Registrar Entrada
           </button>
           <button onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
-            🔒 ✏️ Editar Entrada (Resp.)
+            🔒 ✏️ Editar Entrada do Item Selecionado
           </button>
         </div>
       </div>
@@ -198,7 +223,7 @@
         </button>
       </div>
 
-      <!-- BOTÕES DE AÇÕES -->
+      <!-- BOTÕES DE AÇÕES DA BARRA LATERAL -->
       <div class="p-3 bg-slate-50 border-t border-pastel-border flex gap-2">
         <button onclick="excluirRegistroAdmin()" class="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg transition-all border border-rose-200">
           🗑️ Excluir
@@ -342,7 +367,7 @@
     </div>
   </div>
 
-  <!-- JAVASCRIPT DE INTERATIVIDADE -->
+  <!-- JAVASCRIPT DE INTERATIVIDADE E LÓGICA DE NEGÓCIO -->
   <script>
     const API_BASE = window.location.origin.includes('railway.app') 
       ? '/api' 
@@ -379,23 +404,18 @@
       });
     });
 
+    // SISTEMA DE NOTIFICAÇÃO (TOAST)
     function mostrarToast(mensagem, tipo = 'sucesso') {
       const container = document.getElementById('toastContainer');
       if (!container) return;
 
       const toast = document.createElement('div');
-      
       const estilos = {
         sucesso: 'bg-slate-900 text-emerald-400 border-emerald-500/30',
         erro: 'bg-slate-900 text-rose-400 border-rose-500/30',
         info: 'bg-slate-900 text-sky-400 border-sky-500/30'
       };
-
-      const icones = {
-        sucesso: '✨',
-        erro: '🚨',
-        info: 'ℹ️'
-      };
+      const icones = { sucesso: '✨', erro: '🚨', info: 'ℹ️' };
 
       toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold transform transition-all duration-300 translate-y-4 opacity-0 ${estilos[tipo] || estilos.info}`;
       toast.innerHTML = `<span class="text-sm">${icones[tipo] || 'ℹ️'}</span><span>${mensagem}</span>`;
@@ -473,6 +493,68 @@
       return JSON.stringify(err);
     }
 
+    // FUNÇÕES DA ENTRADA DINÂMICA (LOTE)
+    function adicionarItemEntrada() {
+      const container = document.getElementById('listaItensEntrada');
+      const cards = container.querySelectorAll('.item-entrada-card');
+      const index = cards.length + 1;
+
+      const cardHtml = `
+        <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
+          <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+            <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #${index}</span>
+            <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold">🗑️ Remover</button>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento</label>
+            <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Monitor Dell 24">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento</label>
+            <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 654321">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
+            <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
+          </div>
+        </div>
+      `;
+
+      container.insertAdjacentHTML('beforeend', cardHtml);
+      atualizarContadoresERemover();
+    }
+
+    function removerItemEntrada(btn) {
+      const card = btn.closest('.item-entrada-card');
+      if (card) {
+        card.remove();
+        atualizarContadoresERemover();
+      }
+    }
+
+    function atualizarContadoresERemover() {
+      const container = document.getElementById('listaItensEntrada');
+      const cards = container.querySelectorAll('.item-entrada-card');
+      document.getElementById('countItens').innerText = cards.length;
+
+      cards.forEach((card, i) => {
+        const label = card.querySelector('.num-item-label');
+        if (label) label.innerText = `Item #${i + 1}`;
+
+        const btnRemove = card.querySelector('.btn-remover-item');
+        if (btnRemove) {
+          if (cards.length === 1) {
+            btnRemove.classList.add('hidden');
+          } else {
+            btnRemove.classList.remove('hidden');
+          }
+        }
+      });
+    }
+
     function alternarTab(tab) {
       const isEntrada = tab === 'entrada';
       document.getElementById('formEntradaContainer').classList.toggle('hidden', !isEntrada);
@@ -512,15 +594,41 @@
     function limparFormularios() {
       registroSelecionadoId = null;
       
-      document.getElementById('ent_equip').value = '';
-      document.getElementById('ent_tomb').value = '';
+      // Limpar campos gerais da coleta
       document.getElementById('ent_tec').value = '';
       document.getElementById('ent_data').valueAsDate = new Date();
       document.getElementById('ent_origem').value = '';
       document.getElementById('ent_os').value = '';
       document.getElementById('ent_loc').value = 'Bancada TI';
-      document.getElementById('ent_prob').value = '';
 
+      // Resetar lista dinâmica de equipamentos para 1 card limpo
+      const container = document.getElementById('listaItensEntrada');
+      container.innerHTML = `
+        <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
+          <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+            <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #1</span>
+            <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento</label>
+            <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Notebook Dell Vostro">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento</label>
+            <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 123456">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
+            <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
+          </div>
+        </div>
+      `;
+      atualizarContadoresERemover();
+
+      // Limpar Saída
       document.getElementById('sai_tec').value = '';
       document.getElementById('sai_os').value = '';
       document.getElementById('sai_data').valueAsDate = new Date();
@@ -604,15 +712,39 @@
         const res = await fetch(`${API_BASE}/equipamentos/${id}`);
         const d = await res.json();
 
-        // Preencher formulário de Entrada
-        document.getElementById('ent_equip').value = d.equipamento || '';
-        document.getElementById('ent_tomb').value = d.tombamento || '';
+        // Preencher dados gerais de entrada
         document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
         document.getElementById('ent_data').value = converterDataParaInput(d.data_coleta);
         document.getElementById('ent_origem').value = d.origem || '';
         document.getElementById('ent_os').value = d.os_coleta || '';
         document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
-        document.getElementById('ent_prob').value = d.problema || '';
+
+        // Preencher o container de equipamentos com o item selecionado
+        const container = document.getElementById('listaItensEntrada');
+        container.innerHTML = `
+          <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+              <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #${d.id}</span>
+              <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento</label>
+              <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" value="${escapeHtml(d.equipamento || '')}">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento</label>
+              <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" value="${escapeHtml(d.tombamento || '')}">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
+              <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2">${escapeHtml(d.problema || '')}</textarea>
+            </div>
+          </div>
+        `;
+        atualizarContadoresERemover();
 
         // Preencher formulário de Saída
         document.getElementById('sai_tec').value = d.tecnico_entrega || '';
@@ -680,40 +812,68 @@
     }
 
     async function salvarEntrada() {
-      const payload = {
-        equipamento: document.getElementById('ent_equip').value.trim(),
-        tombamento: document.getElementById('ent_tomb').value.trim(),
-        tecnico_coleta: document.getElementById('ent_tec').value.trim(),
-        data_coleta: document.getElementById('ent_data').value,
-        origem: document.getElementById('ent_origem').value.trim(),
-        os_coleta: document.getElementById('ent_os').value.trim(),
-        localizacao: document.getElementById('ent_loc').value,
-        problema: document.getElementById('ent_prob').value.trim()
-      };
+      const tec = document.getElementById('ent_tec').value.trim();
+      const dataColeta = document.getElementById('ent_data').value;
+      const origem = document.getElementById('ent_origem').value.trim();
+      const osColeta = document.getElementById('ent_os').value.trim();
+      const localizacao = document.getElementById('ent_loc').value;
 
-      if (!payload.equipamento) {
-        mostrarToast("Preencha o nome do equipamento para continuar.", "erro");
+      const cards = document.querySelectorAll('.item-entrada-card');
+      const itensParaSalvar = [];
+
+      cards.forEach(card => {
+        const equip = card.querySelector('.ent_equip').value.trim();
+        const tomb = card.querySelector('.ent_tomb').value.trim();
+        const prob = card.querySelector('.ent_prob').value.trim();
+
+        if (equip) {
+          itensParaSalvar.push({
+            equipamento: equip,
+            tombamento: tomb,
+            tecnico_coleta: tec,
+            data_coleta: dataColeta,
+            origem: origem,
+            os_coleta: osColeta,
+            localizacao: localizacao,
+            problema: prob
+          });
+        }
+      });
+
+      if (itensParaSalvar.length === 0) {
+        mostrarToast("Preencha o nome de pelo menos 1 equipamento para cadastrar.", "erro");
         return;
       }
 
       try {
-        const res = await fetch(`${API_BASE}/equipamentos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        let cadastrados = 0;
+        let erros = 0;
 
-        if (!res.ok) {
-          const err = await res.json();
-          mostrarToast(formatarMensagemErro(err), "erro");
-          return;
+        const requisicoes = itensParaSalvar.map(payload => 
+          fetch(`${API_BASE}/equipamentos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).then(res => {
+            if (res.ok) cadastrados++;
+            else erros++;
+          }).catch(() => erros++)
+        );
+
+        await Promise.all(requisicoes);
+
+        if (cadastrados > 0) {
+          mostrarToast(`Entrada realizada! ${cadastrados} equipamento(s) cadastrado(s) com sucesso.`, "sucesso");
+          if (erros > 0) {
+            mostrarToast(`${erros} item(ns) falharam ao salvar.`, "erro");
+          }
+          limparFormularios();
+          carregarLista();
+        } else {
+          mostrarToast("Erro ao registrar a entrada dos equipamentos.", "erro");
         }
-
-        mostrarToast(`Entrada de "${payload.equipamento}" registrada com sucesso!`, "sucesso");
-        limparFormularios();
-        carregarLista();
       } catch (e) {
-        console.error("Erro ao salvar entrada:", e);
+        console.error("Erro ao salvar entrada em lote:", e);
         mostrarToast("Falha na conexão ao tentar registrar entrada.", "erro");
       }
     }
@@ -724,16 +884,26 @@
         return;
       }
 
+      const card = document.querySelector('.item-entrada-card');
+      const equip = card ? card.querySelector('.ent_equip').value.trim() : '';
+      const tomb = card ? card.querySelector('.ent_tomb').value.trim() : '';
+      const prob = card ? card.querySelector('.ent_prob').value.trim() : '';
+
       const payload = {
-        equipamento: document.getElementById('ent_equip').value.trim(),
-        tombamento: document.getElementById('ent_tomb').value.trim(),
+        equipamento: equip,
+        tombamento: tomb,
         tecnico_coleta: document.getElementById('ent_tec').value.trim(),
         data_coleta: document.getElementById('ent_data').value,
         origem: document.getElementById('ent_origem').value.trim(),
         os_coleta: document.getElementById('ent_os').value.trim(),
         localizacao: document.getElementById('ent_loc').value,
-        problema: document.getElementById('ent_prob').value.trim()
+        problema: prob
       };
+
+      if (!payload.equipamento) {
+        mostrarToast("Preencha o nome do equipamento para atualizar.", "erro");
+        return;
+      }
 
       try {
         const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, {

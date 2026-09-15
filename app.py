@@ -1,7 +1,7 @@
 import os
 import uvicorn
 from datetime import datetime, date
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, List
 from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -18,7 +18,7 @@ init_db()
 
 app = FastAPI(
     title="API de Gerenciamento de Coletas - SysFix",
-    version="1.0.0"
+    version="1.1.0"
 )
 
 # Configuração de CORS para liberar conexões do frontend/Railway
@@ -207,25 +207,60 @@ def obter_equipamento(registro_id: int):
 
 
 @app.post("/api/equipamentos")
-def criar_entrada(payload: EntradaSchema):
-    if not payload.equipamento:
-        erro = obter_mensagem_erro("MISSING_FIELDS", detalhe_tecnico="Campo 'equipamento' ausente")
-        raise HTTPException(status_code=400, detail=erro)
-
+def criar_entrada(payload: Union[EntradaSchema, List[EntradaSchema]]):
+    """
+    Endpoint flexível: aceita um único objeto de entrada ou uma lista de múltiplos equipamentos em lote.
+    """
     try:
-        novo_id = ColetaModel.registrar_entrada(
-            equipamento=payload.equipamento,
-            tombamento=payload.tombamento,
-            tecnico=payload.tecnico or payload.tecnico_coleta,
-            data_coleta=payload.data_coleta,
-            origem=payload.origem,
-            os_coleta=payload.os_coleta,
-            localizacao=payload.localizacao,
-            problema=payload.problema,
-        )
-        return {"sucesso": True, "id": novo_id, "mensagem": "Entrada registrada com sucesso."}
+        if isinstance(payload, list):
+            if not payload:
+                raise HTTPException(status_code=400, detail="A lista de equipamentos enviados está vazia.")
+            
+            ids_criados = []
+            for item in payload:
+                if not item.equipamento:
+                    erro = obter_mensagem_erro("MISSING_FIELDS", detalhe_tecnico="Campo 'equipamento' ausente em um dos itens")
+                    raise HTTPException(status_code=400, detail=erro)
+
+                novo_id = ColetaModel.registrar_entrada(
+                    equipamento=item.equipamento,
+                    tombamento=item.tombamento,
+                    tecnico=item.tecnico or item.tecnico_coleta,
+                    data_coleta=item.data_coleta,
+                    origem=item.origem,
+                    os_coleta=item.os_coleta,
+                    localizacao=item.localizacao,
+                    problema=item.problema,
+                )
+                ids_criados.append(novo_id)
+
+            return {
+                "sucesso": True, 
+                "ids": ids_criados, 
+                "mensagem": f"{len(ids_criados)} entrada(s) registrada(s) com sucesso."
+            }
+
+        else:
+            if not payload.equipamento:
+                erro = obter_mensagem_erro("MISSING_FIELDS", detalhe_tecnico="Campo 'equipamento' ausente")
+                raise HTTPException(status_code=400, detail=erro)
+
+            novo_id = ColetaModel.registrar_entrada(
+                equipamento=payload.equipamento,
+                tombamento=payload.tombamento,
+                tecnico=payload.tecnico or payload.tecnico_coleta,
+                data_coleta=payload.data_coleta,
+                origem=payload.origem,
+                os_coleta=payload.os_coleta,
+                localizacao=payload.localizacao,
+                problema=payload.problema,
+            )
+            return {"sucesso": True, "id": novo_id, "mensagem": "Entrada registrada com sucesso."}
+
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+    except HTTPException:
+        raise
     except Exception as e:
         erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
         raise HTTPException(status_code=500, detail=erro)

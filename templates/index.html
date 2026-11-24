@@ -207,18 +207,21 @@
           </div>
         </div>
 
-        <nav class="flex items-center gap-1 bg-violet-50/90 dark:bg-[#1C1633] p-1 rounded-xl border border-violet-200/80 dark:border-violet-900/70">
+        <nav class="flex flex-wrap items-center gap-1 bg-violet-50/90 dark:bg-[#1C1633] p-1 rounded-xl border border-violet-200/80 dark:border-violet-900/70">
           <button id="navBtnDashboard" onclick="alternarVisao('dashboard')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all">
             📊 Dashboard
           </button>
           <button id="navBtnEquipamentos" onclick="alternarVisao('equipamentos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all">
-            🖥️ Equipamentos
+            🖥️ Bancada TI
           </button>
-          <button id="navBtnOperacoes" onclick="alternarVisao('operacoes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
-            🧰 Operações TI
+          <button id="navBtnProvedor" onclick="alternarVisao('provedor')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
+            📡 Provedor (ISP)
+          </button>
+          <button id="navBtnEstoque" onclick="alternarVisao('estoque')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
+            📦 Estoque
           </button>
           <button id="navBtnEmpresa" onclick="alternarVisao('empresa')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
-            🏢 Equipe &amp; Empresa
+            🏢 Empresa &amp; Equipe
           </button>
         </nav>
       </div>
@@ -437,8 +440,8 @@
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tipo de Fluxo</label>
+              <div id="blocoEntradaProvedor">
+                <label class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">📡 Fluxo (Provedor/TI)</label>
                 <select id="ent_fluxo" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
                   <option value="Manutenção">Manutenção</option>
                   <option value="Comodato (Cliente)">Comodato (Cliente)</option>
@@ -503,8 +506,8 @@
                   </div>
                 </div>
 
-                <div>
-                  <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Serial / MAC / GPON SN</label>
+                <div class="bloco-serial-provedor p-2 rounded-lg bg-violet-50/70 dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800/70">
+                  <label class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">📡 Serial / MAC / GPON SN (Provedor &amp; Ativos)</label>
                   <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 48575443A1B2C3D4 ou AA:BB:CC:DD:EE:FF">
                 </div>
 
@@ -676,10 +679,9 @@
           </div>
 
           <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
-            <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider border-b border-violet-100 dark:border-violet-900/60 pb-2">📥 Dados de Entrada</h3>
+            <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider border-b border-violet-100 dark:border-violet-900/60 pb-2">📥 Dados de Entrada (TI &amp; O.S.)</h3>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Categoria:</span><span id="f_categoria" class="font-semibold text-slate-800 dark:text-white">---</span></div>
-              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Serial / MAC:</span><span id="f_serial_mac" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-800 dark:text-white">---</span></div>
@@ -687,7 +689,11 @@
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Origem / Cliente:</span><span id="f_origem" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Cód. Acompanhamento:</span><span id="f_codigo" class="font-semibold text-violet-600 dark:text-violet-400">---</span></div>
             </div>
-            <div class="pt-2">
+            <div id="fichaBlocoProvedor" class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 grid grid-cols-2 gap-3 text-xs">
+              <div><span class="text-violet-700 dark:text-violet-300 font-bold block">📡 Serial / MAC / GPON SN:</span><span id="f_serial_mac" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-violet-700 dark:text-violet-300 font-bold block">🔄 Fluxo Provedor (ISP):</span><span id="f_tipo_fluxo_txt" class="font-semibold text-slate-800 dark:text-white">Manutenção</span></div>
+            </div>
+            <div class="pt-1">
               <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Problema Relatado:</span>
               <p id="f_problema" class="text-xs bg-violet-50/70 dark:bg-[#1C1633] p-2.5 rounded-xl border border-violet-100 dark:border-violet-800/70 text-slate-700 dark:text-violet-100 mt-1 font-medium">---</p>
             </div>
@@ -736,103 +742,81 @@
     </div>
 
     <!-- ==================================================================== -->
-    <!-- VISÃO 2B: OPERAÇÕES TI & PROVEDORES (ESTOQUE, PREVENTIVAS, CLIENTES) -->
+    <!-- VISÃO 2B: SETOR PROVEDOR DE INTERNET (ISP / COMODATO / POPS)         -->
     <!-- ==================================================================== -->
-    <section id="viewOperacoes" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
+    <section id="viewProvedor" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
       <div class="max-w-7xl mx-auto space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🧰 Operações TI &amp; Provedores (ISP)</h2>
-            <p class="text-xs text-slate-500 dark:text-violet-300/80">Controle de peças/equipamentos prontos, preventivas de POPs/servidores e base de clientes.</p>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">📡 Setor Provedor de Internet (ISP / NOC)</h2>
+            <p class="text-xs text-slate-500 dark:text-violet-300/80">Gestão separada de CPEs em comodato (ONU/Roteador), preventivas de POPs/torres e base de assinantes.</p>
           </div>
-          <div class="flex gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-900">
-            <button id="btnOpsTabEstoque" onclick="alternarOpsTab('estoque')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">📦 Estoque &amp; Triagem</button>
-            <button id="btnOpsTabPreventivas" onclick="alternarOpsTab('preventivas')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🗓️ Preventivas POPs</button>
-            <button id="btnOpsTabClientes" onclick="alternarOpsTab('clientes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📡 Clientes &amp; POPs</button>
+          <div class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-900">
+            <button id="btnProvTabCpes" onclick="alternarProvedorTab('cpes')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">🔄 Comodato &amp; CPEs</button>
+            <button id="btnProvTabPreventivas" onclick="alternarProvedorTab('preventivas')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🗓️ Preventivas POPs</button>
+            <button id="btnProvTabClientes" onclick="alternarProvedorTab('clientes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📡 POPs &amp; Assinantes</button>
           </div>
         </div>
 
-        <!-- SUB-ABA ESTOQUE -->
-        <div id="opsTabEstoque" class="grid lg:grid-cols-3 gap-5">
-          <form onsubmit="criarItemEstoque(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">➕ Cadastrar Item de Estoque</h3>
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome da Peça / Equipamento *</label>
-              <input type="text" id="est_nome" required placeholder="Ex: Fonte 12V 1.5A / ONU Pronta / SSD 240GB" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+        <!-- SUB-ABA COMODATO & CPES -->
+        <div id="provTabCpes" class="space-y-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">CPEs em Bancada</span>
+              <div id="kpiProvBancada" class="text-2xl font-extrabold text-violet-600 dark:text-violet-400 mt-1">0</div>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Código / SKU</label>
-                <input type="text" id="est_codigo" placeholder="SKU-001" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria</label>
-                <select id="est_categoria" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                  <option value="Peça / Insumo">Peça / Insumo</option>
-                  <option value="Equipamento Pronto (Comodato)">Equipamento Pronto (Comodato)</option>
-                  <option value="Fibra / Conectores">Fibra / Conectores</option>
-                  <option value="Hardware TI">Hardware TI</option>
-                </select>
-              </div>
+            <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">Comodato (Cliente)</span>
+              <div id="kpiProvComodato" class="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">0</div>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Qtd Inicial</label>
-                <input type="number" id="est_qtd" min="0" value="1" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Estoque Mínimo</label>
-                <input type="number" id="est_min" min="0" value="2" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
+            <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">RMA / Triagem</span>
+              <div id="kpiProvRma" class="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">0</div>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div id="grupoCustoEstoque">
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Custo Unit. (R$)</label>
-                <input type="number" id="est_custo" min="0" step="0.01" value="0.00" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Local / Prateleira</label>
-                <input type="text" id="est_loc" value="Almoxarifado" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
+            <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">Liberados / Entregues</span>
+              <div id="kpiProvEntregues" class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">0</div>
             </div>
-            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
-              💾 Salvar no Estoque
-            </button>
-          </form>
+          </div>
 
-          <div class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
-            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Saldo de Peças &amp; Equipamentos</h3>
-              <button onclick="carregarEstoqueOps()" class="text-xs font-semibold text-violet-600 dark:text-violet-400">Atualizar</button>
+          <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex flex-wrap items-center justify-between gap-3">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Rastreamento de ONUs, Roteadores, OLTs &amp; Comodato</h3>
+              <div class="flex items-center gap-2">
+                <input type="search" id="provBuscaCpe" oninput="renderizarPainelCpesProvedor()" placeholder="Buscar por MAC, GPON SN, cliente ou modelo..." class="w-64 px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+                <button onclick="carregarPainelProvedor()" class="px-3 py-1.5 rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-700 dark:text-violet-200 text-xs font-bold border border-violet-200 dark:border-violet-800">Atualizar</button>
+              </div>
             </div>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs border-collapse">
                 <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold border-b border-violet-200 dark:border-violet-900">
                   <tr>
-                    <th class="p-3">Item</th>
-                    <th class="p-3">Categoria</th>
-                    <th class="p-3">Saldo</th>
-                    <th id="thCustoEstoque" class="p-3">Custo</th>
-                    <th class="p-3 text-right">Ações</th>
+                    <th class="p-3">O.S.</th>
+                    <th class="p-3">Equipamento / Categoria</th>
+                    <th class="p-3">Serial / MAC / GPON SN</th>
+                    <th class="p-3">Fluxo</th>
+                    <th class="p-3">Assinante / POP</th>
+                    <th class="p-3">Status</th>
+                    <th class="p-3 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody id="tabelaEstoqueOps" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
+                <tbody id="tabelaCpesProvedor" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
               </table>
             </div>
           </div>
         </div>
 
         <!-- SUB-ABA PREVENTIVAS -->
-        <div id="opsTabPreventivas" class="grid lg:grid-cols-3 gap-5 hidden">
+        <div id="provTabPreventivas" class="grid lg:grid-cols-3 gap-5 hidden">
           <form onsubmit="criarPreventivaOps(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">🗓️ Nova Agenda Preventiva</h3>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">🗓️ Nova Agenda Preventiva (POP / Servidor)</h3>
             <div>
               <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento / Tarefa *</label>
               <input type="text" id="prv_titulo" required placeholder="Ex: Revisão Nobreaks e Baterias POP Norte" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
             </div>
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">POP / Servidor / Cliente</label>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">POP / Torre / Cliente</label>
                 <input type="text" id="prv_local" list="datalistOrigens" placeholder="POP Centro" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <div>
@@ -852,7 +836,7 @@
             </div>
             <div>
               <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Roteiro de Verificação</label>
-              <textarea id="prv_checklist" rows="2" placeholder="Limpeza de filtros, medição de tensão, backup..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+              <textarea id="prv_checklist" rows="2" placeholder="Limpeza de filtros, medição de tensão, backup OLT..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
             </div>
             <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
               ➕ Agendar Preventiva
@@ -869,9 +853,9 @@
         </div>
 
         <!-- SUB-ABA CLIENTES & POPS -->
-        <div id="opsTabClientes" class="grid lg:grid-cols-3 gap-5 hidden">
+        <div id="provTabClientes" class="grid lg:grid-cols-3 gap-5 hidden">
           <form onsubmit="criarClienteOps(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">📡 Novo Cliente, Setor ou POP</h3>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">📡 Novo POP, Torre ou Assinante</h3>
             <div>
               <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome *</label>
               <input type="text" id="cli_nome" required placeholder="Ex: POP Centro / Cliente João" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
@@ -880,10 +864,10 @@
               <div>
                 <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tipo</label>
                 <select id="cli_tipo" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                  <option value="Cliente / Empresa">Cliente / Empresa</option>
                   <option value="POP / Torre ISP">POP / Torre ISP</option>
-                  <option value="Setor Interno">Setor Interno</option>
                   <option value="Assinante FTTH">Assinante FTTH</option>
+                  <option value="Cliente / Empresa">Cliente / Empresa</option>
+                  <option value="Setor Interno">Setor Interno</option>
                 </select>
               </div>
               <div>
@@ -900,13 +884,13 @@
               <input type="text" id="cli_end" placeholder="Rua, número, bairro..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
             </div>
             <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
-              💾 Salvar Cliente / POP
+              💾 Salvar POP / Cliente
             </button>
           </form>
 
           <div class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
             <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Clientes, Setores e POPs Cadastrados</h3>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">POPs, Torres e Clientes Cadastrados</h3>
               <button onclick="carregarClientesOps()" class="text-xs font-semibold text-violet-600 dark:text-violet-400">Atualizar</button>
             </div>
             <div class="overflow-x-auto">
@@ -920,6 +904,143 @@
                   </tr>
                 </thead>
                 <tbody id="tabelaClientesOps" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- VISÃO 2C: SETOR ESTOQUE & ALMOXARIFADO                               -->
+    <!-- ==================================================================== -->
+    <section id="viewEstoque" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
+      <div class="max-w-7xl mx-auto space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">📦 Setor de Estoque &amp; Almoxarifado</h2>
+            <p class="text-xs text-slate-500 dark:text-violet-300/80">Controle dedicado de almoxarifados, insumos, peças, equipamentos prontos e movimentações vinculadas às O.S.</p>
+          </div>
+          <button onclick="carregarEstoqueOps()" class="px-3.5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold shadow-sm">
+            🔄 Atualizar Saldo
+          </button>
+        </div>
+
+        <!-- KPIs Exclusivos do Setor de Estoque -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">SKUs Cadastrados</span>
+            <div id="kpiEstSkus" class="text-2xl font-extrabold text-violet-600 dark:text-violet-400 mt-1">0</div>
+          </div>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Total em Unidades</span>
+            <div id="kpiEstUnidades" class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">0</div>
+          </div>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-rose-200 dark:border-rose-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-rose-500 uppercase">Estoque Mínimo ⚠️</span>
+            <div id="kpiEstBaixo" class="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">0</div>
+          </div>
+          <div id="kpiEstValorCard" class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Valor em Estoque</span>
+            <div id="kpiEstValor" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">R$ 0,00</div>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-5">
+          <form id="formCriarEstoque" onsubmit="criarItemEstoque(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">➕ Cadastrar Item de Estoque</h3>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome da Peça / Insumo / Equipamento *</label>
+              <input type="text" id="est_nome" required placeholder="Ex: Fonte 12V 1.5A / Conector APC / SSD 240GB" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Código / SKU</label>
+                <input type="text" id="est_codigo" placeholder="SKU-001" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria</label>
+                <select id="est_categoria" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="Peça / Insumo">Peça / Insumo</option>
+                  <option value="Equipamento Pronto (Comodato)">Equipamento Pronto (Comodato)</option>
+                  <option value="Fibra / Conectores">Fibra / Conectores</option>
+                  <option value="Hardware TI">Hardware TI</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Almoxarifado</label>
+                <select id="est_almoxarifado" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="Almoxarifado Central">Almoxarifado Central</option>
+                  <option value="Estoque Móvel / Técnico">Estoque Móvel / Técnico</option>
+                  <option value="Bancada TI">Bancada TI</option>
+                  <option value="Triagem / Quarentena">Triagem / Quarentena</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Unidade</label>
+                <select id="est_unidade" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="un">Unidade (un)</option>
+                  <option value="m">Metro (m)</option>
+                  <option value="cx">Caixa (cx)</option>
+                  <option value="kit">Kit</option>
+                  <option value="par">Par</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Qtd Inicial</label>
+                <input type="number" id="est_qtd" min="0" value="1" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Estoque Mínimo</label>
+                <input type="number" id="est_min" min="0" value="2" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div id="grupoCustoEstoque">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Custo Unit. (R$)</label>
+                <input type="number" id="est_custo" min="0" step="0.01" value="0.00" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Prateleira / Posição</label>
+                <input type="text" id="est_loc" value="Prateleira A1" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              💾 Salvar no Estoque
+            </button>
+          </form>
+
+          <div id="cardListaEstoque" class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden flex flex-col">
+            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex flex-wrap items-center justify-between gap-2">
+              <input type="search" id="est_busca" oninput="renderizarTabelaEstoqueOps()" placeholder="Filtrar item, SKU ou prateleira..." class="flex-1 min-w-[180px] px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              <select id="est_filtro_almox" onchange="renderizarTabelaEstoqueOps()" class="px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                <option value="">Todos Almoxarifados</option>
+                <option value="Almoxarifado Central">Almoxarifado Central</option>
+                <option value="Estoque Móvel / Técnico">Estoque Móvel / Técnico</option>
+                <option value="Bancada TI">Bancada TI</option>
+                <option value="Triagem / Quarentena">Triagem / Quarentena</option>
+              </select>
+              <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-violet-200 cursor-pointer">
+                <input type="checkbox" id="est_filtro_baixo" onchange="renderizarTabelaEstoqueOps()" class="rounded border-violet-300 text-violet-600">
+                <span>Só críticos</span>
+              </label>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold border-b border-violet-200 dark:border-violet-900">
+                  <tr>
+                    <th class="p-3">Item / SKU</th>
+                    <th class="p-3">Almoxarifado</th>
+                    <th class="p-3">Saldo</th>
+                    <th id="thCustoEstoque" class="p-3">Custo Unit.</th>
+                    <th class="p-3 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaEstoqueOps" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
               </table>
             </div>
           </div>
@@ -944,7 +1065,22 @@
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Localizações Permitidas (uma por linha)</label>
-            <textarea id="emp_locs" rows="5" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none focus:ring-2 focus:ring-violet-400/40"></textarea>
+            <textarea id="emp_locs" rows="4" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none focus:ring-2 focus:ring-violet-400/40"></textarea>
+          </div>
+          <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2 text-xs">
+            <span class="block text-[11px] font-bold text-violet-800 dark:text-violet-200 uppercase">Setores ativos nesta empresa</span>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="setor_ativo_ti" checked class="rounded border-violet-300 text-violet-600">
+              <span>🖥️ TI &amp; Bancada (O.S.)</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="setor_ativo_provedor" checked class="rounded border-violet-300 text-violet-600">
+              <span>📡 Provedor de Internet (ISP / Comodato / POPs)</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="setor_ativo_estoque" checked class="rounded border-violet-300 text-violet-600">
+              <span>📦 Estoque &amp; Almoxarifado</span>
+            </label>
           </div>
           <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
             Salvar Configurações
@@ -976,12 +1112,17 @@
               </div>
             </div>
 
-            <div id="grupoPermissoesNovoMembro" class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
+            <div id="grupoPermissoesNovoMembro" class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <span class="text-[11px] font-bold text-violet-800 dark:text-violet-200 uppercase">🔐 O que este técnico poderá ver e fazer</span>
-                <span class="text-[10px] text-slate-500 dark:text-violet-300/70">Campos não liberados ficam ocultos para ele</span>
+                <span class="text-[11px] font-bold text-violet-800 dark:text-violet-200 uppercase">🔐 Permissões por Setor</span>
+                <div class="flex flex-wrap gap-1">
+                  <button type="button" onclick="aplicarPresetNovoMembro('tecnico_ti')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🖥️ Téc. TI</button>
+                  <button type="button" onclick="aplicarPresetNovoMembro('tecnico_isp')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">📡 Téc. ISP</button>
+                  <button type="button" onclick="aplicarPresetNovoMembro('estoquista')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">📦 Estoquista</button>
+                  <button type="button" onclick="aplicarPresetNovoMembro('financeiro_gestor')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">💰 Gestor</button>
+                </div>
               </div>
-              <div id="listaPermissoesNovoMembro" class="grid sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+              <div id="listaPermissoesNovoMembro" class="grid md:grid-cols-2 gap-3"></div>
             </div>
 
             <div class="flex justify-end">
@@ -1273,28 +1414,37 @@
 
   <!-- MODAL DE PERMISSÕES GRANULARES DO TÉCNICO -->
   <div id="modalPermissoes" class="fixed inset-0 bg-[#0B0816]/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
-    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-lg shadow-2xl space-y-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-2xl shadow-2xl space-y-4">
       <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-3">
         <div>
-          <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔐 Permissões de Acesso</h3>
-          <p id="perm_usuario_info" class="text-[11px] text-slate-500 dark:text-violet-300/80">Selecione exatamente o que este colaborador pode visualizar e fazer.</p>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔐 Permissões de Acesso por Setor</h3>
+          <p id="perm_usuario_info" class="text-[11px] text-slate-500 dark:text-violet-300/80">Escolha exatamente quais setores e ações este colaborador pode acessar.</p>
         </div>
         <button onclick="fecharModalPermissoes()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
       </div>
 
       <div class="flex flex-wrap gap-1.5">
+        <button type="button" onclick="aplicarPresetPermissoes('tecnico_ti')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+          🖥️ Técnico TI
+        </button>
+        <button type="button" onclick="aplicarPresetPermissoes('tecnico_isp')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+          📡 Técnico ISP
+        </button>
+        <button type="button" onclick="aplicarPresetPermissoes('estoquista')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+          📦 Estoquista
+        </button>
+        <button type="button" onclick="aplicarPresetPermissoes('financeiro_gestor')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+          💰 Gestor / Financeiro
+        </button>
+        <button type="button" onclick="aplicarPresetPermissoes('operacional_sem_custos')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+          🔧 Operacional s/ Custos
+        </button>
         <button type="button" onclick="aplicarPresetPermissoes('padrao')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
-          Técnico Padrão
-        </button>
-        <button type="button" onclick="aplicarPresetPermissoes('sem_custos')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
-          Operacional (Sem Custos)
-        </button>
-        <button type="button" onclick="aplicarPresetPermissoes('consulta')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
-          Somente Consulta
+          ⚙️ Padrão
         </button>
       </div>
 
-      <div id="listaPermissoesModal" class="max-h-72 overflow-y-auto custom-scrollbar space-y-2 pr-1"></div>
+      <div id="listaPermissoesModal" class="max-h-96 overflow-y-auto custom-scrollbar grid md:grid-cols-2 gap-3 pr-1"></div>
 
       <div class="flex gap-2 pt-2">
         <button id="btnSalvarPermissoes" onclick="salvarPermissoesUsuario()" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
@@ -1471,6 +1621,17 @@
         <button type="button" onclick="confirmarMovimentoEstoque()" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl">Confirmar</button>
         <button type="button" onclick="fecharModalMovEstoque()" class="px-4 py-2.5 bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl">Cancelar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: HISTÓRICO DE MOVIMENTAÇÕES DE ITEM DE ESTOQUE -->
+  <div id="modalHistoricoEstoque" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-lg max-h-[82vh] overflow-y-auto custom-scrollbar shadow-2xl space-y-3">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-2">
+        <h3 id="histEstTitulo" class="text-sm font-extrabold text-slate-900 dark:text-white">📜 Movimentações do Item</h3>
+        <button onclick="fecharModalHistoricoEstoque()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
+      </div>
+      <div id="histEstLista" class="space-y-2 text-xs"></div>
     </div>
   </div>
 

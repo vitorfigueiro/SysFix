@@ -260,10 +260,25 @@ class OpsModulesService:
             "nome": nome[:140],
             "codigo": SecurityValidator.sanitizar_texto(payload.get("codigo"))[:60],
             "categoria": SecurityValidator.sanitizar_texto(payload.get("categoria")) or "Peça / Insumo",
+            "almoxarifado": SecurityValidator.sanitizar_texto(payload.get("almoxarifado")) or "Almoxarifado Central",
+            "unidade": SecurityValidator.sanitizar_texto(payload.get("unidade"))[:12] or "un",
             "quantidade": qtd,
             "estoque_minimo": minimo,
             "custo_unitario": custo,
             "localizacao": SecurityValidator.sanitizar_texto(payload.get("localizacao")) or "Almoxarifado",
+            "historico_movimentacoes": [
+                {
+                    "id": f"mov_{uuid.uuid4().hex[:8]}",
+                    "data_hora": agora,
+                    "tipo": "cadastro",
+                    "quantidade": qtd,
+                    "saldo_anterior": 0,
+                    "saldo_atual": qtd,
+                    "os_id": None,
+                    "observacao": "Cadastro inicial do item",
+                    "autor": SecurityValidator.sanitizar_texto(actor) or "Sistema",
+                }
+            ],
             "criado_em": agora,
             "atualizado_em": agora,
             "atualizado_por": SecurityValidator.sanitizar_texto(actor),
@@ -291,6 +306,10 @@ class OpsModulesService:
             updates["codigo"] = SecurityValidator.sanitizar_texto(payload["codigo"])[:60]
         if "categoria" in payload and payload["categoria"] is not None:
             updates["categoria"] = SecurityValidator.sanitizar_texto(payload["categoria"]) or "Peça / Insumo"
+        if "almoxarifado" in payload and payload["almoxarifado"] is not None:
+            updates["almoxarifado"] = SecurityValidator.sanitizar_texto(payload["almoxarifado"]) or "Almoxarifado Central"
+        if "unidade" in payload and payload["unidade"] is not None:
+            updates["unidade"] = SecurityValidator.sanitizar_texto(payload["unidade"])[:12] or "un"
         if "estoque_minimo" in payload and payload["estoque_minimo"] is not None:
             updates["estoque_minimo"] = max(0, int(payload["estoque_minimo"]))
         if "custo_unitario" in payload and payload["custo_unitario"] is not None:
@@ -351,12 +370,29 @@ class OpsModulesService:
                 publico=False,
             )
 
+        agora = _now_iso()
+        hist = list(item.get("historico_movimentacoes") or [])
+        hist.insert(
+            0,
+            {
+                "id": f"mov_{uuid.uuid4().hex[:8]}",
+                "data_hora": agora,
+                "tipo": "saida" if eh_saida else "entrada",
+                "quantidade": quantidade,
+                "saldo_anterior": atual,
+                "saldo_atual": nova_qtd,
+                "os_id": int(os_id) if os_id is not None else None,
+                "observacao": SecurityValidator.sanitizar_texto(observacao)[:200],
+                "autor": SecurityValidator.sanitizar_texto(actor) or "Sistema",
+            },
+        )
         atualizado = self.store.update_item(
             "estoque",
             item_id,
             {
                 "quantidade": nova_qtd,
-                "atualizado_em": _now_iso(),
+                "historico_movimentacoes": hist[:30],
+                "atualizado_em": agora,
                 "atualizado_por": SecurityValidator.sanitizar_texto(actor),
             },
             tenant_id,
@@ -364,6 +400,24 @@ class OpsModulesService:
         if atualizado:
             atualizado["estoque_baixo"] = nova_qtd <= int(atualizado.get("estoque_minimo") or 0)
         return atualizado
+
+    def resumo_estoque(self, tenant_id: str, incluir_custos: bool = True) -> dict:
+        itens = self.listar_estoque(tenant_id)
+        total_skus = len(itens)
+        total_unidades = sum(int(i.get("quantidade") or 0) for i in itens)
+        itens_baixo = sum(1 for i in itens if i.get("estoque_baixo"))
+        resumo = {
+            "total_skus": total_skus,
+            "total_unidades": total_unidades,
+            "itens_baixo_estoque": itens_baixo,
+        }
+        if incluir_custos:
+            valor_total = sum(
+                float(i.get("custo_unitario") or 0.0) * int(i.get("quantidade") or 0)
+                for i in itens
+            )
+            resumo["valor_total_estoque"] = round(valor_total, 2)
+        return resumo
 
     def excluir_item_estoque(self, tenant_id: str, item_id: str) -> bool:
         return self.store.delete_item("estoque", item_id, tenant_id)

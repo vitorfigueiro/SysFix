@@ -12,7 +12,9 @@ from auth import (
     AuthorizationError,
     AuthService,
     OnboardingRequiredError,
+    PERMISSION_SECTORS,
     PERMISSIONS_CATALOG,
+    ROLE_PRESETS,
     sanitizar_tenant,
     sanitizar_usuario,
     usuario_tem_permissao,
@@ -283,6 +285,7 @@ class TenantSettingsSchema(BaseModel):
     nome: Optional[str] = None
     sla_dias: Optional[int] = None
     localizacoes: Optional[List[str]] = None
+    setores_ativos: Optional[dict[str, bool]] = None
 
 
 class ImportarDadosSchema(BaseModel):
@@ -346,6 +349,8 @@ class EstoqueItemSchema(BaseModel):
     nome: Optional[str] = None
     codigo: Optional[str] = None
     categoria: Optional[str] = None
+    almoxarifado: Optional[str] = None
+    unidade: Optional[str] = None
     quantidade: Optional[int] = 0
     estoque_minimo: Optional[int] = 0
     custo_unitario: Optional[Union[float, int, str]] = 0.0
@@ -562,6 +567,8 @@ def obter_sessao_atual(current_user: dict[str, Any] = Depends(get_current_user))
         "user": sanitizar_usuario(current_user),
         "tenant": sanitizar_tenant(current_user["tenant"]),
         "permissions_catalog": PERMISSIONS_CATALOG,
+        "permission_sectors": PERMISSION_SECTORS,
+        "role_presets": ROLE_PRESETS,
     }
 
 
@@ -1016,6 +1023,7 @@ def atualizar_configuracoes_empresa(
             nome=payload.nome,
             sla_dias=payload.sla_dias,
             localizacoes=payload.localizacoes,
+            setores_ativos=payload.setores_ativos,
         )
         return {"sucesso": True, "tenant": tenant}
     except AuthorizationError as aze:
@@ -1776,16 +1784,26 @@ def _filtrar_item_estoque(item: dict, current_user: dict[str, Any]) -> dict:
 
 @app.get("/api/ops/estoque")
 def listar_estoque_ops(
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("ver_estoque")),
 ):
     itens = _get_ops_service().listar_estoque(current_user["tenant_id"])
     return [_filtrar_item_estoque(i, current_user) for i in itens]
 
 
+@app.get("/api/ops/estoque/resumo")
+def obter_resumo_estoque_ops(
+    current_user: dict[str, Any] = Depends(require_permission("ver_estoque")),
+):
+    return _get_ops_service().resumo_estoque(
+        current_user["tenant_id"],
+        incluir_custos=usuario_tem_permissao(current_user, "ver_custos"),
+    )
+
+
 @app.post("/api/ops/estoque")
 def criar_item_estoque_ops(
     payload: EstoqueItemSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_estoque")),
 ):
     try:
         dados = payload.model_dump()
@@ -1808,7 +1826,7 @@ def criar_item_estoque_ops(
 def atualizar_item_estoque_ops(
     item_id: str,
     payload: EstoqueItemSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_estoque")),
 ):
     try:
         dados = payload.model_dump(exclude_unset=True)
@@ -1836,7 +1854,7 @@ def atualizar_item_estoque_ops(
 def movimentar_estoque_ops(
     item_id: str,
     payload: EstoqueMovimentoSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("movimentar_estoque")),
 ):
     try:
         item = _get_ops_service().movimentar_estoque(
@@ -1865,7 +1883,7 @@ def movimentar_estoque_ops(
 @app.delete("/api/ops/estoque/{item_id}")
 def excluir_item_estoque_ops(
     item_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_estoque")),
 ):
     if not _get_ops_service().excluir_item_estoque(current_user["tenant_id"], item_id):
         raise HTTPException(status_code=404, detail="Item de estoque não encontrado.")
@@ -1874,7 +1892,7 @@ def excluir_item_estoque_ops(
 
 @app.get("/api/ops/preventivas")
 def listar_preventivas_ops(
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
 ):
     return _get_ops_service().listar_preventivas(current_user["tenant_id"])
 
@@ -1882,7 +1900,7 @@ def listar_preventivas_ops(
 @app.post("/api/ops/preventivas")
 def criar_preventiva_ops(
     payload: PreventivaSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
 ):
     try:
         item = _get_ops_service().criar_preventiva(
@@ -1902,7 +1920,7 @@ def criar_preventiva_ops(
 def concluir_preventiva_ops(
     item_id: str,
     payload: PreventivaConcluirSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
 ):
     try:
         data_exec = (
@@ -1932,7 +1950,7 @@ def concluir_preventiva_ops(
 @app.delete("/api/ops/preventivas/{item_id}")
 def excluir_preventiva_ops(
     item_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
 ):
     if not _get_ops_service().excluir_preventiva(current_user["tenant_id"], item_id):
         raise HTTPException(status_code=404, detail="Agenda preventiva não encontrada.")
@@ -1941,7 +1959,7 @@ def excluir_preventiva_ops(
 
 @app.get("/api/ops/clientes")
 def listar_clientes_ops(
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
 ):
     return _get_ops_service().listar_clientes(current_user["tenant_id"])
 
@@ -1949,7 +1967,7 @@ def listar_clientes_ops(
 @app.post("/api/ops/clientes")
 def criar_cliente_ops(
     payload: ClientePopSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
 ):
     try:
         item = _get_ops_service().criar_cliente(
@@ -1966,7 +1984,7 @@ def criar_cliente_ops(
 @app.delete("/api/ops/clientes/{item_id}")
 def excluir_cliente_ops(
     item_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
 ):
     if not _get_ops_service().excluir_cliente(current_user["tenant_id"], item_id):
         raise HTTPException(status_code=404, detail="Cliente/POP não encontrado.")

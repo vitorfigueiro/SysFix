@@ -9,6 +9,8 @@ let firebaseSdk = null;
 
 let sessaoAtual = null;
 let permissionsCatalog = [];
+let permissionSectors = [];
+let rolePresets = {};
 let usuariosEmpresaCache = [];
 let uidPermissaoEmEdicao = null;
 let listaEquipamentosCache = [];
@@ -208,6 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (typeof fecharModalAssinatura === 'function') fecharModalAssinatura();
       if (typeof fecharModalOrcamento === 'function') fecharModalOrcamento();
       if (typeof fecharModalMovEstoque === 'function') fecharModalMovEstoque();
+      if (typeof fecharModalHistoricoEstoque === 'function') fecharModalHistoricoEstoque();
     }
   });
 
@@ -321,6 +324,12 @@ async function carregarSessao() {
     permissionsCatalog = Array.isArray(sessaoAtual.permissions_catalog)
       ? sessaoAtual.permissions_catalog
       : [];
+    permissionSectors = Array.isArray(sessaoAtual.permission_sectors)
+      ? sessaoAtual.permission_sectors
+      : [];
+    rolePresets = sessaoAtual.role_presets && typeof sessaoAtual.role_presets === 'object'
+      ? sessaoAtual.role_presets
+      : {};
     aplicarSessaoNaUI();
   } catch (e) {
     console.error('Erro ao validar sessão:', e);
@@ -335,23 +344,60 @@ function temPermissao(chave) {
   return Boolean(perms[chave]);
 }
 
+function setorEmpresaAtivo(setor) {
+  const setores = sessaoAtual?.tenant?.setores_ativos;
+  if (!setores || typeof setores !== 'object') return true;
+  if (!(setor in setores)) return true;
+  return Boolean(setores[setor]);
+}
+
+function temAcessoSetorTI() {
+  return setorEmpresaAtivo('ti') && temPermissao('ver_ti');
+}
+
+function temAcessoSetorProvedor() {
+  return setorEmpresaAtivo('provedor') && (
+    temPermissao('ver_provedor') ||
+    temPermissao('gerenciar_preventivas') ||
+    temPermissao('gerenciar_clientes_pops')
+  );
+}
+
+function temAcessoSetorEstoque() {
+  return setorEmpresaAtivo('estoque') && (
+    temPermissao('ver_estoque') ||
+    temPermissao('movimentar_estoque') ||
+    temPermissao('gerenciar_estoque')
+  );
+}
+
 function aplicarPermissoesNaUI() {
   const podeDashboard = temPermissao('ver_dashboard');
   const podeCustos = temPermissao('ver_custos');
-  const podeEntrar = temPermissao('registrar_entrada');
-  const podeEditar = temPermissao('editar_entrada');
-  const podeSaida = temPermissao('registrar_saida');
-  const podeExcluir = temPermissao('excluir_registros');
+  const podeTI = temAcessoSetorTI();
+  const podeEntrar = podeTI && temPermissao('registrar_entrada');
+  const podeEditar = podeTI && temPermissao('editar_entrada');
+  const podeSaida = podeTI && temPermissao('registrar_saida');
+  const podeExcluir = podeTI && temPermissao('excluir_registros');
   const podePdf = temPermissao('exportar_pdf');
   const podeEquipe = temPermissao('gerenciar_equipe');
   const podeBackup = temPermissao('importar_exportar_dados');
   const podeLaudos = temPermissao('gerenciar_laudos');
   const podeCompartilhar = temPermissao('compartilhar_os');
-  const podeOpsTi = temPermissao('gerenciar_operacoes_ti');
   const podeModelos = temPermissao('gerenciar_modelos');
 
+  const podeProvedor = temAcessoSetorProvedor();
+  const podeVerProvedorCampos = setorEmpresaAtivo('provedor') && temPermissao('ver_provedor');
+  const podePrev = temPermissao('gerenciar_preventivas');
+  const podeClientes = temPermissao('gerenciar_clientes_pops');
+
+  const podeEstoque = temAcessoSetorEstoque();
+  const podeGerirEstoque = temPermissao('gerenciar_estoque');
+
   document.getElementById('navBtnDashboard').classList.toggle('hidden', !podeDashboard);
-  document.getElementById('navBtnOperacoes').classList.toggle('hidden', !podeOpsTi);
+  document.getElementById('navBtnEquipamentos').classList.toggle('hidden', !podeTI);
+  document.getElementById('navBtnProvedor').classList.toggle('hidden', !podeProvedor);
+  document.getElementById('navBtnEstoque').classList.toggle('hidden', !podeEstoque);
   document.getElementById('navBtnEmpresa').classList.toggle('hidden', !podeEquipe && !podeBackup && !podeModelos);
   document.getElementById('btnExportarPdfHeader').classList.toggle('hidden', !podePdf);
 
@@ -389,6 +435,12 @@ function aplicarPermissoesNaUI() {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', hide);
   };
+  toggle('blocoEntradaProvedor', !podeVerProvedorCampos);
+  toggle('fichaBlocoProvedor', !podeVerProvedorCampos);
+  document.querySelectorAll('.bloco-serial-provedor').forEach(el => {
+    el.classList.toggle('hidden', !podeVerProvedorCampos);
+  });
+
   toggle('btnNovoLaudoOs', !podeLaudos);
   toggle('btnCardNovoLaudo', !podeLaudos);
   toggle('btnComprovanteOs', !podeCompartilhar);
@@ -397,6 +449,18 @@ function aplicarPermissoesNaUI() {
   toggle('btnAssinarOs', !podeCompartilhar);
   toggle('btnOrcamentoOs', !podeCompartilhar || !podeCustos);
   toggle('btnAplicarChecklistPadrao', !podeEditar);
+
+  toggle('btnProvTabCpes', !podeVerProvedorCampos);
+  toggle('btnProvTabPreventivas', !podePrev);
+  toggle('btnProvTabClientes', !podeClientes);
+
+  toggle('formCriarEstoque', !podeGerirEstoque);
+  const cardListaEst = document.getElementById('cardListaEstoque');
+  if (cardListaEst) {
+    cardListaEst.classList.toggle('lg:col-span-2', podeGerirEstoque);
+    cardListaEst.classList.toggle('lg:col-span-3', !podeGerirEstoque);
+  }
+  toggle('kpiEstValorCard', !podeCustos);
   toggle('grupoCustoEstoque', !podeCustos);
   toggle('thCustoEstoque', !podeCustos);
 }
@@ -429,11 +493,20 @@ function aplicarSessaoNaUI() {
   aplicarPermissoesNaUI();
   renderizarCheckboxesPermissoesNovoMembro();
   if (typeof carregarPresetsTI === 'function') carregarPresetsTI();
-  if (typeof sincronizarDatalistClientes === 'function' && temPermissao('gerenciar_operacoes_ti')) {
+  if (typeof sincronizarDatalistClientes === 'function' && setorEmpresaAtivo('provedor') && temPermissao('gerenciar_clientes_pops')) {
     sincronizarDatalistClientes();
   }
-  alternarVisao(temPermissao('ver_dashboard') ? 'dashboard' : 'equipamentos');
-  carregarLista('nao_finalizados');
+  const primeiraVisao = temPermissao('ver_dashboard')
+    ? 'dashboard'
+    : (temAcessoSetorTI()
+      ? 'equipamentos'
+      : (temAcessoSetorProvedor()
+        ? 'provedor'
+        : (temAcessoSetorEstoque() ? 'estoque' : 'empresa')));
+  alternarVisao(primeiraVisao);
+  if (temAcessoSetorTI() || temAcessoSetorProvedor()) {
+    carregarLista('nao_finalizados');
+  }
 }
 
 function popularOpcoesLocalizacaoEmpresa(localizacoes) {
@@ -604,7 +677,8 @@ function alternarVisao(visao) {
   visaoAtual = visao;
   document.getElementById('viewDashboard').classList.toggle('hidden', visao !== 'dashboard');
   document.getElementById('viewEquipamentos').classList.toggle('hidden', visao !== 'equipamentos');
-  document.getElementById('viewOperacoes').classList.toggle('hidden', visao !== 'operacoes');
+  document.getElementById('viewProvedor').classList.toggle('hidden', visao !== 'provedor');
+  document.getElementById('viewEstoque').classList.toggle('hidden', visao !== 'estoque');
   document.getElementById('viewEmpresa').classList.toggle('hidden', visao !== 'empresa');
 
   const active = 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all';
@@ -612,13 +686,16 @@ function alternarVisao(visao) {
 
   document.getElementById('navBtnDashboard').className = visao === 'dashboard' ? active : inactive;
   document.getElementById('navBtnEquipamentos').className = visao === 'equipamentos' ? active : inactive;
-  document.getElementById('navBtnOperacoes').className = visao === 'operacoes' ? active : inactive;
+  document.getElementById('navBtnProvedor').className = visao === 'provedor' ? active : inactive;
+  document.getElementById('navBtnEstoque').className = visao === 'estoque' ? active : inactive;
   document.getElementById('navBtnEmpresa').className = visao === 'empresa' ? active : inactive;
 
   if (visao === 'dashboard') {
     carregarDashboard();
-  } else if (visao === 'operacoes' && typeof carregarTelaOperacoes === 'function') {
-    carregarTelaOperacoes();
+  } else if (visao === 'provedor' && typeof carregarPainelProvedor === 'function') {
+    carregarPainelProvedor();
+  } else if (visao === 'estoque' && typeof carregarEstoqueOps === 'function') {
+    carregarEstoqueOps();
   } else if (visao === 'empresa') {
     carregarTelaEmpresa();
   }
@@ -838,8 +915,8 @@ function criarCardHtmlEntrada(labelTitulo, dados = {}, mostrarRemover = true) {
           <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456 ou S/N" value="${escapeHtml(dados.tombamento || '')}">
         </div>
       </div>
-      <div>
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Serial / MAC / GPON SN</label>
+      <div class="bloco-serial-provedor p-2 rounded-lg bg-violet-50/70 dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800/70 ${typeof temPermissao === 'function' && setorEmpresaAtivo('provedor') && temPermissao('ver_provedor') ? '' : 'hidden'}">
+        <label class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">📡 Serial / MAC / GPON SN (Provedor &amp; Ativos)</label>
         <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 48575443A1B2C3D4 ou AA:BB:CC:DD:EE:FF" value="${escapeHtml(dados.serial_mac || '')}">
       </div>
       <div>
@@ -1185,6 +1262,8 @@ async function selecionarItem(id) {
 
     document.getElementById('f_categoria').innerText = d.categoria || 'Geral';
     document.getElementById('f_serial_mac').innerText = d.serial_mac || '---';
+    const fluxoTxtEl = document.getElementById('f_tipo_fluxo_txt');
+    if (fluxoTxtEl) fluxoTxtEl.innerText = d.tipo_fluxo || 'Manutenção';
     document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || '---';
     document.getElementById('f_data_coleta').innerText = formatarDataBR(d.data_coleta);
     document.getElementById('f_os_coleta').innerText = d.os_coleta || '---';
@@ -1518,6 +1597,12 @@ async function carregarTelaEmpresa() {
     document.getElementById('emp_nome').value = tenant.nome || '';
     document.getElementById('emp_sla').value = tenant.sla_dias || 3;
     document.getElementById('emp_locs').value = (tenant.localizacoes || []).join('\n');
+    const setores = tenant.setores_ativos || { ti: true, provedor: true, estoque: true };
+    if (document.getElementById('setor_ativo_ti')) {
+      document.getElementById('setor_ativo_ti').checked = setores.ti !== false;
+      document.getElementById('setor_ativo_provedor').checked = setores.provedor !== false;
+      document.getElementById('setor_ativo_estoque').checked = setores.estoque !== false;
+    }
     renderizarCheckboxesPermissoesNovoMembro();
     await carregarUsuariosEmpresa();
   }
@@ -1526,39 +1611,121 @@ async function carregarTelaEmpresa() {
   }
 }
 
+function obterSetoresPermissoes() {
+  if (permissionSectors.length > 0) return permissionSectors;
+  return [
+    { key: 'ti', label: '🖥️ TI & Bancada (O.S.)', descricao: 'Atendimento e manutenção de TI.' },
+    { key: 'provedor', label: '📡 Provedor (ISP / NOC)', descricao: 'Comodato CPEs, preventivas e POPs.' },
+    { key: 'estoque', label: '📦 Estoque & Almoxarifado', descricao: 'Peças, insumos e baixas.' },
+    { key: 'laudos', label: '📄 Laudos & Documentos', descricao: 'Laudos, comprovantes e link cliente.' },
+    { key: 'financeiro', label: '💰 Financeiro & Indicadores', descricao: 'Dashboard e custos.' },
+    { key: 'administracao', label: '🏢 Administração', descricao: 'Modelos, equipe e backups.' }
+  ];
+}
+
 function obterCatalogoPermissoes() {
   if (permissionsCatalog.length > 0) return permissionsCatalog;
   return [
-    { key: 'ver_dashboard', label: 'Ver Dashboard', descricao: 'Indicadores e SLA', default_tecnico: true },
-    { key: 'ver_custos', label: 'Ver e Informar Custos (R$)', descricao: 'Valores financeiros nas O.S.', default_tecnico: true },
-    { key: 'registrar_entrada', label: 'Registrar Entradas', descricao: 'Cadastrar novos itens', default_tecnico: true },
-    { key: 'editar_entrada', label: 'Editar Entradas', descricao: 'Alterar dados da coleta', default_tecnico: true },
-    { key: 'registrar_saida', label: 'Dar Saída / Entregar', descricao: 'Finalizar O.S.', default_tecnico: true },
-    { key: 'excluir_registros', label: 'Excluir Registros', descricao: 'Remover itens do banco', default_tecnico: false },
-    { key: 'exportar_pdf', label: 'Exportar Relatórios PDF', descricao: 'Gerar PDF da empresa', default_tecnico: true },
-    { key: 'gerenciar_equipe', label: 'Gerenciar Equipe e Empresa', descricao: 'Configurações e usuários', default_tecnico: false },
-    { key: 'importar_exportar_dados', label: 'Importar / Exportar Backup', descricao: 'Planilhas e JSON', default_tecnico: false },
-    { key: 'gerenciar_laudos', label: 'Emitir e Anexar Laudos', descricao: 'Criar, editar e imprimir laudos técnicos', default_tecnico: true },
-    { key: 'compartilhar_os', label: 'Comprovante, Link e Assinatura', descricao: 'PDF da O.S., link público, orçamento e assinatura', default_tecnico: true },
-    { key: 'gerenciar_operacoes_ti', label: 'Operações TI & Provedores', descricao: 'Estoque, Preventivas POPs e Clientes', default_tecnico: true },
-    { key: 'gerenciar_modelos', label: 'Personalizar Modelos e Timbre', descricao: 'Logo, CNPJ, checklist padrão e modelos de laudo', default_tecnico: false }
+    { key: 'ver_ti', setor: 'ti', label: 'Acessar Bancada TI (O.S.)', descricao: 'Fila e ficha de TI', default_tecnico: true },
+    { key: 'registrar_entrada', setor: 'ti', label: 'Registrar Entradas', descricao: 'Cadastrar novos itens', default_tecnico: true },
+    { key: 'editar_entrada', setor: 'ti', label: 'Editar Entradas e Checklist', descricao: 'Alterar dados e checklist', default_tecnico: true },
+    { key: 'registrar_saida', setor: 'ti', label: 'Dar Saída / Entregar', descricao: 'Finalizar O.S.', default_tecnico: true },
+    { key: 'excluir_registros', setor: 'ti', label: 'Excluir Registros', descricao: 'Remover itens do banco', default_tecnico: false },
+    { key: 'ver_provedor', setor: 'provedor', label: 'Acessar Setor Provedor (ISP)', descricao: 'MAC/GPON, Comodato e CPEs', default_tecnico: true },
+    { key: 'gerenciar_preventivas', setor: 'provedor', label: 'Preventivas de POPs & Torres', descricao: 'Agenda preventiva de rede', default_tecnico: true },
+    { key: 'gerenciar_clientes_pops', setor: 'provedor', label: 'POPs, Torres & Assinantes', descricao: 'Cadastro de POPs e assinantes', default_tecnico: true },
+    { key: 'ver_estoque', setor: 'estoque', label: 'Consultar Estoque', descricao: 'Saldo e almoxarifados', default_tecnico: true },
+    { key: 'movimentar_estoque', setor: 'estoque', label: 'Movimentar / Dar Baixa na O.S.', descricao: 'Entradas e saídas vinculadas', default_tecnico: true },
+    { key: 'gerenciar_estoque', setor: 'estoque', label: 'Cadastrar e Excluir Itens', descricao: 'Criar SKUs e excluir itens', default_tecnico: false },
+    { key: 'gerenciar_laudos', setor: 'laudos', label: 'Emitir e Anexar Laudos', descricao: 'Laudos e pareceres em PDF', default_tecnico: true },
+    { key: 'compartilhar_os', setor: 'laudos', label: 'Comprovante, Link e Assinatura', descricao: 'Link público, orçamento e WhatsApp', default_tecnico: true },
+    { key: 'exportar_pdf', setor: 'laudos', label: 'Exportar Relatórios PDF', descricao: 'Gerar PDF consolidado', default_tecnico: true },
+    { key: 'ver_dashboard', setor: 'financeiro', label: 'Ver Dashboard Executivo', descricao: 'Indicadores e SLA', default_tecnico: true },
+    { key: 'ver_custos', setor: 'financeiro', label: 'Ver e Informar Custos (R$)', descricao: 'Valores nas O.S. e estoque', default_tecnico: true },
+    { key: 'gerenciar_modelos', setor: 'administracao', label: 'Personalizar Modelos e Timbre', descricao: 'Logo, CNPJ, checklist e modelos', default_tecnico: false },
+    { key: 'gerenciar_equipe', setor: 'administracao', label: 'Gerenciar Equipe e Empresa', descricao: 'Configurações e usuários', default_tecnico: false },
+    { key: 'importar_exportar_dados', setor: 'administracao', label: 'Importar / Exportar Backup', descricao: 'Planilhas e JSON', default_tecnico: false }
   ];
+}
+
+function renderizarPermissoesAgrupadasPorSetor(checkboxClass, valoresMap, usarDefaultsTecnico = false) {
+  const setores = obterSetoresPermissoes();
+  const catalogo = obterCatalogoPermissoes();
+
+  return setores.map(setor => {
+    const itens = catalogo.filter(c => (c.setor || 'administracao') === setor.key);
+    if (itens.length === 0) return '';
+    return `
+      <div class="p-3 rounded-xl bg-white dark:bg-[#141024] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
+        <div class="flex items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-1.5">
+          <span class="text-[11px] font-extrabold text-violet-800 dark:text-violet-200">${escapeHtml(setor.label)}</span>
+          <button type="button" onclick="alternarTodoSetor('${escapeHtml(checkboxClass)}', '${escapeHtml(setor.key)}')" class="text-[10px] font-bold text-violet-600 dark:text-violet-400 hover:underline">
+            Marcar/Desmarcar
+          </button>
+        </div>
+        <div class="space-y-1.5">
+          ${itens.map(item => {
+            const checked = usarDefaultsTecnico ? Boolean(item.default_tecnico) : Boolean(valoresMap?.[item.key]);
+            return `
+              <label class="flex items-start gap-2 p-1.5 rounded-lg hover:bg-violet-50/70 dark:hover:bg-[#1C1633] cursor-pointer text-[11px]">
+                <input type="checkbox" class="${escapeHtml(checkboxClass)} mt-0.5 rounded border-violet-300 text-violet-600 focus:ring-violet-400" data-key="${escapeHtml(item.key)}" data-setor="${escapeHtml(setor.key)}" ${checked ? 'checked' : ''}>
+                <span class="leading-tight">
+                  <span class="font-bold text-slate-800 dark:text-white block">${escapeHtml(item.label)}</span>
+                  <span class="text-[10px] text-slate-500 dark:text-violet-300/70">${escapeHtml(item.descricao || '')}</span>
+                </span>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function alternarTodoSetor(checkboxClass, setorKey) {
+  const boxes = Array.from(document.querySelectorAll(`.${checkboxClass}[data-setor="${setorKey}"]`));
+  if (boxes.length === 0) return;
+  const algumDesmarcado = boxes.some(b => !b.checked);
+  boxes.forEach(b => { b.checked = algumDesmarcado; });
 }
 
 function renderizarCheckboxesPermissoesNovoMembro() {
   const container = document.getElementById('listaPermissoesNovoMembro');
   if (!container) return;
-  const catalogo = obterCatalogoPermissoes();
-  container.innerHTML = catalogo.map(item => `
-    <label class="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-[#141024] border border-violet-200/80 dark:border-violet-800/70 cursor-pointer text-[11px]">
-      <input type="checkbox" class="new-mem-perm mt-0.5 rounded border-violet-300 text-violet-600 focus:ring-violet-400" data-key="${escapeHtml(item.key)}" ${item.default_tecnico ? 'checked' : ''}>
-      <span class="leading-tight">
-        <span class="font-bold text-slate-800 dark:text-white block">${escapeHtml(item.label)}</span>
-        <span class="text-[10px] text-slate-500 dark:text-violet-300/70">${escapeHtml(item.descricao || '')}</span>
-      </span>
-    </label>
-  `).join('');
+  container.innerHTML = renderizarPermissoesAgrupadasPorSetor('new-mem-perm', null, true);
   alternarPermissoesNovoMembro();
+}
+
+function obterMapaPreset(presetKey) {
+  if (rolePresets && rolePresets[presetKey] && rolePresets[presetKey].permissoes) {
+    return rolePresets[presetKey].permissoes;
+  }
+  const fallback = {
+    tecnico_ti: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true },
+    tecnico_isp: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, gerenciar_laudos: true, compartilhar_os: true },
+    estoquista: { ver_estoque: true, movimentar_estoque: true, gerenciar_estoque: true },
+    financeiro_gestor: { ver_dashboard: true, ver_custos: true, exportar_pdf: true, ver_ti: true, ver_provedor: true, ver_estoque: true },
+    operacional_sem_custos: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
+  };
+  return fallback[presetKey] || null;
+}
+
+function aplicarPresetEmCheckboxes(checkboxClass, preset) {
+  const catalogo = obterCatalogoPermissoes();
+  const mapa = obterMapaPreset(preset);
+  document.querySelectorAll(`.${checkboxClass}`).forEach(cb => {
+    const key = cb.dataset.key;
+    if (preset === 'padrao') {
+      const item = catalogo.find(c => c.key === key);
+      cb.checked = Boolean(item?.default_tecnico);
+    } else if (mapa) {
+      cb.checked = Boolean(mapa[key]);
+    }
+  });
+}
+
+function aplicarPresetNovoMembro(preset) {
+  aplicarPresetEmCheckboxes('new-mem-perm', preset);
 }
 
 function alternarPermissoesNovoMembro() {
@@ -1577,11 +1744,16 @@ async function salvarConfiguracoesEmpresa(event) {
     .split(/\r?\n|,/)
     .map(s => s.trim())
     .filter(Boolean);
+  const setoresAtivos = {
+    ti: Boolean(document.getElementById('setor_ativo_ti')?.checked),
+    provedor: Boolean(document.getElementById('setor_ativo_provedor')?.checked),
+    estoque: Boolean(document.getElementById('setor_ativo_estoque')?.checked),
+  };
 
   try {
     const res = await apiFetch('/empresa/configuracoes', {
       method: 'PUT',
-      body: JSON.stringify({ nome, sla_dias: slaDias, localizacoes })
+      body: JSON.stringify({ nome, sla_dias: slaDias, localizacoes, setores_ativos: setoresAtivos })
     });
     if (!res.ok) {
       mostrarToast(await extrairErroResposta(res, 'Erro ao salvar configurações.'), 'erro');
@@ -1591,7 +1763,8 @@ async function salvarConfiguracoesEmpresa(event) {
     sessaoAtual.tenant = data.tenant;
     document.getElementById('headerEmpresaNome').textContent = data.tenant.nome;
     popularOpcoesLocalizacaoEmpresa(data.tenant.localizacoes);
-    mostrarToast('Configurações da empresa atualizadas!', 'sucesso');
+    aplicarPermissoesNaUI();
+    mostrarToast('Configurações e setores da empresa atualizados!', 'sucesso');
   } catch (e) {
     mostrarToast('Falha de conexão ao salvar configurações.', 'erro');
   }
@@ -1704,15 +1877,7 @@ function abrirModalPermissoes(uid) {
 
   const permsAtuais = usuario.permissoes || {};
   const container = document.getElementById('listaPermissoesModal');
-  container.innerHTML = obterCatalogoPermissoes().map(item => `
-    <label class="flex items-start gap-2.5 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 cursor-pointer text-xs">
-      <input type="checkbox" class="modal-mem-perm mt-0.5 rounded border-violet-300 text-violet-600 focus:ring-violet-400" data-key="${escapeHtml(item.key)}" ${permsAtuais[item.key] ? 'checked' : ''}>
-      <span class="leading-snug">
-        <span class="font-bold text-slate-900 dark:text-white block">${escapeHtml(item.label)}</span>
-        <span class="text-[11px] text-slate-500 dark:text-violet-300/80">${escapeHtml(item.descricao || '')}</span>
-      </span>
-    </label>
-  `).join('');
+  container.innerHTML = renderizarPermissoesAgrupadasPorSetor('modal-mem-perm', permsAtuais, false);
 
   document.getElementById('modalPermissoes').classList.remove('hidden');
 }
@@ -1723,21 +1888,7 @@ function fecharModalPermissoes() {
 }
 
 function aplicarPresetPermissoes(preset) {
-  const semCustosSet = new Set(['registrar_entrada', 'editar_entrada', 'registrar_saida', 'exportar_pdf']);
-  const consultaSet = new Set(['ver_dashboard', 'exportar_pdf']);
-  const catalogo = obterCatalogoPermissoes();
-
-  document.querySelectorAll('.modal-mem-perm').forEach(cb => {
-    const key = cb.dataset.key;
-    if (preset === 'padrao') {
-      const item = catalogo.find(c => c.key === key);
-      cb.checked = Boolean(item?.default_tecnico);
-    } else if (preset === 'sem_custos') {
-      cb.checked = semCustosSet.has(key);
-    } else if (preset === 'consulta') {
-      cb.checked = consultaSet.has(key);
-    }
-  });
+  aplicarPresetEmCheckboxes('modal-mem-perm', preset);
 }
 
 async function salvarPermissoesUsuario() {

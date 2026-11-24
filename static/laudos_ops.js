@@ -789,56 +789,237 @@ async function salvarBrandingEModelos() {
 }
 
 // ==============================================================================
-// OPERAÇÕES TI & PROVEDORES: ESTOQUE, PREVENTIVAS E CLIENTES/POPS
+// SETOR PROVEDOR (ISP / COMODATO / PREVENTIVAS / POPS) & SETOR ESTOQUE
 // ==============================================================================
 
-function alternarOpsTab(tab) {
-  document.getElementById('opsTabEstoque').classList.toggle('hidden', tab !== 'estoque');
-  document.getElementById('opsTabPreventivas').classList.toggle('hidden', tab !== 'preventivas');
-  document.getElementById('opsTabClientes').classList.toggle('hidden', tab !== 'clientes');
+let estoqueItensCache = [];
+let provedorCpesCache = [];
+
+function alternarProvedorTab(tab) {
+  document.getElementById('provTabCpes').classList.toggle('hidden', tab !== 'cpes');
+  document.getElementById('provTabPreventivas').classList.toggle('hidden', tab !== 'preventivas');
+  document.getElementById('provTabClientes').classList.toggle('hidden', tab !== 'clientes');
 
   const act = 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white';
   const inact = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200';
-  document.getElementById('btnOpsTabEstoque').className = tab === 'estoque' ? act : inact;
-  document.getElementById('btnOpsTabPreventivas').className = tab === 'preventivas' ? act : inact;
-  document.getElementById('btnOpsTabClientes').className = tab === 'clientes' ? act : inact;
+  document.getElementById('btnProvTabCpes').className = tab === 'cpes' ? act : inact;
+  document.getElementById('btnProvTabPreventivas').className = tab === 'preventivas' ? act : inact;
+  document.getElementById('btnProvTabClientes').className = tab === 'clientes' ? act : inact;
 }
 
-async function carregarTelaOperacoes() {
-  if (!temPermissao('gerenciar_operacoes_ti')) return;
+async function carregarPainelProvedor() {
   const prvProx = document.getElementById('prv_proxima');
   if (prvProx && !prvProx.value) prvProx.value = obterDataHojeISO();
-  await Promise.all([carregarEstoqueOps(), carregarPreventivasOps(), carregarClientesOps()]);
+
+  const podeCpes = temPermissao('ver_provedor');
+  const podePrev = temPermissao('gerenciar_preventivas');
+  const podeClientes = temPermissao('gerenciar_clientes_pops');
+
+  if (podeCpes) {
+    alternarProvedorTab('cpes');
+  } else if (podePrev) {
+    alternarProvedorTab('preventivas');
+  } else if (podeClientes) {
+    alternarProvedorTab('clientes');
+  }
+
+  const tarefas = [];
+  if (podeCpes) tarefas.push(carregarCpesProvedor());
+  if (podePrev) tarefas.push(carregarPreventivasOps());
+  if (podeClientes) tarefas.push(carregarClientesOps());
+  await Promise.all(tarefas);
+}
+
+function ehItemDeProvedor(item) {
+  const cat = String(item.categoria || '').toLowerCase();
+  const fluxo = String(item.tipo_fluxo || '').toLowerCase();
+  const temSerial = Boolean(String(item.serial_mac || '').trim());
+  return (
+    temSerial ||
+    fluxo.includes('comodato') ||
+    fluxo.includes('rma') ||
+    fluxo.includes('triagem') ||
+    cat.includes('onu') ||
+    cat.includes('roteador') ||
+    cat.includes('switch') ||
+    cat.includes('olt') ||
+    cat.includes('rádio') ||
+    cat.includes('radio')
+  );
+}
+
+async function carregarCpesProvedor() {
+  const res = await apiFetch('/equipamentos?status=todos');
+  if (!res.ok) return;
+  const todos = await res.json();
+  provedorCpesCache = Array.isArray(todos) ? todos.filter(ehItemDeProvedor) : [];
+
+  let bancada = 0;
+  let comodato = 0;
+  let rma = 0;
+  let entregues = 0;
+  provedorCpesCache.forEach(r => {
+    const st = String(r.status || '').toLowerCase();
+    const fl = String(r.tipo_fluxo || '').toLowerCase();
+    const entregue = st === 'entregue' || st === 'finalizado';
+    if (entregue) entregues++;
+    else bancada++;
+    if (fl.includes('comodato')) comodato++;
+    if (fl.includes('rma') || fl.includes('triagem')) rma++;
+  });
+
+  document.getElementById('kpiProvBancada').textContent = bancada;
+  document.getElementById('kpiProvComodato').textContent = comodato;
+  document.getElementById('kpiProvRma').textContent = rma;
+  document.getElementById('kpiProvEntregues').textContent = entregues;
+
+  renderizarPainelCpesProvedor();
+}
+
+function renderizarPainelCpesProvedor() {
+  const tbody = document.getElementById('tabelaCpesProvedor');
+  if (!tbody) return;
+  const termo = (document.getElementById('provBuscaCpe')?.value || '').trim().toLowerCase();
+  const lista = !termo
+    ? provedorCpesCache
+    : provedorCpesCache.filter(r =>
+        [r.id, r.equipamento, r.categoria, r.serial_mac, r.tombamento, r.tipo_fluxo, r.origem]
+          .some(v => String(v || '').toLowerCase().includes(termo))
+      );
+
+  if (lista.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Nenhum equipamento ISP/Comodato encontrado. Cadastre O.S. com Serial/MAC, categoria de rede ou fluxo Comodato/RMA.</td></tr>';
+    return;
+  }
+
+  const podeTI = temAcessoSetorTI();
+  tbody.innerHTML = lista.map(r => {
+    const entregue = String(r.status || '').toLowerCase() === 'entregue';
+    return `
+      <tr>
+        <td class="p-3 font-bold text-violet-600 dark:text-violet-400">#${r.id}</td>
+        <td class="p-3">
+          <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(r.equipamento)}</div>
+          <div class="text-[10px] text-slate-400">${escapeHtml(r.categoria || 'Rede / ISP')} • Tomb: ${escapeHtml(r.tombamento || '-')}</div>
+        </td>
+        <td class="p-3 font-mono text-[11px] text-slate-700 dark:text-violet-200">${escapeHtml(r.serial_mac || '---')}</td>
+        <td class="p-3"><span class="px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-200 text-[10px] font-bold">${escapeHtml(r.tipo_fluxo || 'Manutenção')}</span></td>
+        <td class="p-3 text-slate-700 dark:text-violet-200">${escapeHtml(r.origem || '-')}</td>
+        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${entregue ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${escapeHtml(r.status)}</span></td>
+        <td class="p-3 text-right">
+          ${podeTI ? `<button onclick="abrirOsDoProvedor(${r.id})" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">Abrir O.S.</button>` : '<span class="text-[10px] text-slate-400">Somente ISP</span>'}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function abrirOsDoProvedor(id) {
+  alternarVisao('equipamentos');
+  await carregarLista('todos');
+  await selecionarItem(id);
 }
 
 async function carregarEstoqueOps() {
   const res = await apiFetch('/ops/estoque');
   if (!res.ok) return;
   const itens = await res.json();
+  estoqueItensCache = Array.isArray(itens) ? itens : [];
+
+  const totalSkus = estoqueItensCache.length;
+  const totalUnidades = estoqueItensCache.reduce((acc, i) => acc + Number(i.quantidade || 0), 0);
+  const totalBaixo = estoqueItensCache.filter(i => i.estoque_baixo).length;
+
+  document.getElementById('kpiEstSkus').textContent = totalSkus;
+  document.getElementById('kpiEstUnidades').textContent = totalUnidades;
+  document.getElementById('kpiEstBaixo').textContent = totalBaixo;
+  if (temPermissao('ver_custos')) {
+    const valorTotal = estoqueItensCache.reduce(
+      (acc, i) => acc + (Number(i.custo_unitario || 0) * Number(i.quantidade || 0)),
+      0
+    );
+    document.getElementById('kpiEstValor').textContent = `R$ ${formatarMoedaBR(valorTotal)}`;
+  }
+
+  renderizarTabelaEstoqueOps();
+}
+
+function renderizarTabelaEstoqueOps() {
   const tbody = document.getElementById('tabelaEstoqueOps');
-  const podeCustos = temPermissao('ver_custos');
   if (!tbody) return;
-  if (itens.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Nenhum item de estoque cadastrado.</td></tr>';
+
+  const busca = (document.getElementById('est_busca')?.value || '').trim().toLowerCase();
+  const almoxFiltro = document.getElementById('est_filtro_almox')?.value || '';
+  const soCriticos = Boolean(document.getElementById('est_filtro_baixo')?.checked);
+
+  const filtrados = estoqueItensCache.filter(i => {
+    if (almoxFiltro && (i.almoxarifado || 'Almoxarifado Central') !== almoxFiltro) return false;
+    if (soCriticos && !i.estoque_baixo) return false;
+    if (busca) {
+      return [i.nome, i.codigo, i.categoria, i.localizacao, i.almoxarifado]
+        .some(v => String(v || '').toLowerCase().includes(busca));
+    }
+    return true;
+  });
+
+  const podeCustos = temPermissao('ver_custos');
+  const podeMov = temPermissao('movimentar_estoque');
+  const podeGerir = temPermissao('gerenciar_estoque');
+
+  if (filtrados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Nenhum item encontrado neste filtro.</td></tr>';
     return;
   }
-  tbody.innerHTML = itens.map(i => `
+
+  tbody.innerHTML = filtrados.map(i => `
     <tr>
       <td class="p-3">
         <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(i.nome)}</div>
-        <div class="text-[10px] text-slate-400">${escapeHtml(i.codigo || 'Sem SKU')} • ${escapeHtml(i.localizacao || 'Almoxarifado')}</div>
+        <div class="text-[10px] text-slate-400">${escapeHtml(i.codigo || 'Sem SKU')} • ${escapeHtml(i.categoria || '')} • ${escapeHtml(i.localizacao || '')}</div>
       </td>
-      <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(i.categoria)}</td>
+      <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(i.almoxarifado || 'Almoxarifado Central')}</td>
       <td class="p-3">
-        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${i.estoque_baixo ? 'bg-rose-100 text-rose-700' : 'bg-emerald-50 text-emerald-700'}">${i.quantidade} un. ${i.estoque_baixo ? '⚠️' : ''}</span>
+        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${i.estoque_baixo ? 'bg-rose-100 text-rose-700' : 'bg-emerald-50 text-emerald-700'}">${i.quantidade} ${escapeHtml(i.unidade || 'un')} ${i.estoque_baixo ? '⚠️' : ''}</span>
       </td>
       ${podeCustos ? `<td class="p-3 text-slate-700 dark:text-violet-100">R$ ${formatarMoedaBR(i.custo_unitario)}</td>` : ''}
       <td class="p-3 text-right space-x-1">
-        <button onclick="abrirModalMovEstoque('${escapeHtml(i.id)}', '${escapeHtml(i.nome)}')" class="px-2.5 py-1 rounded-lg bg-violet-600 text-white text-[11px] font-bold">Movimentar</button>
-        <button onclick="excluirItemEstoqueOps('${escapeHtml(i.id)}')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-semibold">✕</button>
+        ${podeMov ? `<button onclick="abrirModalMovEstoque('${escapeHtml(i.id)}', '${escapeHtml(i.nome)}')" class="px-2.5 py-1 rounded-lg bg-violet-600 text-white text-[11px] font-bold">Movimentar</button>` : ''}
+        <button onclick="abrirHistoricoEstoqueItem('${escapeHtml(i.id)}')" class="px-2 py-1 rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-700 dark:text-violet-200 border border-violet-200 dark:border-violet-800 text-[11px] font-semibold" title="Histórico">📜</button>
+        ${podeGerir ? `<button onclick="excluirItemEstoqueOps('${escapeHtml(i.id)}')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-semibold">✕</button>` : ''}
       </td>
     </tr>
   `).join('');
+}
+
+function abrirHistoricoEstoqueItem(itemId) {
+  const item = estoqueItensCache.find(i => i.id === itemId);
+  if (!item) return;
+  document.getElementById('histEstTitulo').textContent = `📜 Histórico: ${item.nome}`;
+  const hist = Array.isArray(item.historico_movimentacoes) ? item.historico_movimentacoes : [];
+  const box = document.getElementById('histEstLista');
+  if (hist.length === 0) {
+    box.innerHTML = '<p class="text-slate-400">Nenhuma movimentação registrada.</p>';
+  } else {
+    box.innerHTML = hist.map(m => `
+      <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 flex justify-between gap-2">
+        <div>
+          <div class="font-bold text-slate-900 dark:text-white">${m.tipo === 'saida' ? '📤 Saída' : (m.tipo === 'entrada' ? '📥 Entrada' : '🆕 Cadastro')} (${m.quantidade} ${escapeHtml(item.unidade || 'un')})</div>
+          <div class="text-[11px] text-slate-500 dark:text-violet-300/80">Saldo: ${m.saldo_anterior} → <b>${m.saldo_atual}</b> ${m.os_id ? `• O.S. #${m.os_id}` : ''}</div>
+          ${m.observacao ? `<div class="text-[11px] text-slate-600 dark:text-violet-200">${escapeHtml(m.observacao)}</div>` : ''}
+        </div>
+        <div class="text-right text-[10px] text-slate-400 shrink-0">
+          <div>${formatarDataBR(m.data_hora)}</div>
+          <div>${escapeHtml(m.autor || '')}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('modalHistoricoEstoque').classList.remove('hidden');
+}
+
+function fecharModalHistoricoEstoque() {
+  const el = document.getElementById('modalHistoricoEstoque');
+  if (el) el.classList.add('hidden');
 }
 
 async function criarItemEstoque(event) {
@@ -847,6 +1028,8 @@ async function criarItemEstoque(event) {
     nome: document.getElementById('est_nome').value.trim(),
     codigo: document.getElementById('est_codigo').value.trim(),
     categoria: document.getElementById('est_categoria').value,
+    almoxarifado: document.getElementById('est_almoxarifado').value,
+    unidade: document.getElementById('est_unidade').value,
     quantidade: Number.parseInt(document.getElementById('est_qtd').value, 10) || 0,
     estoque_minimo: Number.parseInt(document.getElementById('est_min').value, 10) || 0,
     custo_unitario: temPermissao('ver_custos') ? (Number.parseFloat(document.getElementById('est_custo').value) || 0) : 0,

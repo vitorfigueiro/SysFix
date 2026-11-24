@@ -1454,5 +1454,184 @@ class ITAndISPAndLaudosTests(unittest.TestCase):
         self.assertTrue(ops_svc.excluir_cliente("emp_isp", created_cli["id"]))
 
 
+class SectorPermissionsAndSeparationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
+        self.original_backend = os.environ.get("SYSFIX_BACKEND")
+        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
+
+        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
+        os.environ["SYSFIX_BACKEND"] = "local"
+        os.environ["SYSFIX_SECRET_KEY"] = "sector-test-secret-2026"
+
+        self.original_store = models._store
+        self.original_get_auth_service = app_module._get_auth_service
+        self.original_get_ops_service = app_module._get_ops_service
+
+        models._store = JsonStore(Path(self.temp_dir.name) / "coletas.json")
+        models._store.ensure()
+
+        self.user_store = LocalTenantUserStore(Path(self.temp_dir.name) / "auth_db.json")
+        self.user_store.ensure()
+        self.ops_store = LocalOpsStore(Path(self.temp_dir.name) / "ops_db.json")
+        self.ops_store.ensure()
+
+        app_module._get_auth_service = lambda: AuthService(
+            user_store=self.user_store, backend_override="local"
+        )
+        app_module._get_ops_service = lambda: OpsModulesService(store=self.ops_store)
+
+    def tearDown(self):
+        models._store = self.original_store
+        app_module._get_auth_service = self.original_get_auth_service
+        app_module._get_ops_service = self.original_get_ops_service
+        for key, old in (
+            ("SYSFIX_DATA_DIR", self.original_data_dir),
+            ("SYSFIX_BACKEND", self.original_backend),
+            ("SYSFIX_SECRET_KEY", self.original_secret),
+        ):
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        self.temp_dir.cleanup()
+
+    def test_sector_catalog_presets_legacy_alias_and_role_isolation(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="MultiSetor Tech & ISP",
+                nome_usuario="Admin Master",
+                email="admin@multisetor.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        me = app_module.obter_sessao_atual(admin)
+        sector_keys = [s["key"] for s in me["permission_sectors"]]
+        self.assertEqual(
+            sector_keys,
+            ["ti", "provedor", "estoque", "laudos", "financeiro", "administracao"],
+        )
+        self.assertIn("estoquista", me["role_presets"])
+        self.assertIn("tecnico_isp", me["role_presets"])
+        self.assertIn("tecnico_ti", me["role_presets"])
+
+        # Configurar setores ativos da empresa (desabilita tudo -> deve falhar; desabilita só provedor -> aceita)
+        with self.assertRaises(HTTPException) as ctx_empty_sec:
+            app_module.atualizar_configuracoes_empresa(
+                app_module.TenantSettingsSchema(
+                    setores_ativos={"ti": False, "provedor": False, "estoque": False}
+                ),
+                current_user=admin,
+            )
+        self.assertEqual(ctx_empty_sec.exception.status_code, 400)
+
+        upd_sec = app_module.atualizar_configuracoes_empresa(
+            app_module.TenantSettingsSchema(
+                setores_ativos={"ti": True, "provedor": False, "estoque": True}
+            ),
+            current_user=admin,
+        )
+        self.assertFalse(upd_sec["tenant"]["setores_ativos"]["provedor"])
+        self.assertTrue(upd_sec["tenant"]["setores_ativos"]["estoque"])
+
+        # Alias legado 'gerenciar_operacoes_ti' expande corretamente sem quebrar
+        expanded = auth_module.normalizar_permissoes_input({"gerenciar_operacoes_ti": False})
+        self.assertFalse(expanded["ver_provedor"])
+        self.assertFalse(expanded["ver_estoque"])
+        self.assertFalse(expanded["movimentar_estoque"])
+
+        # 1. Estoquista puro: cria item com almoxarifado/unidade, movimenta e vê histórico; bloqueado em TI, Provedor e Custos
+        estoquista_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        estoquista_perms.update(auth_module.ROLE_PRESETS["estoquista"]["permissoes"])
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Lucas Estoquista",
+                email="estoque@multisetor.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=estoquista_perms,
+            ),
+            current_user=admin,
+        )
+        tok_est = app_module.login_usuario(
+            app_module.LoginSchema(email="estoque@multisetor.com", senha="secret123")
+        )["token"]
+        est_user = app_module.get_current_user(f"Bearer {tok_est}")
+
+        item_resp = app_module.criar_item_estoque_ops(
+            app_module.EstoqueItemSchema(
+                nome="Conector APC Verde",
+                codigo="APC-01",
+                categoria="Fibra / Conectores",
+                almoxarifado="Almoxarifado Central",
+                unidade="cx",
+                quantidade=10,
+                estoque_minimo=2,
+                custo_unitario=99.9,
+            ),
+            current_user=app_module.require_permission("gerenciar_estoque")(est_user),
+        )
+        self.assertEqual(item_resp["item"]["almoxarifado"], "Almoxarifado Central")
+        self.assertEqual(item_resp["item"]["unidade"], "cx")
+        self.assertNotIn("custo_unitario", item_resp["item"])
+
+        mov_resp = app_module.movimentar_estoque_ops(
+            item_resp["item"]["id"],
+            app_module.EstoqueMovimentoSchema(tipo="saida", quantidade=3, observacao="Retirada equipe"),
+            current_user=app_module.require_permission("movimentar_estoque")(est_user),
+        )
+        self.assertEqual(mov_resp["item"]["quantidade"], 7)
+        self.assertEqual(len(mov_resp["item"]["historico_movimentacoes"]), 2)
+        self.assertEqual(mov_resp["item"]["historico_movimentacoes"][0]["saldo_atual"], 7)
+
+        resumo_est = app_module.obter_resumo_estoque_ops(
+            current_user=app_module.require_permission("ver_estoque")(est_user)
+        )
+        self.assertEqual(resumo_est["total_skus"], 1)
+        self.assertEqual(resumo_est["total_unidades"], 7)
+        self.assertNotIn("valor_total_estoque", resumo_est)
+
+        for perm_bloqueada in ("ver_ti", "ver_provedor", "gerenciar_preventivas", "gerenciar_laudos", "ver_dashboard", "ver_custos"):
+            with self.assertRaises(HTTPException) as ctx_b:
+                app_module.require_permission(perm_bloqueada)(est_user)
+            self.assertEqual(ctx_b.exception.status_code, 403)
+
+        # 2. Técnico ISP: acessa preventivas, clientes/POPs e dá baixa no estoque, mas não cadastra/exclui itens do almoxarifado
+        isp_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        isp_perms.update(auth_module.ROLE_PRESETS["tecnico_isp"]["permissoes"])
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Rafael ISP",
+                email="isp@multisetor.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=isp_perms,
+            ),
+            current_user=admin,
+        )
+        tok_isp = app_module.login_usuario(
+            app_module.LoginSchema(email="isp@multisetor.com", senha="secret123")
+        )["token"]
+        isp_user = app_module.get_current_user(f"Bearer {tok_isp}")
+
+        prv = app_module.criar_preventiva_ops(
+            app_module.PreventivaSchema(
+                titulo="OLT POP Sul",
+                local_pop="POP Sul",
+                periodicidade_dias=15,
+                proxima_execucao="2026-12-01",
+            ),
+            current_user=app_module.require_permission("gerenciar_preventivas")(isp_user),
+        )
+        self.assertEqual(prv["item"]["local_pop"], "POP Sul")
+
+        with self.assertRaises(HTTPException) as ctx_isp_est:
+            app_module.require_permission("gerenciar_estoque")(isp_user)
+        self.assertEqual(ctx_isp_est.exception.status_code, 403)
+
+
 if __name__ == "__main__":
     unittest.main()

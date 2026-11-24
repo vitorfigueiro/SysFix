@@ -33,86 +33,196 @@ DEFAULT_LOCATIONS = [
 ]
 ROLES_PERMITIDAS = {"admin", "tecnico"}
 
-PERMISSIONS_CATALOG = [
+DEFAULT_ACTIVE_SECTORS: dict[str, bool] = {
+    "ti": True,
+    "provedor": True,
+    "estoque": True,
+}
+
+PERMISSION_SECTORS = [
     {
-        "key": "ver_dashboard",
-        "label": "Ver Dashboard",
-        "descricao": "Acessar indicadores, gráficos e alertas de SLA.",
-        "default_tecnico": True,
+        "key": "ti",
+        "label": "🖥️ TI & Bancada (O.S.)",
+        "descricao": "Atendimento de chamados, entradas, bancada e entregas de TI.",
     },
     {
-        "key": "ver_custos",
-        "label": "Ver e Informar Custos (R$)",
-        "descricao": "Visualizar e lançar valores financeiros nas O.S. e relatórios.",
+        "key": "provedor",
+        "label": "📡 Provedor de Internet (ISP / NOC)",
+        "descricao": "Comodato de CPEs (ONUs/Roteadores), preventivas de POPs e assinantes.",
+    },
+    {
+        "key": "estoque",
+        "label": "📦 Estoque & Almoxarifado",
+        "descricao": "Controle de peças, insumos, almoxarifados e baixas vinculadas à O.S.",
+    },
+    {
+        "key": "laudos",
+        "label": "📄 Laudos, Documentos & Cliente",
+        "descricao": "Laudos técnicos, comprovantes PDF, link público, assinatura e WhatsApp.",
+    },
+    {
+        "key": "financeiro",
+        "label": "💰 Financeiro & Indicadores",
+        "descricao": "Dashboard executivo, SLA e visualização/lançamento de valores (R$).",
+    },
+    {
+        "key": "administracao",
+        "label": "🏢 Administração & Governança",
+        "descricao": "Timbre/modelos, equipe, permissões e importação/backup de dados.",
+    },
+]
+
+PERMISSIONS_CATALOG = [
+    # --- SETOR: TI & BANCADA (O.S.) ---
+    {
+        "key": "ver_ti",
+        "setor": "ti",
+        "label": "Acessar Bancada TI (O.S.)",
+        "descricao": "Visualizar fila de equipamentos e ficha técnica de TI.",
         "default_tecnico": True,
     },
     {
         "key": "registrar_entrada",
+        "setor": "ti",
         "label": "Registrar Entradas",
         "descricao": "Cadastrar novos equipamentos e entradas em lote.",
         "default_tecnico": True,
     },
     {
         "key": "editar_entrada",
-        "label": "Editar Entradas",
-        "descricao": "Alterar dados de coleta de equipamentos já cadastrados.",
+        "setor": "ti",
+        "label": "Editar Entradas e Checklist",
+        "descricao": "Alterar dados de coleta, localização e marcar checklist.",
         "default_tecnico": True,
     },
     {
         "key": "registrar_saida",
+        "setor": "ti",
         "label": "Dar Saída / Entregar",
-        "descricao": "Finalizar ordens de serviço e registrar entrega.",
+        "descricao": "Finalizar ordens de serviço, garantia e entrega.",
         "default_tecnico": True,
     },
     {
         "key": "excluir_registros",
+        "setor": "ti",
         "label": "Excluir Registros",
         "descricao": "Apagar permanentemente registros de equipamentos.",
         "default_tecnico": False,
     },
+    # --- SETOR: PROVEDOR DE INTERNET (ISP / NOC) ---
     {
-        "key": "exportar_pdf",
-        "label": "Exportar Relatórios PDF",
-        "descricao": "Gerar e baixar relatórios em PDF da empresa.",
+        "key": "ver_provedor",
+        "setor": "provedor",
+        "label": "Acessar Setor Provedor (ISP)",
+        "descricao": "Visualizar campos de MAC/GPON SN, fluxo Comodato e painel CPEs.",
         "default_tecnico": True,
     },
     {
-        "key": "gerenciar_equipe",
-        "label": "Gerenciar Equipe e Empresa",
-        "descricao": "Editar configurações da empresa e gerenciar colaboradores.",
-        "default_tecnico": False,
+        "key": "gerenciar_preventivas",
+        "setor": "provedor",
+        "label": "Preventivas de POPs & Torres",
+        "descricao": "Agendar e concluir manutenções preventivas de infraestrutura.",
+        "default_tecnico": True,
     },
     {
-        "key": "importar_exportar_dados",
-        "label": "Importar / Exportar Backup",
-        "descricao": "Importar planilhas/JSON e exportar backups completos.",
+        "key": "gerenciar_clientes_pops",
+        "setor": "provedor",
+        "label": "POPs, Torres & Assinantes",
+        "descricao": "Cadastrar e consultar POPs, torres e clientes ISP.",
+        "default_tecnico": True,
+    },
+    # --- SETOR: ESTOQUE & ALMOXARIFADO ---
+    {
+        "key": "ver_estoque",
+        "setor": "estoque",
+        "label": "Consultar Estoque",
+        "descricao": "Visualizar saldo de peças, insumos, almoxarifados e alertas.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "movimentar_estoque",
+        "setor": "estoque",
+        "label": "Movimentar / Dar Baixa na O.S.",
+        "descricao": "Registrar entradas e saídas de estoque vinculadas às O.S.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "gerenciar_estoque",
+        "setor": "estoque",
+        "label": "Cadastrar e Excluir Itens",
+        "descricao": "Criar novos SKUs, definir estoque mínimo e remover itens.",
         "default_tecnico": False,
     },
+    # --- SETOR: LAUDOS, DOCUMENTOS & CLIENTE ---
     {
         "key": "gerenciar_laudos",
+        "setor": "laudos",
         "label": "Emitir e Anexar Laudos",
-        "descricao": "Criar, editar, imprimir e baixar pareceres e laudos técnicos nas O.S.",
+        "descricao": "Criar, editar, imprimir e baixar pareceres e laudos técnicos.",
         "default_tecnico": True,
     },
     {
         "key": "compartilhar_os",
+        "setor": "laudos",
         "label": "Comprovante, Link e Assinatura",
-        "descricao": "Gerar comprovante PDF, link público, orçamento e assinatura da O.S.",
+        "descricao": "Comprovante PDF, link público, orçamento, assinatura e WhatsApp.",
         "default_tecnico": True,
     },
     {
-        "key": "gerenciar_operacoes_ti",
-        "label": "Operações TI & Provedores",
-        "descricao": "Acessar Estoque/Triagem, Preventivas de POPs/Servidores e Clientes.",
+        "key": "exportar_pdf",
+        "setor": "laudos",
+        "label": "Exportar Relatórios PDF",
+        "descricao": "Gerar relatórios consolidados em PDF da empresa.",
         "default_tecnico": True,
     },
+    # --- SETOR: FINANCEIRO & INDICADORES ---
+    {
+        "key": "ver_dashboard",
+        "setor": "financeiro",
+        "label": "Ver Dashboard Executivo",
+        "descricao": "Acessar indicadores, gráficos e alertas de SLA.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "ver_custos",
+        "setor": "financeiro",
+        "label": "Ver e Informar Custos (R$)",
+        "descricao": "Visualizar e lançar valores nas O.S., orçamentos e estoque.",
+        "default_tecnico": True,
+    },
+    # --- SETOR: ADMINISTRAÇÃO & GOVERNANÇA ---
     {
         "key": "gerenciar_modelos",
+        "setor": "administracao",
         "label": "Personalizar Modelos e Timbre",
         "descricao": "Alterar logo, CNPJ, cores, checklist padrão e modelos de laudo.",
         "default_tecnico": False,
     },
+    {
+        "key": "gerenciar_equipe",
+        "setor": "administracao",
+        "label": "Gerenciar Equipe e Empresa",
+        "descricao": "Editar configurações da empresa, setores e colaboradores.",
+        "default_tecnico": False,
+    },
+    {
+        "key": "importar_exportar_dados",
+        "setor": "administracao",
+        "label": "Importar / Exportar Backup",
+        "descricao": "Importar planilhas/JSON e exportar backups completos.",
+        "default_tecnico": False,
+    },
 ]
+
+LEGACY_PERMISSION_ALIASES: dict[str, tuple[str, ...]] = {
+    "gerenciar_operacoes_ti": (
+        "ver_provedor",
+        "gerenciar_preventivas",
+        "gerenciar_clientes_pops",
+        "ver_estoque",
+        "movimentar_estoque",
+    )
+}
 
 DEFAULT_TECH_PERMISSIONS: dict[str, bool] = {
     item["key"]: bool(item["default_tecnico"]) for item in PERMISSIONS_CATALOG
@@ -122,18 +232,108 @@ ALL_PERMISSIONS_TRUE: dict[str, bool] = {
 }
 _VALID_PERMISSION_KEYS = set(ALL_PERMISSIONS_TRUE.keys())
 
+ROLE_PRESETS: dict[str, dict[str, Any]] = {
+    "tecnico_ti": {
+        "label": "🖥️ Técnico TI (Bancada)",
+        "descricao": "O.S. de bancada, checklist, laudos e comprovante (sem Provedor, Estoque ou Custos).",
+        "permissoes": {
+            "ver_ti": True,
+            "registrar_entrada": True,
+            "editar_entrada": True,
+            "registrar_saida": True,
+            "gerenciar_laudos": True,
+            "compartilhar_os": True,
+            "exportar_pdf": True,
+        },
+    },
+    "tecnico_isp": {
+        "label": "📡 Técnico Provedor (ISP)",
+        "descricao": "Comodato/CPEs, preventivas de POPs, assinantes, O.S. e baixa de estoque.",
+        "permissoes": {
+            "ver_ti": True,
+            "registrar_entrada": True,
+            "editar_entrada": True,
+            "registrar_saida": True,
+            "ver_provedor": True,
+            "gerenciar_preventivas": True,
+            "gerenciar_clientes_pops": True,
+            "ver_estoque": True,
+            "movimentar_estoque": True,
+            "gerenciar_laudos": True,
+            "compartilhar_os": True,
+        },
+    },
+    "estoquista": {
+        "label": "📦 Estoquista / Almoxarifado",
+        "descricao": "Acesso exclusivo ao setor de Estoque (cadastro, saldo, alertas e movimentações).",
+        "permissoes": {
+            "ver_estoque": True,
+            "movimentar_estoque": True,
+            "gerenciar_estoque": True,
+        },
+    },
+    "financeiro_gestor": {
+        "label": "💰 Gestor / Financeiro",
+        "descricao": "Dashboard, custos, relatórios PDF e consulta geral (sem alterar O.S.).",
+        "permissoes": {
+            "ver_dashboard": True,
+            "ver_custos": True,
+            "exportar_pdf": True,
+            "ver_ti": True,
+            "ver_provedor": True,
+            "ver_estoque": True,
+        },
+    },
+    "operacional_sem_custos": {
+        "label": "🔧 Operacional (Sem Custos)",
+        "descricao": "TI, Provedor, Estoque (baixa) e Laudos sem visualização financeira.",
+        "permissoes": {
+            "ver_ti": True,
+            "registrar_entrada": True,
+            "editar_entrada": True,
+            "registrar_saida": True,
+            "ver_provedor": True,
+            "gerenciar_preventivas": True,
+            "gerenciar_clientes_pops": True,
+            "ver_estoque": True,
+            "movimentar_estoque": True,
+            "gerenciar_laudos": True,
+            "compartilhar_os": True,
+            "exportar_pdf": True,
+        },
+    },
+    "padrao": {
+        "label": "⚙️ Técnico Padrão",
+        "descricao": "Configuração padrão equilibrada.",
+        "permissoes": dict(DEFAULT_TECH_PERMISSIONS),
+    },
+}
+
+
+def _expandir_permissoes_custom(
+    custom: dict[str, Any], base: dict[str, bool]
+) -> dict[str, bool]:
+    resolved = dict(base)
+    for alias_key, targets in LEGACY_PERMISSION_ALIASES.items():
+        if alias_key in custom and isinstance(custom[alias_key], bool):
+            alias_val = bool(custom[alias_key])
+            for target_key in targets:
+                if target_key not in custom:
+                    resolved[target_key] = alias_val
+    for key, val in custom.items():
+        if key in _VALID_PERMISSION_KEYS and isinstance(val, bool):
+            resolved[key] = val
+    return resolved
+
 
 def resolver_permissoes(
     role: str, custom: dict[str, Any] | None = None
 ) -> dict[str, bool]:
     if str(role or "").strip().lower() == "admin":
         return dict(ALL_PERMISSIONS_TRUE)
-    resolved = dict(DEFAULT_TECH_PERMISSIONS)
-    if isinstance(custom, dict):
-        for key, val in custom.items():
-            if key in _VALID_PERMISSION_KEYS and isinstance(val, bool):
-                resolved[key] = val
-    return resolved
+    if not isinstance(custom, dict):
+        return dict(DEFAULT_TECH_PERMISSIONS)
+    return _expandir_permissoes_custom(custom, DEFAULT_TECH_PERMISSIONS)
 
 
 def normalizar_permissoes_input(
@@ -143,15 +343,17 @@ def normalizar_permissoes_input(
         return dict(DEFAULT_TECH_PERMISSIONS)
     if not isinstance(permissoes, dict):
         raise ValueError("Formato de permissões inválido.")
-    unknown = set(permissoes.keys()) - _VALID_PERMISSION_KEYS
+    allowed_input = _VALID_PERMISSION_KEYS | set(LEGACY_PERMISSION_ALIASES.keys())
+    unknown = set(permissoes.keys()) - allowed_input
     if unknown:
         raise ValueError(
             f"Permissões desconhecidas: {', '.join(sorted(unknown))}."
         )
-    resolved = dict(DEFAULT_TECH_PERMISSIONS)
-    for key, val in permissoes.items():
-        resolved[key] = bool(val)
-    return resolved
+    converted = {
+        key: bool(val)
+        for key, val in permissoes.items()
+    }
+    return _expandir_permissoes_custom(converted, DEFAULT_TECH_PERMISSIONS)
 
 
 def usuario_tem_permissao(user: dict[str, Any], perm_key: str) -> bool:
@@ -162,6 +364,8 @@ def usuario_tem_permissao(user: dict[str, Any], perm_key: str) -> bool:
     perms = resolver_permissoes(
         user.get("role", "tecnico"), user.get("permissoes")
     )
+    if perm_key in LEGACY_PERMISSION_ALIASES:
+        return any(bool(perms.get(k, False)) for k in LEGACY_PERMISSION_ALIASES[perm_key])
     return bool(perms.get(perm_key, False))
 
 
@@ -235,6 +439,17 @@ def sanitizar_usuario(user: dict) -> dict:
     }
 
 
+def _normalizar_setores_ativos(setores: dict[str, Any] | None) -> dict[str, bool]:
+    base = dict(DEFAULT_ACTIVE_SECTORS)
+    if isinstance(setores, dict):
+        for key in DEFAULT_ACTIVE_SECTORS:
+            if key in setores:
+                base[key] = bool(setores[key])
+    if not any(base.values()):
+        raise ValueError("Mantenha pelo menos um setor ativo na empresa (TI, Provedor ou Estoque).")
+    return base
+
+
 def sanitizar_tenant(tenant: dict) -> dict:
     checklist = tenant.get("checklist_padrao")
     if not isinstance(checklist, list) or not checklist:
@@ -242,6 +457,12 @@ def sanitizar_tenant(tenant: dict) -> dict:
     modelos = tenant.get("modelos_laudo")
     if not isinstance(modelos, list) or not modelos:
         modelos = [dict(tpl) for tpl in DEFAULT_LAUDO_TEMPLATES]
+    setores_raw = tenant.get("setores_ativos")
+    setores = dict(DEFAULT_ACTIVE_SECTORS)
+    if isinstance(setores_raw, dict):
+        for key in DEFAULT_ACTIVE_SECTORS:
+            if key in setores_raw:
+                setores[key] = bool(setores_raw[key])
     return {
         "id": tenant.get("id", ""),
         "nome": tenant.get("nome", "SysFix"),
@@ -249,6 +470,7 @@ def sanitizar_tenant(tenant: dict) -> dict:
         "ativo": bool(tenant.get("ativo", True)),
         "sla_dias": int(tenant.get("sla_dias") or 3),
         "localizacoes": list(tenant.get("localizacoes") or DEFAULT_LOCATIONS),
+        "setores_ativos": setores,
         "cnpj": tenant.get("cnpj", ""),
         "telefone": tenant.get("telefone", ""),
         "endereco": tenant.get("endereco", ""),
@@ -541,6 +763,7 @@ class AuthService:
             "ativo": True,
             "sla_dias": 3,
             "localizacoes": list(DEFAULT_LOCATIONS),
+            "setores_ativos": dict(DEFAULT_ACTIVE_SECTORS),
             "cnpj": "",
             "telefone": "",
             "endereco": "",
@@ -848,6 +1071,7 @@ class AuthService:
         nome: str | None = None,
         sla_dias: int | None = None,
         localizacoes: list[str] | None = None,
+        setores_ativos: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
             raise AuthorizationError(
@@ -868,6 +1092,9 @@ class AuthService:
 
         if localizacoes is not None:
             updates["localizacoes"] = _normalizar_localizacoes(localizacoes)
+
+        if setores_ativos is not None:
+            updates["setores_ativos"] = _normalizar_setores_ativos(setores_ativos)
 
         if not updates:
             tenant = self.user_store.get_tenant(admin_ctx["tenant_id"])

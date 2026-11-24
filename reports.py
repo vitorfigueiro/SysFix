@@ -21,7 +21,10 @@ class PDFReportGenerator:
 
     @staticmethod
     def _gerar_pdf_buffer(
-        titulo: str, dados: list, anonimizar: bool = False
+        titulo: str,
+        dados: list,
+        anonimizar: bool = False,
+        ocultar_custos: bool = False,
     ) -> io.BytesIO:
         """Gera o arquivo PDF diretamente em um buffer de memória (BytesIO)."""
         buffer = io.BytesIO()
@@ -97,14 +100,15 @@ class PDFReportGenerator:
             .replace("X", ".")
         )
 
-        elements.append(
-            Paragraph(
-                f"Emitido em: {datetime.now().strftime('%d/%m/%Y às %H:%M')} | "
-                f"Total: {total_registros} | Entregues: {total_entregues} | "
-                f"Pendentes: {total_pendentes} | Custo Total: {custo_total_fmt}",
-                meta_style,
-            )
+        resumo_texto = (
+            f"Emitido em: {datetime.now().strftime('%d/%m/%Y às %H:%M')} | "
+            f"Total: {total_registros} | Entregues: {total_entregues} | "
+            f"Pendentes: {total_pendentes}"
         )
+        if not ocultar_custos:
+            resumo_texto += f" | Custo Total: {custo_total_fmt}"
+
+        elements.append(Paragraph(resumo_texto, meta_style))
         elements.append(Spacer(1, 10))
 
         if not dados:
@@ -135,10 +139,10 @@ class PDFReportGenerator:
             "Data",
             "Origem",
             "Status",
-            "Custo",
-            "Resolução",
-            "Téc. Entrega",
         ]
+        if not ocultar_custos:
+            headers.append("Custo")
+        headers.extend(["Resolução", "Téc. Entrega"])
         table_data = [
             [
                 PDFReportGenerator._safe_paragraph(h, cell_header_style)
@@ -188,10 +192,8 @@ class PDFReportGenerator:
                 reg.get("resolucao") or reg.get("servico_realizado") or "-"
             )
 
-            table_data.append([
-                PDFReportGenerator._safe_paragraph(
-                    reg.get("id"), cell_style
-                ),
+            row_cells = [
+                PDFReportGenerator._safe_paragraph(reg.get("id"), cell_style),
                 PDFReportGenerator._safe_paragraph(
                     reg.get("equipamento"), cell_style
                 ),
@@ -200,21 +202,25 @@ class PDFReportGenerator:
                 ),
                 PDFReportGenerator._safe_paragraph(tec_coleta, cell_style),
                 PDFReportGenerator._safe_paragraph(data_fmt, cell_style),
-                PDFReportGenerator._safe_paragraph(
-                    reg.get("origem"), cell_style
-                ),
-                PDFReportGenerator._safe_paragraph(
-                    reg.get("status"), cell_style
-                ),
-                PDFReportGenerator._safe_paragraph(val_fmt, cell_style),
-                PDFReportGenerator._safe_paragraph(
-                    resolucao_txt, cell_style
-                ),
+                PDFReportGenerator._safe_paragraph(reg.get("origem"), cell_style),
+                PDFReportGenerator._safe_paragraph(reg.get("status"), cell_style),
+            ]
+            if not ocultar_custos:
+                row_cells.append(
+                    PDFReportGenerator._safe_paragraph(val_fmt, cell_style)
+                )
+            row_cells.extend([
+                PDFReportGenerator._safe_paragraph(resolucao_txt, cell_style),
                 PDFReportGenerator._safe_paragraph(tec_entrega, cell_style),
             ])
+            table_data.append(row_cells)
 
         # Larguras totalizam 752pt
-        col_widths = [28, 100, 55, 80, 55, 90, 60, 60, 144, 80]
+        col_widths = (
+            [28, 100, 55, 80, 55, 90, 60, 204, 80]
+            if ocultar_custos
+            else [28, 100, 55, 80, 55, 90, 60, 60, 144, 80]
+        )
         t = Table(table_data, colWidths=col_widths, repeatRows=1)
 
         t_style = [
@@ -252,6 +258,7 @@ class PDFReportGenerator:
         anonimizar: bool = False,
         tenant_id: str = "default",
         nome_empresa: str = "SysFix",
+        ocultar_custos: bool = False,
     ) -> io.BytesIO:
         if isinstance(mes, bool) or not isinstance(mes, int) or not (1 <= mes <= 12):
             raise ValueError("Mês inválido. Informe um valor entre 1 e 12.")
@@ -276,7 +283,12 @@ class PDFReportGenerator:
         dados = ColetaModel.buscar_por_mes_ano(mes, ano, tenant_id=tenant_id)
         prefixo = f"{nome_empresa} — " if nome_empresa else ""
         titulo = f"{prefixo}Relatório de Equipamentos - {nome_meses[mes]} / {ano}"
-        return cls._gerar_pdf_buffer(titulo, dados, anonimizar=anonimizar)
+        return cls._gerar_pdf_buffer(
+            titulo,
+            dados,
+            anonimizar=anonimizar,
+            ocultar_custos=ocultar_custos,
+        )
 
     @classmethod
     def relatorio_pendentes(
@@ -284,11 +296,17 @@ class PDFReportGenerator:
         anonimizar: bool = False,
         tenant_id: str = "default",
         nome_empresa: str = "SysFix",
+        ocultar_custos: bool = False,
     ) -> io.BytesIO:
         dados = ColetaModel.buscar_nao_finalizados_mes_atual(tenant_id=tenant_id)
         prefixo = f"{nome_empresa} — " if nome_empresa else ""
         titulo = f"{prefixo}Relatório de Equipamentos Pendentes / Em Manutenção"
-        return cls._gerar_pdf_buffer(titulo, dados, anonimizar=anonimizar)
+        return cls._gerar_pdf_buffer(
+            titulo,
+            dados,
+            anonimizar=anonimizar,
+            ocultar_custos=ocultar_custos,
+        )
 
     @classmethod
     def relatorio_geral(
@@ -296,8 +314,14 @@ class PDFReportGenerator:
         anonimizar: bool = False,
         tenant_id: str = "default",
         nome_empresa: str = "SysFix",
+        ocultar_custos: bool = False,
     ) -> io.BytesIO:
         dados = ColetaModel.buscar_todos(tenant_id=tenant_id)
         prefixo = f"{nome_empresa} — " if nome_empresa else ""
         titulo = f"{prefixo}Relatório Geral de Coletas e Manutenções"
-        return cls._gerar_pdf_buffer(titulo, dados, anonimizar=anonimizar)
+        return cls._gerar_pdf_buffer(
+            titulo,
+            dados,
+            anonimizar=anonimizar,
+            ocultar_custos=ocultar_custos,
+        )

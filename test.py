@@ -963,5 +963,155 @@ class ImportExportTests(unittest.TestCase):
         self.assertIn("equipamento", mod_csv.body.decode("utf-8-sig"))
 
 
+class GranularPermissionsTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
+        self.original_backend = os.environ.get("SYSFIX_BACKEND")
+        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
+
+        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
+        os.environ["SYSFIX_BACKEND"] = "local"
+        os.environ["SYSFIX_SECRET_KEY"] = "perm-test-secret-2026"
+
+        self.original_store = models._store
+        self.original_get_auth_service = app_module._get_auth_service
+
+        models._store = JsonStore(Path(self.temp_dir.name) / "coletas.json")
+        models._store.ensure()
+
+        self.user_store = LocalTenantUserStore(Path(self.temp_dir.name) / "auth_db.json")
+        self.user_store.ensure()
+        app_module._get_auth_service = lambda: AuthService(
+            user_store=self.user_store, backend_override="local"
+        )
+
+    def tearDown(self):
+        models._store = self.original_store
+        app_module._get_auth_service = self.original_get_auth_service
+        for key, old in (
+            ("SYSFIX_DATA_DIR", self.original_data_dir),
+            ("SYSFIX_BACKEND", self.original_backend),
+            ("SYSFIX_SECRET_KEY", self.original_secret),
+        ):
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        self.temp_dir.cleanup()
+
+    def test_granular_permissions_filter_costs_and_enforce_actions(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="Empresa Perms",
+                nome_usuario="Admin Perms",
+                email="admin@perms.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        # Cria técnico sem dashboard, sem custos e sem PDF, mas com exclusão liberada
+        membro_resp = app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Tec Restrito",
+                email="tec@perms.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes={
+                    "ver_dashboard": False,
+                    "ver_custos": False,
+                    "exportar_pdf": False,
+                    "excluir_registros": True,
+                },
+            ),
+            current_user=admin,
+        )
+        tec_uid = membro_resp["usuario"]["uid"]
+        login_tec = app_module.login_usuario(
+            app_module.LoginSchema(email="tec@perms.com", senha="secret123")
+        )
+        tec = app_module.get_current_user(f"Bearer {login_tec['token']}")
+
+        # Admin cadastra item e dá saída com custo
+        created = app_module.criar_entrada(
+            app_module.EntradaSchema(
+                equipamento="Notebook Restrito",
+                tombamento="321",
+                tecnico_coleta="Admin Perms",
+                data_coleta="2026-10-10",
+                origem="TI",
+                os_coleta="OS-10",
+                localizacao="Bancada TI",
+                problema="Sem imagem",
+            ),
+            current_user=admin,
+        )
+        item_id = created["id"]
+
+        # Técnico sem ver_custos dá saída tentando mandar custo 999,00 -> deve permanecer Sem Custo / 0.0
+        app_module.registrar_saida(
+            item_id,
+            app_module.SaidaSchema(
+                tecnico_entrega="Tec Restrito",
+                data_entrega="2026-10-12",
+                os_entrega="OS-11",
+                status_custo="Com Custo",
+                valor_custo=999.0,
+                resolucao="Limpeza",
+                laudado="Não",
+            ),
+            current_user=tec,
+        )
+        item_como_admin = app_module.obter_equipamento(item_id, current_user=admin)
+        self.assertEqual(item_como_admin["valor_custo"], 0.0)
+        self.assertEqual(item_como_admin["status_custo"], "Sem Custo")
+
+        # Técnico sem ver_custos não recebe campos financeiros na consulta nem na lista
+        item_como_tec = app_module.obter_equipamento(item_id, current_user=tec)
+        self.assertNotIn("valor_custo", item_como_tec)
+        self.assertNotIn("status_custo", item_como_tec)
+        lista_tec = app_module.listar_equipamentos(status="todos", current_user=tec)
+        self.assertNotIn("valor_custo", lista_tec[0])
+
+        # Bloqueio em dashboard e PDF pelas dependências granulares
+        with self.assertRaises(HTTPException) as ctx_dash:
+            app_module.require_permission("ver_dashboard")(tec)
+        self.assertEqual(ctx_dash.exception.status_code, 403)
+
+        with self.assertRaises(HTTPException) as ctx_pdf:
+            app_module.require_permission("exportar_pdf")(tec)
+        self.assertEqual(ctx_pdf.exception.status_code, 403)
+
+        # Técnico com excluir_registros=True pode excluir
+        del_res = app_module.deletar_equipamento(
+            item_id, current_user=app_module.require_permission("excluir_registros")(tec)
+        )
+        self.assertTrue(del_res["sucesso"])
+
+        # Admin libera ver_dashboard e exportar_pdf para o técnico (mas mantém ver_custos=False)
+        app_module.atualizar_usuario_empresa(
+            tec_uid,
+            app_module.TeamMemberUpdateSchema(
+                permissoes={
+                    "ver_dashboard": True,
+                    "ver_custos": False,
+                    "exportar_pdf": True,
+                }
+            ),
+            current_user=admin,
+        )
+        tec_atualizado = app_module.get_current_user(f"Bearer {login_tec['token']}")
+        dash = app_module.obter_dashboard(mes=10, ano=2026, current_user=tec_atualizado)
+        self.assertTrue(dash["ocultar_custos"])
+        self.assertNotIn("custo_total_mes", dash["resumo"])
+
+        pdf_resp = app_module.gerar_relatorio_pdf(
+            tipo="geral", anonimizar=False, current_user=tec_atualizado
+        )
+        self.assertEqual(pdf_resp.media_type, "application/pdf")
+        self.assertTrue(pdf_resp.body.startswith(b"%PDF-"))
+
+
 if __name__ == "__main__":
     unittest.main()

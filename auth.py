@@ -25,6 +25,113 @@ DEFAULT_LOCATIONS = [
 ]
 ROLES_PERMITIDAS = {"admin", "tecnico"}
 
+PERMISSIONS_CATALOG = [
+    {
+        "key": "ver_dashboard",
+        "label": "Ver Dashboard",
+        "descricao": "Acessar indicadores, gráficos e alertas de SLA.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "ver_custos",
+        "label": "Ver e Informar Custos (R$)",
+        "descricao": "Visualizar e lançar valores financeiros nas O.S. e relatórios.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "registrar_entrada",
+        "label": "Registrar Entradas",
+        "descricao": "Cadastrar novos equipamentos e entradas em lote.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "editar_entrada",
+        "label": "Editar Entradas",
+        "descricao": "Alterar dados de coleta de equipamentos já cadastrados.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "registrar_saida",
+        "label": "Dar Saída / Entregar",
+        "descricao": "Finalizar ordens de serviço e registrar entrega.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "excluir_registros",
+        "label": "Excluir Registros",
+        "descricao": "Apagar permanentemente registros de equipamentos.",
+        "default_tecnico": False,
+    },
+    {
+        "key": "exportar_pdf",
+        "label": "Exportar Relatórios PDF",
+        "descricao": "Gerar e baixar relatórios em PDF da empresa.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "gerenciar_equipe",
+        "label": "Gerenciar Equipe e Empresa",
+        "descricao": "Editar configurações da empresa e gerenciar colaboradores.",
+        "default_tecnico": False,
+    },
+    {
+        "key": "importar_exportar_dados",
+        "label": "Importar / Exportar Backup",
+        "descricao": "Importar planilhas/JSON e exportar backups completos.",
+        "default_tecnico": False,
+    },
+]
+
+DEFAULT_TECH_PERMISSIONS: dict[str, bool] = {
+    item["key"]: bool(item["default_tecnico"]) for item in PERMISSIONS_CATALOG
+}
+ALL_PERMISSIONS_TRUE: dict[str, bool] = {
+    item["key"]: True for item in PERMISSIONS_CATALOG
+}
+_VALID_PERMISSION_KEYS = set(ALL_PERMISSIONS_TRUE.keys())
+
+
+def resolver_permissoes(
+    role: str, custom: dict[str, Any] | None = None
+) -> dict[str, bool]:
+    if str(role or "").strip().lower() == "admin":
+        return dict(ALL_PERMISSIONS_TRUE)
+    resolved = dict(DEFAULT_TECH_PERMISSIONS)
+    if isinstance(custom, dict):
+        for key, val in custom.items():
+            if key in _VALID_PERMISSION_KEYS and isinstance(val, bool):
+                resolved[key] = val
+    return resolved
+
+
+def normalizar_permissoes_input(
+    permissoes: dict[str, Any] | None,
+) -> dict[str, bool]:
+    if permissoes is None:
+        return dict(DEFAULT_TECH_PERMISSIONS)
+    if not isinstance(permissoes, dict):
+        raise ValueError("Formato de permissões inválido.")
+    unknown = set(permissoes.keys()) - _VALID_PERMISSION_KEYS
+    if unknown:
+        raise ValueError(
+            f"Permissões desconhecidas: {', '.join(sorted(unknown))}."
+        )
+    resolved = dict(DEFAULT_TECH_PERMISSIONS)
+    for key, val in permissoes.items():
+        resolved[key] = bool(val)
+    return resolved
+
+
+def usuario_tem_permissao(user: dict[str, Any], perm_key: str) -> bool:
+    if not user:
+        return False
+    if str(user.get("role") or "").strip().lower() == "admin":
+        return True
+    perms = resolver_permissoes(
+        user.get("role", "tecnico"), user.get("permissoes")
+    )
+    return bool(perms.get(perm_key, False))
+
 
 class AuthenticationError(Exception):
     """Token ausente, inválido ou expirado."""
@@ -83,13 +190,15 @@ def _normalizar_localizacoes(localizacoes: list[str] | None) -> list[str]:
 
 def sanitizar_usuario(user: dict) -> dict:
     """Remove dados sensíveis (ex.: password_hash) antes de expor o usuário na API."""
+    role = user.get("role", "tecnico")
     return {
         "uid": user.get("uid", ""),
         "email": user.get("email", ""),
         "nome": user.get("nome", ""),
-        "role": user.get("role", "tecnico"),
+        "role": role,
         "tenant_id": user.get("tenant_id", ""),
         "ativo": bool(user.get("ativo", True)),
+        "permissoes": resolver_permissoes(role, user.get("permissoes")),
         "criado_em": user.get("criado_em", ""),
     }
 
@@ -419,6 +528,7 @@ class AuthService:
                 "role": "admin",
                 "tenant_id": tenant["id"],
                 "ativo": True,
+                "permissoes": dict(ALL_PERMISSIONS_TRUE),
                 "password_hash": hash_password(senha_valida),
                 "criado_em": _now_iso(),
             }
@@ -496,6 +606,7 @@ class AuthService:
                 "role": "admin",
                 "tenant_id": tenant["id"],
                 "ativo": True,
+                "permissoes": dict(ALL_PERMISSIONS_TRUE),
                 "criado_em": _now_iso(),
             }
         )
@@ -541,9 +652,10 @@ class AuthService:
         email: str,
         senha: str,
         role: str = "tecnico",
+        permissoes: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if admin_ctx.get("role") != "admin":
-            raise AuthorizationError("Apenas administradores podem adicionar membros.")
+        if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
+            raise AuthorizationError("Você não tem permissão para adicionar membros.")
 
         nome_limpo = SecurityValidator.sanitizar_texto(nome)
         if not nome_limpo:
@@ -551,6 +663,21 @@ class AuthService:
         email_norm = _validar_email(email)
         senha_valida = _validar_senha(senha)
         role_valida = _validar_role(role)
+
+        is_caller_admin = admin_ctx.get("role") == "admin"
+        if role_valida == "admin" and not is_caller_admin:
+            raise AuthorizationError("Apenas administradores podem criar outros administradores.")
+
+        if role_valida == "admin":
+            perms_finais = dict(ALL_PERMISSIONS_TRUE)
+        else:
+            perms_finais = normalizar_permissoes_input(permissoes)
+            if not is_caller_admin:
+                for k, v in perms_finais.items():
+                    if v and not usuario_tem_permissao(admin_ctx, k):
+                        raise AuthorizationError(
+                            f"Você não pode conceder a permissão '{k}' sem possuí-la."
+                        )
 
         if self.user_store.get_user_by_email(email_norm):
             raise ValueError("Já existe um usuário cadastrado com este e-mail.")
@@ -562,6 +689,7 @@ class AuthService:
             "role": role_valida,
             "tenant_id": tenant_id,
             "ativo": True,
+            "permissoes": perms_finais,
             "criado_em": _now_iso(),
         }
 
@@ -584,13 +712,18 @@ class AuthService:
         nome: str | None = None,
         role: str | None = None,
         ativo: bool | None = None,
+        permissoes: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if admin_ctx.get("role") != "admin":
-            raise AuthorizationError("Apenas administradores podem editar membros.")
+        if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
+            raise AuthorizationError("Você não tem permissão para editar membros.")
 
         target = self.user_store.get_user(target_uid)
         if not target or target.get("tenant_id") != admin_ctx["tenant_id"]:
             raise LookupError("Colaborador não encontrado nesta empresa.")
+
+        is_caller_admin = admin_ctx.get("role") == "admin"
+        if target.get("role") == "admin" and not is_caller_admin:
+            raise AuthorizationError("Apenas administradores podem alterar outros administradores.")
 
         updates: dict[str, Any] = {}
         if nome is not None:
@@ -600,7 +733,10 @@ class AuthService:
             updates["nome"] = nome_limpo
 
         if role is not None:
-            updates["role"] = _validar_role(role)
+            nova_role = _validar_role(role)
+            if nova_role == "admin" and not is_caller_admin:
+                raise AuthorizationError("Apenas administradores podem promover usuários a administrador.")
+            updates["role"] = nova_role
 
         if ativo is not None:
             updates["ativo"] = bool(ativo)
@@ -621,6 +757,23 @@ class AuthService:
                     "A empresa precisa manter pelo menos um administrador ativo."
                 )
 
+        if novo_role == "admin":
+            if role == "admin" or permissoes is not None:
+                updates["permissoes"] = dict(ALL_PERMISSIONS_TRUE)
+        elif permissoes is not None:
+            perms_norm = normalizar_permissoes_input(permissoes)
+            if not is_caller_admin:
+                for k, v in perms_norm.items():
+                    if v and not usuario_tem_permissao(admin_ctx, k):
+                        raise AuthorizationError(
+                            f"Você não pode conceder a permissão '{k}' sem possuí-la."
+                        )
+            updates["permissoes"] = perms_norm
+        elif role is not None and novo_role == "tecnico":
+            updates["permissoes"] = resolver_permissoes(
+                "tecnico", target.get("permissoes")
+            )
+
         if not updates:
             return sanitizar_usuario(target)
 
@@ -630,8 +783,8 @@ class AuthService:
         return sanitizar_usuario(updated)
 
     def list_team_members(self, admin_ctx: dict[str, Any]) -> list[dict[str, Any]]:
-        if admin_ctx.get("role") != "admin":
-            raise AuthorizationError("Apenas administradores podem visualizar a equipe.")
+        if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
+            raise AuthorizationError("Você não tem permissão para visualizar a equipe.")
         membros = self.user_store.list_users_by_tenant(admin_ctx["tenant_id"])
         return [sanitizar_usuario(m) for m in membros]
 
@@ -642,9 +795,9 @@ class AuthService:
         sla_dias: int | None = None,
         localizacoes: list[str] | None = None,
     ) -> dict[str, Any]:
-        if admin_ctx.get("role") != "admin":
+        if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
             raise AuthorizationError(
-                "Apenas administradores podem alterar configurações da empresa."
+                "Você não tem permissão para alterar configurações da empresa."
             )
 
         updates: dict[str, Any] = {}

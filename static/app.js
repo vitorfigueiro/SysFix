@@ -8,6 +8,9 @@ let firebaseAuth = null;
 let firebaseSdk = null;
 
 let sessaoAtual = null;
+let permissionsCatalog = [];
+let usuariosEmpresaCache = [];
+let uidPermissaoEmEdicao = null;
 let listaEquipamentosCache = [];
 let registroSelecionadoId = null;
 let filtroAtual = 'nao_finalizados';
@@ -198,6 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (event.key === 'Escape') {
       fecharModalRelatorio();
       fecharModalExcluir();
+      fecharModalPermissoes();
     }
   });
 
@@ -308,11 +312,66 @@ async function carregarSessao() {
     }
 
     sessaoAtual = await res.json();
+    permissionsCatalog = Array.isArray(sessaoAtual.permissions_catalog)
+      ? sessaoAtual.permissions_catalog
+      : [];
     aplicarSessaoNaUI();
   } catch (e) {
     console.error('Erro ao validar sessão:', e);
     exibirTelaAuth();
   }
+}
+
+function temPermissao(chave) {
+  if (!sessaoAtual || !sessaoAtual.user) return false;
+  if (sessaoAtual.user.role === 'admin') return true;
+  const perms = sessaoAtual.user.permissoes || {};
+  return Boolean(perms[chave]);
+}
+
+function aplicarPermissoesNaUI() {
+  const podeDashboard = temPermissao('ver_dashboard');
+  const podeCustos = temPermissao('ver_custos');
+  const podeEntrar = temPermissao('registrar_entrada');
+  const podeEditar = temPermissao('editar_entrada');
+  const podeSaida = temPermissao('registrar_saida');
+  const podeExcluir = temPermissao('excluir_registros');
+  const podePdf = temPermissao('exportar_pdf');
+  const podeEquipe = temPermissao('gerenciar_equipe');
+  const podeBackup = temPermissao('importar_exportar_dados');
+
+  document.getElementById('navBtnDashboard').classList.toggle('hidden', !podeDashboard);
+  document.getElementById('navBtnEmpresa').classList.toggle('hidden', !podeEquipe && !podeBackup);
+  document.getElementById('btnExportarPdfHeader').classList.toggle('hidden', !podePdf);
+
+  document.getElementById('kpiCardCustoMes').classList.toggle('hidden', !podeCustos);
+  document.getElementById('dashBlocoProporcaoCusto').classList.toggle('hidden', !podeCustos);
+
+  document.getElementById('btnAdicionarItemEntrada').classList.toggle('hidden', !podeEntrar);
+  document.getElementById('btnSalvarEntrada').classList.toggle('hidden', !podeEntrar);
+  document.getElementById('btnAtualizarEntrada').classList.toggle('hidden', !podeEditar);
+  document.getElementById('grupoCustoSaida').classList.toggle('hidden', !podeCustos);
+  document.getElementById('fichaBlocoCusto').classList.toggle('hidden', !podeCustos);
+  document.getElementById('btnExcluirItem').classList.toggle('hidden', !podeExcluir);
+
+  const mostraAbaEntrada = podeEntrar || podeEditar;
+  const mostraAbaSaida = podeSaida;
+  document.getElementById('btnTabEntrada').classList.toggle('hidden', !mostraAbaEntrada);
+  document.getElementById('btnTabSaida').classList.toggle('hidden', !mostraAbaSaida);
+  document.getElementById('barraTabsFormulario').classList.toggle('hidden', !(mostraAbaEntrada && mostraAbaSaida));
+
+  const temAlgumaAcaoPainel = mostraAbaEntrada || mostraAbaSaida || podeExcluir;
+  document.getElementById('painelFormularios').classList.toggle('hidden', !temAlgumaAcaoPainel);
+
+  if (!mostraAbaEntrada && mostraAbaSaida) {
+    alternarTab('saida');
+  } else if (mostraAbaEntrada) {
+    alternarTab('entrada');
+  }
+
+  document.getElementById('blocoConfigEmpresa').classList.toggle('hidden', !podeEquipe);
+  document.getElementById('blocoEquipeEmpresa').classList.toggle('hidden', !podeEquipe);
+  document.getElementById('blocoImportExport').classList.toggle('hidden', !podeBackup);
 }
 
 function aplicarSessaoNaUI() {
@@ -339,11 +398,10 @@ function aplicarSessaoNaUI() {
     avatarEl.textContent = iniciais;
   }
 
-  document.getElementById('navBtnEmpresa').classList.toggle('hidden', !isAdmin);
-  document.getElementById('btnExcluirItem').classList.toggle('hidden', !isAdmin);
-
   popularOpcoesLocalizacaoEmpresa(tenant.localizacoes);
-  alternarVisao('dashboard');
+  aplicarPermissoesNaUI();
+  renderizarCheckboxesPermissoesNovoMembro();
+  alternarVisao(temPermissao('ver_dashboard') ? 'dashboard' : 'equipamentos');
   carregarLista('nao_finalizados');
 }
 
@@ -551,6 +609,7 @@ async function carregarDashboard() {
 
 function renderizarDashboard(d) {
   const r = d.resumo || {};
+  const podeCustos = !d.ocultar_custos && temPermissao('ver_custos');
   document.getElementById('kpi_pendentes').textContent = r.total_pendentes ?? 0;
   document.getElementById('kpi_atrasados').textContent = r.total_atrasados ?? 0;
   document.getElementById('kpi_sla_label').textContent = `Acima de ${r.sla_dias ?? 3} dias`;
@@ -558,11 +617,12 @@ function renderizarDashboard(d) {
   document.getElementById('kpi_total_geral').textContent = `de ${r.total_registros ?? 0} registros`;
   document.getElementById('kpi_taxa').textContent = `${r.taxa_resolucao_percent ?? 0}%`;
   document.getElementById('kpi_tempo_medio').textContent = `${r.tempo_medio_resolucao_dias ?? 0}d`;
-  document.getElementById('kpi_custo_mes').textContent = `R$ ${formatarMoedaBR(r.custo_total_mes)}`;
-  document.getElementById('kpi_custo_geral').textContent = `Total: R$ ${formatarMoedaBR(r.custo_total_geral)}`;
-
-  document.getElementById('dashProporcaoCusto').textContent =
-    `${r.qtd_com_custo ?? 0} com custo / ${r.qtd_sem_custo ?? 0} sem custo`;
+  if (podeCustos) {
+    document.getElementById('kpi_custo_mes').textContent = `R$ ${formatarMoedaBR(r.custo_total_mes)}`;
+    document.getElementById('kpi_custo_geral').textContent = `Total: R$ ${formatarMoedaBR(r.custo_total_geral)}`;
+    document.getElementById('dashProporcaoCusto').textContent =
+      `${r.qtd_com_custo ?? 0} com custo / ${r.qtd_sem_custo ?? 0} sem custo`;
+  }
 
   // Gráfico de Evolução 6 meses
   const evoContainer = document.getElementById('dashEvolucaoGrafico');
@@ -574,6 +634,9 @@ function renderizarDashboard(d) {
   evoContainer.innerHTML = evolucao.map(item => {
     const hEnt = Math.max(4, Math.round(((item.entradas || 0) / maxValor) * 140));
     const hSai = Math.max(4, Math.round(((item.entregas || 0) / maxValor) * 140));
+    const custoLinha = podeCustos
+      ? `<span class="text-[10px] text-slate-400 dark:text-violet-300/70">R$ ${formatarMoedaBR(item.custo)}</span>`
+      : '';
     return `
       <div class="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
         <div class="flex items-end gap-1.5 h-40">
@@ -587,7 +650,7 @@ function renderizarDashboard(d) {
           </div>
         </div>
         <span class="text-[11px] font-bold text-slate-700 dark:text-violet-100">${escapeHtml(item.label)}</span>
-        <span class="text-[10px] text-slate-400 dark:text-violet-300/70">R$ ${formatarMoedaBR(item.custo)}</span>
+        ${custoLinha}
       </div>
     `;
   }).join('');
@@ -637,7 +700,7 @@ function renderizarDashboard(d) {
     : origens.map(o => `
       <div class="flex items-center justify-between p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-100 dark:border-violet-800/60">
         <span class="font-semibold text-slate-800 dark:text-violet-100 truncate pr-2">${escapeHtml(o.origem)}</span>
-        <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 shrink-0">${o.quantidade}x (R$ ${formatarMoedaBR(o.custo)})</span>
+        <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 shrink-0">${o.quantidade}x${podeCustos ? ` (R$ ${formatarMoedaBR(o.custo)})` : ''}</span>
       </div>
     `).join('');
 
@@ -1369,12 +1432,54 @@ async function baixarRelatorioPDF() {
 // ==============================================================================
 
 async function carregarTelaEmpresa() {
-  if (!sessaoAtual || sessaoAtual.user.role !== 'admin') return;
+  if (!sessaoAtual) return;
   const tenant = sessaoAtual.tenant;
-  document.getElementById('emp_nome').value = tenant.nome || '';
-  document.getElementById('emp_sla').value = tenant.sla_dias || 3;
-  document.getElementById('emp_locs').value = (tenant.localizacoes || []).join('\n');
-  await carregarUsuariosEmpresa();
+  if (temPermissao('gerenciar_equipe')) {
+    document.getElementById('emp_nome').value = tenant.nome || '';
+    document.getElementById('emp_sla').value = tenant.sla_dias || 3;
+    document.getElementById('emp_locs').value = (tenant.localizacoes || []).join('\n');
+    renderizarCheckboxesPermissoesNovoMembro();
+    await carregarUsuariosEmpresa();
+  }
+}
+
+function obterCatalogoPermissoes() {
+  if (permissionsCatalog.length > 0) return permissionsCatalog;
+  return [
+    { key: 'ver_dashboard', label: 'Ver Dashboard', descricao: 'Indicadores e SLA', default_tecnico: true },
+    { key: 'ver_custos', label: 'Ver e Informar Custos (R$)', descricao: 'Valores financeiros nas O.S.', default_tecnico: true },
+    { key: 'registrar_entrada', label: 'Registrar Entradas', descricao: 'Cadastrar novos itens', default_tecnico: true },
+    { key: 'editar_entrada', label: 'Editar Entradas', descricao: 'Alterar dados da coleta', default_tecnico: true },
+    { key: 'registrar_saida', label: 'Dar Saída / Entregar', descricao: 'Finalizar O.S.', default_tecnico: true },
+    { key: 'excluir_registros', label: 'Excluir Registros', descricao: 'Remover itens do banco', default_tecnico: false },
+    { key: 'exportar_pdf', label: 'Exportar Relatórios PDF', descricao: 'Gerar PDF da empresa', default_tecnico: true },
+    { key: 'gerenciar_equipe', label: 'Gerenciar Equipe e Empresa', descricao: 'Configurações e usuários', default_tecnico: false },
+    { key: 'importar_exportar_dados', label: 'Importar / Exportar Backup', descricao: 'Planilhas e JSON', default_tecnico: false }
+  ];
+}
+
+function renderizarCheckboxesPermissoesNovoMembro() {
+  const container = document.getElementById('listaPermissoesNovoMembro');
+  if (!container) return;
+  const catalogo = obterCatalogoPermissoes();
+  container.innerHTML = catalogo.map(item => `
+    <label class="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-[#141024] border border-violet-200/80 dark:border-violet-800/70 cursor-pointer text-[11px]">
+      <input type="checkbox" class="new-mem-perm mt-0.5 rounded border-violet-300 text-violet-600 focus:ring-violet-400" data-key="${escapeHtml(item.key)}" ${item.default_tecnico ? 'checked' : ''}>
+      <span class="leading-tight">
+        <span class="font-bold text-slate-800 dark:text-white block">${escapeHtml(item.label)}</span>
+        <span class="text-[10px] text-slate-500 dark:text-violet-300/70">${escapeHtml(item.descricao || '')}</span>
+      </span>
+    </label>
+  `).join('');
+  alternarPermissoesNovoMembro();
+}
+
+function alternarPermissoesNovoMembro() {
+  const role = document.getElementById('mem_role')?.value || 'tecnico';
+  const box = document.getElementById('grupoPermissoesNovoMembro');
+  if (box) {
+    box.classList.toggle('hidden', role === 'admin');
+  }
 }
 
 async function salvarConfiguracoesEmpresa(event) {
@@ -1413,12 +1518,27 @@ async function carregarUsuariosEmpresa() {
       return;
     }
     const usuarios = await res.json();
+    usuariosEmpresaCache = Array.isArray(usuarios) ? usuarios : [];
     const tbody = document.getElementById('tabelaUsuariosEmpresa');
     tbody.innerHTML = '';
 
-    usuarios.forEach(u => {
+    const totalCatalogo = obterCatalogoPermissoes().length;
+
+    usuariosEmpresaCache.forEach(u => {
       const tr = document.createElement('tr');
       const ehProprio = u.uid === sessaoAtual.user.uid;
+      const isTargetAdmin = u.role === 'admin';
+      const podeAlterarRole = sessaoAtual.user.role === 'admin' && !ehProprio;
+
+      const perms = u.permissoes || {};
+      const qtdAtivas = isTargetAdmin
+        ? totalCatalogo
+        : obterCatalogoPermissoes().filter(p => Boolean(perms[p.key])).length;
+
+      const permColHtml = isTargetAdmin
+        ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-violet-100 dark:bg-violet-900/70 text-violet-700 dark:text-violet-200">Acesso Total</span>'
+        : `<button type="button" onclick="abrirModalPermissoes('${escapeHtml(u.uid)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-700 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">🔐 ${qtdAtivas}/${totalCatalogo}</button>`;
+
       const statusBadge = u.ativo
         ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">Ativo</span>'
         : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-700">Inativo</span>';
@@ -1427,14 +1547,15 @@ async function carregarUsuariosEmpresa() {
         <td class="p-3 font-semibold text-slate-800 dark:text-white">${escapeHtml(u.nome)} ${ehProprio ? '<span class="text-[10px] text-violet-600 dark:text-violet-400">(Você)</span>' : ''}</td>
         <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(u.email)}</td>
         <td class="p-3">
-          <select ${ehProprio ? 'disabled' : ''} onchange="alterarPapelUsuario('${escapeHtml(u.uid)}', this.value)" class="px-2 py-1 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430]">
+          <select ${podeAlterarRole ? '' : 'disabled'} onchange="alterarPapelUsuario('${escapeHtml(u.uid)}', this.value)" class="px-2 py-1 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430]">
             <option value="tecnico" ${u.role === 'tecnico' ? 'selected' : ''}>Técnico</option>
             <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrador</option>
           </select>
         </td>
+        <td class="p-3">${permColHtml}</td>
         <td class="p-3">${statusBadge}</td>
         <td class="p-3 text-right">
-          ${ehProprio ? '' : `
+          ${(ehProprio || (isTargetAdmin && sessaoAtual.user.role !== 'admin')) ? '' : `
             <button onclick="alternarStatusUsuario('${escapeHtml(u.uid)}', ${!u.ativo})" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg border ${u.ativo ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800 hover:bg-rose-100' : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'}">
               ${u.ativo ? 'Desativar' : 'Reativar'}
             </button>
@@ -1450,11 +1571,20 @@ async function carregarUsuariosEmpresa() {
 
 async function adicionarMembroEquipe(event) {
   event.preventDefault();
+  const role = document.getElementById('mem_role').value;
+  const permissoes = {};
+  if (role !== 'admin') {
+    document.querySelectorAll('.new-mem-perm').forEach(cb => {
+      permissoes[cb.dataset.key] = cb.checked;
+    });
+  }
+
   const payload = {
     nome: document.getElementById('mem_nome').value.trim(),
     email: document.getElementById('mem_email').value.trim(),
     senha: document.getElementById('mem_senha').value,
-    role: document.getElementById('mem_role').value
+    role,
+    permissoes: role === 'admin' ? null : permissoes
   };
 
   try {
@@ -1469,10 +1599,85 @@ async function adicionarMembroEquipe(event) {
     document.getElementById('mem_nome').value = '';
     document.getElementById('mem_email').value = '';
     document.getElementById('mem_senha').value = '';
+    renderizarCheckboxesPermissoesNovoMembro();
     mostrarToast('Colaborador adicionado à equipe!', 'sucesso');
     await carregarUsuariosEmpresa();
   } catch (e) {
     mostrarToast('Falha ao adicionar colaborador.', 'erro');
+  }
+}
+
+function abrirModalPermissoes(uid) {
+  const usuario = usuariosEmpresaCache.find(u => u.uid === uid);
+  if (!usuario) return;
+  uidPermissaoEmEdicao = uid;
+
+  document.getElementById('perm_usuario_info').textContent =
+    `Editando acessos de ${usuario.nome} (${usuario.email}).`;
+
+  const permsAtuais = usuario.permissoes || {};
+  const container = document.getElementById('listaPermissoesModal');
+  container.innerHTML = obterCatalogoPermissoes().map(item => `
+    <label class="flex items-start gap-2.5 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 cursor-pointer text-xs">
+      <input type="checkbox" class="modal-mem-perm mt-0.5 rounded border-violet-300 text-violet-600 focus:ring-violet-400" data-key="${escapeHtml(item.key)}" ${permsAtuais[item.key] ? 'checked' : ''}>
+      <span class="leading-snug">
+        <span class="font-bold text-slate-900 dark:text-white block">${escapeHtml(item.label)}</span>
+        <span class="text-[11px] text-slate-500 dark:text-violet-300/80">${escapeHtml(item.descricao || '')}</span>
+      </span>
+    </label>
+  `).join('');
+
+  document.getElementById('modalPermissoes').classList.remove('hidden');
+}
+
+function fecharModalPermissoes() {
+  uidPermissaoEmEdicao = null;
+  document.getElementById('modalPermissoes').classList.add('hidden');
+}
+
+function aplicarPresetPermissoes(preset) {
+  const semCustosSet = new Set(['registrar_entrada', 'editar_entrada', 'registrar_saida', 'exportar_pdf']);
+  const consultaSet = new Set(['ver_dashboard', 'exportar_pdf']);
+  const catalogo = obterCatalogoPermissoes();
+
+  document.querySelectorAll('.modal-mem-perm').forEach(cb => {
+    const key = cb.dataset.key;
+    if (preset === 'padrao') {
+      const item = catalogo.find(c => c.key === key);
+      cb.checked = Boolean(item?.default_tecnico);
+    } else if (preset === 'sem_custos') {
+      cb.checked = semCustosSet.has(key);
+    } else if (preset === 'consulta') {
+      cb.checked = consultaSet.has(key);
+    }
+  });
+}
+
+async function salvarPermissoesUsuario() {
+  if (!uidPermissaoEmEdicao) return;
+  const permissoes = {};
+  document.querySelectorAll('.modal-mem-perm').forEach(cb => {
+    permissoes[cb.dataset.key] = cb.checked;
+  });
+
+  const btn = document.getElementById('btnSalvarPermissoes');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch(`/empresa/usuarios/${encodeURIComponent(uidPermissaoEmEdicao)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ permissoes })
+    });
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Não foi possível salvar permissões.'), 'erro');
+      return;
+    }
+    fecharModalPermissoes();
+    mostrarToast('Permissões atualizadas com sucesso!', 'sucesso');
+    await carregarUsuariosEmpresa();
+  } catch (e) {
+    mostrarToast('Falha ao salvar permissões.', 'erro');
+  } finally {
+    btn.disabled = false;
   }
 }
 

@@ -12,8 +12,10 @@ from auth import (
     AuthorizationError,
     AuthService,
     OnboardingRequiredError,
+    PERMISSIONS_CATALOG,
     sanitizar_tenant,
     sanitizar_usuario,
+    usuario_tem_permissao,
 )
 from config import get_cors_origins, get_public_client_config, get_storage_backend
 from database import init_db
@@ -118,6 +120,57 @@ def require_admin(
     return current_user
 
 
+def require_permission(perm_key: str):
+    """Dependência FastAPI para validar permissões granulares por usuário."""
+
+    def _dependency(
+        current_user: dict[str, Any] = Depends(get_current_user),
+    ) -> dict[str, Any]:
+        if not usuario_tem_permissao(current_user, perm_key):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Você não possui permissão para acessar ou executar este recurso.",
+            )
+        return current_user
+
+    return _dependency
+
+
+def _filtrar_registro_por_permissao(
+    registro: dict, current_user: dict[str, Any]
+) -> dict:
+    dados = serializar_registro(dict(registro))
+    if not usuario_tem_permissao(current_user, "ver_custos"):
+        dados.pop("status_custo", None)
+        dados.pop("valor_custo", None)
+        dados.pop("valor", None)
+    return dados
+
+
+def _filtrar_dashboard_por_permissao(
+    dashboard: dict, current_user: dict[str, Any]
+) -> dict:
+    if usuario_tem_permissao(current_user, "ver_custos"):
+        dashboard["ocultar_custos"] = False
+        return dashboard
+
+    dashboard["ocultar_custos"] = True
+    resumo = dashboard.get("resumo", {})
+    for campo in (
+        "custo_total_mes",
+        "custo_total_geral",
+        "qtd_com_custo",
+        "qtd_sem_custo",
+    ):
+        resumo.pop(campo, None)
+
+    for item in dashboard.get("evolucao_mensal", []):
+        item.pop("custo", None)
+    for item in dashboard.get("top_origens", []):
+        item.pop("custo", None)
+    return dashboard
+
+
 def validar_e_formatar_data(v: Union[str, date, None]) -> str:
     """Converte de forma flexível datas enviadas como String (ISO, BR) ou Objeto date."""
     if not v:
@@ -180,12 +233,14 @@ class TeamMemberCreateSchema(BaseModel):
     email: str
     senha: str
     role: Optional[str] = "tecnico"
+    permissoes: Optional[dict[str, bool]] = None
 
 
 class TeamMemberUpdateSchema(BaseModel):
     nome: Optional[str] = None
     role: Optional[str] = None
     ativo: Optional[bool] = None
+    permissoes: Optional[dict[str, bool]] = None
 
 
 class TenantSettingsSchema(BaseModel):
@@ -362,6 +417,7 @@ def obter_sessao_atual(current_user: dict[str, Any] = Depends(get_current_user))
     return {
         "user": sanitizar_usuario(current_user),
         "tenant": sanitizar_tenant(current_user["tenant"]),
+        "permissions_catalog": PERMISSIONS_CATALOG,
     }
 
 
@@ -374,16 +430,17 @@ def obter_sessao_atual(current_user: dict[str, Any] = Depends(get_current_user))
 def obter_dashboard(
     mes: Optional[int] = Query(None, ge=1, le=12),
     ano: Optional[int] = Query(None, ge=2000, le=2100),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(require_permission("ver_dashboard")),
 ):
     try:
         tenant = current_user["tenant"]
-        return ColetaModel.obter_dashboard(
+        dados = ColetaModel.obter_dashboard(
             tenant_id=current_user["tenant_id"],
             mes=mes,
             ano=ano,
             sla_dias=tenant.get("sla_dias", 3),
         )
+        return _filtrar_dashboard_por_permissao(dados, current_user)
     except Exception:
         logger.exception("Erro ao calcular métricas do dashboard")
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
@@ -428,7 +485,9 @@ def listar_equipamentos(
                 )
             ]
 
-        return [serializar_registro(dict(item)) for item in dados]
+        return [
+            _filtrar_registro_por_permissao(item, current_user) for item in dados
+        ]
     except Exception:
         logger.exception("Erro ao listar equipamentos")
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
@@ -447,7 +506,7 @@ def obter_equipamento(
             raise HTTPException(
                 status_code=404, detail=obter_mensagem_erro("NOT_FOUND")
             )
-        return serializar_registro(dict(dados))
+        return _filtrar_registro_por_permissao(dados, current_user)
     except HTTPException:
         raise
     except Exception:
@@ -458,7 +517,7 @@ def obter_equipamento(
 @app.post("/api/equipamentos")
 def criar_entrada(
     payload: Union[EntradaSchema, List[EntradaSchema]],
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(require_permission("registrar_entrada")),
 ):
     """Endpoint flexível: aceita um único objeto de entrada ou uma lista em lote."""
     tenant_id = current_user["tenant_id"]
@@ -514,11 +573,33 @@ def criar_entrada(
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
+def _resolver_custo_saida(
+    registro_id: int,
+    status_custo: Optional[str],
+    valor_informado: Any,
+    current_user: dict[str, Any],
+) -> tuple[str, Any]:
+    if usuario_tem_permissao(current_user, "ver_custos"):
+        return status_custo or "Sem Custo", valor_informado
+
+    existente = ColetaModel.buscar_por_id(
+        registro_id, tenant_id=current_user["tenant_id"]
+    )
+    if not existente:
+        raise HTTPException(
+            status_code=404, detail=obter_mensagem_erro("NOT_FOUND")
+        )
+    return (
+        existente.get("status_custo") or "Sem Custo",
+        existente.get("valor_custo") or 0.0,
+    )
+
+
 @app.put("/api/equipamentos/{registro_id}/saida")
 def registrar_saida(
     registro_id: int,
     payload: SaidaSchema,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(require_permission("registrar_saida")),
 ):
     try:
         valor_informado = (
@@ -526,13 +607,16 @@ def registrar_saida(
             if payload.valor_custo is not None
             else payload.valor
         )
+        status_custo_final, valor_final = _resolver_custo_saida(
+            registro_id, payload.status_custo, valor_informado, current_user
+        )
         atualizado = ColetaModel.registrar_saida(
             registro_id=registro_id,
             tecnico_entrega=payload.tecnico_entrega,
             data_entrega=payload.data_entrega,
             os_entrega=payload.os_entrega,
-            status_custo=payload.status_custo,
-            valor_custo=valor_informado,
+            status_custo=status_custo_final,
+            valor_custo=valor_final,
             resolucao=payload.resolucao,
             laudado=payload.laudado,
             tenant_id=current_user["tenant_id"],
@@ -571,19 +655,30 @@ def atualizar_equipamento_unificado(
             "Entregue",
             "Finalizado",
         ]:
+            if not usuario_tem_permissao(current_user, "registrar_saida"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Você não possui permissão para dar saída em equipamentos.",
+                )
             saida_data = SaidaSchema(**payload)
             valor_informado = (
                 saida_data.valor_custo
                 if saida_data.valor_custo is not None
                 else saida_data.valor
             )
+            status_custo_final, valor_final = _resolver_custo_saida(
+                registro_id,
+                saida_data.status_custo,
+                valor_informado,
+                current_user,
+            )
             atualizado = ColetaModel.registrar_saida(
                 registro_id=registro_id,
                 tecnico_entrega=saida_data.tecnico_entrega,
                 data_entrega=saida_data.data_entrega,
                 os_entrega=saida_data.os_entrega,
-                status_custo=saida_data.status_custo,
-                valor_custo=valor_informado,
+                status_custo=status_custo_final,
+                valor_custo=valor_final,
                 resolucao=saida_data.resolucao,
                 laudado=saida_data.laudado,
                 tenant_id=tenant_id,
@@ -598,6 +693,11 @@ def atualizar_equipamento_unificado(
                 "mensagem": "Saída registrada com sucesso.",
             }
 
+        if not usuario_tem_permissao(current_user, "editar_entrada"):
+            raise HTTPException(
+                status_code=403,
+                detail="Você não possui permissão para editar dados de entrada.",
+            )
         entrada_data = EntradaSchema(**payload)
         atualizado = ColetaModel.atualizar_entrada(
             registro_id=registro_id,
@@ -637,7 +737,7 @@ def atualizar_equipamento_unificado(
 @app.delete("/api/equipamentos/{registro_id}")
 def deletar_equipamento(
     registro_id: int,
-    current_user: dict[str, Any] = Depends(require_admin),
+    current_user: dict[str, Any] = Depends(require_permission("excluir_registros")),
 ):
     """Exclui um registro da empresa atual (permitido apenas para administradores)."""
     try:
@@ -675,7 +775,7 @@ def deletar_equipamento(
 
 @app.get("/api/empresa/usuarios")
 def listar_usuarios_empresa(
-    current_user: dict[str, Any] = Depends(require_admin),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_equipe")),
 ):
     try:
         return _get_auth_service().list_team_members(current_user)
@@ -689,7 +789,7 @@ def listar_usuarios_empresa(
 @app.post("/api/empresa/usuarios")
 def criar_usuario_empresa(
     payload: TeamMemberCreateSchema,
-    current_user: dict[str, Any] = Depends(require_admin),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_equipe")),
 ):
     try:
         membro = _get_auth_service().create_team_member(
@@ -698,6 +798,7 @@ def criar_usuario_empresa(
             email=payload.email,
             senha=payload.senha,
             role=payload.role or "tecnico",
+            permissoes=payload.permissoes,
         )
         return {"sucesso": True, "usuario": membro}
     except AuthorizationError as aze:
@@ -713,7 +814,7 @@ def criar_usuario_empresa(
 def atualizar_usuario_empresa(
     uid: str,
     payload: TeamMemberUpdateSchema,
-    current_user: dict[str, Any] = Depends(require_admin),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_equipe")),
 ):
     try:
         membro = _get_auth_service().update_team_member(
@@ -722,6 +823,7 @@ def atualizar_usuario_empresa(
             nome=payload.nome,
             role=payload.role,
             ativo=payload.ativo,
+            permissoes=payload.permissoes,
         )
         return {"sucesso": True, "usuario": membro}
     except AuthorizationError as aze:
@@ -738,7 +840,7 @@ def atualizar_usuario_empresa(
 @app.put("/api/empresa/configuracoes")
 def atualizar_configuracoes_empresa(
     payload: TenantSettingsSchema,
-    current_user: dict[str, Any] = Depends(require_admin),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_equipe")),
 ):
     try:
         tenant = _get_auth_service().update_tenant_settings(
@@ -762,7 +864,7 @@ def atualizar_configuracoes_empresa(
 @app.post("/api/empresa/importar")
 def importar_dados_empresa(
     payload: ImportarDadosSchema,
-    current_user: dict[str, Any] = Depends(require_admin),
+    current_user: dict[str, Any] = Depends(require_permission("importar_exportar_dados")),
 ):
     """Importa registros em JSON, CSV ou Excel (.xlsx) para a empresa do administrador."""
     try:
@@ -835,7 +937,7 @@ def importar_dados_empresa(
 @app.get("/api/empresa/exportar")
 def exportar_dados_empresa(
     formato: str = Query("json"),
-    current_user: dict[str, Any] = Depends(require_admin),
+    current_user: dict[str, Any] = Depends(require_permission("importar_exportar_dados")),
 ):
     """Exporta todos os registros da empresa em JSON ou CSV (Excel PT-BR)."""
     try:
@@ -872,7 +974,7 @@ def exportar_dados_empresa(
 @app.get("/api/empresa/modelo-importacao")
 def baixar_modelo_importacao(
     formato: str = Query("csv"),
-    _current_user: dict[str, Any] = Depends(require_admin),
+    _current_user: dict[str, Any] = Depends(require_permission("importar_exportar_dados")),
 ):
     try:
         conteudo, media_type, filename = gerar_modelo_importacao(formato)
@@ -896,11 +998,12 @@ def gerar_relatorio_pdf(
     mes: Optional[int] = Query(None, ge=1, le=12),
     ano: Optional[int] = Query(None, ge=2000, le=2100),
     anonimizar: bool = Query(False),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(require_permission("exportar_pdf")),
 ):
     try:
         tenant_id = current_user["tenant_id"]
         nome_empresa = current_user["tenant"].get("nome") or "SysFix"
+        ocultar_custos = not usuario_tem_permissao(current_user, "ver_custos")
         tipo_normalizado = tipo.strip().lower()
 
         if tipo_normalizado == "mensal":
@@ -915,6 +1018,7 @@ def gerar_relatorio_pdf(
                 anonimizar=anonimizar,
                 tenant_id=tenant_id,
                 nome_empresa=nome_empresa,
+                ocultar_custos=ocultar_custos,
             )
             filename = f"Relatorio_SysFix_{mes:02d}_{ano}.pdf"
         elif tipo_normalizado == "pendentes":
@@ -922,6 +1026,7 @@ def gerar_relatorio_pdf(
                 anonimizar=anonimizar,
                 tenant_id=tenant_id,
                 nome_empresa=nome_empresa,
+                ocultar_custos=ocultar_custos,
             )
             filename = "Relatorio_SysFix_Pendentes.pdf"
         elif tipo_normalizado == "geral":
@@ -929,6 +1034,7 @@ def gerar_relatorio_pdf(
                 anonimizar=anonimizar,
                 tenant_id=tenant_id,
                 nome_empresa=nome_empresa,
+                ocultar_custos=ocultar_custos,
             )
             filename = "Relatorio_SysFix_Geral.pdf"
         else:

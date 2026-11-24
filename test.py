@@ -12,6 +12,7 @@ from fastapi import HTTPException
 
 import app as app_module
 import auth as auth_module
+import automation_cyber
 import models
 import ops_modules
 from auth import AuthService, LocalTenantUserStore, OnboardingRequiredError
@@ -1512,17 +1513,34 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
         sector_keys = [s["key"] for s in me["permission_sectors"]]
         self.assertEqual(
             sector_keys,
-            ["ti", "provedor", "estoque", "laudos", "financeiro", "administracao"],
+            [
+                "ti",
+                "provedor",
+                "estoque",
+                "automacao",
+                "ciberseguranca",
+                "laudos",
+                "financeiro",
+                "administracao",
+            ],
         )
         self.assertIn("estoquista", me["role_presets"])
         self.assertIn("tecnico_isp", me["role_presets"])
         self.assertIn("tecnico_ti", me["role_presets"])
+        self.assertIn("tecnico_automacao", me["role_presets"])
+        self.assertIn("analista_cyber", me["role_presets"])
 
         # Configurar setores ativos da empresa (desabilita tudo -> deve falhar; desabilita só provedor -> aceita)
         with self.assertRaises(HTTPException) as ctx_empty_sec:
             app_module.atualizar_configuracoes_empresa(
                 app_module.TenantSettingsSchema(
-                    setores_ativos={"ti": False, "provedor": False, "estoque": False}
+                    setores_ativos={
+                        "ti": False,
+                        "provedor": False,
+                        "estoque": False,
+                        "automacao": False,
+                        "ciberseguranca": False,
+                    }
                 ),
                 current_user=admin,
             )
@@ -1631,6 +1649,347 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx_isp_est:
             app_module.require_permission("gerenciar_estoque")(isp_user)
         self.assertEqual(ctx_isp_est.exception.status_code, 403)
+
+
+class AutomationAndCyberSecurityTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
+        self.original_backend = os.environ.get("SYSFIX_BACKEND")
+        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
+
+        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
+        os.environ["SYSFIX_BACKEND"] = "local"
+        os.environ["SYSFIX_SECRET_KEY"] = "test-secret-key"
+
+        self.db_path = Path(self.temp_dir.name) / "test_db.json"
+        self.auth_db_path = Path(self.temp_dir.name) / "test_auth.json"
+        self.sec_ops_path = Path(self.temp_dir.name) / "test_sec_ops.json"
+
+        self.original_store = models._store
+        self.original_get_auth_service = app_module._get_auth_service
+        self.original_get_sec_ops_service = app_module._get_security_ops_service
+
+        models._store = JsonStore(self.db_path)
+        models._store.ensure()
+        self.user_store = LocalTenantUserStore(self.auth_db_path)
+        self.user_store.ensure()
+        self.auth_service = AuthService(user_store=self.user_store, backend_override="local")
+        self.sec_ops_store = automation_cyber.LocalSecurityOpsStore(self.sec_ops_path)
+        app_module._get_auth_service = lambda: self.auth_service
+        app_module._get_security_ops_service = (
+            lambda: automation_cyber.AutomationCyberService(store=self.sec_ops_store)
+        )
+
+    def tearDown(self):
+        models._store = self.original_store
+        app_module._get_auth_service = self.original_get_auth_service
+        app_module._get_security_ops_service = self.original_get_sec_ops_service
+        for key, old in (
+            ("SYSFIX_DATA_DIR", self.original_data_dir),
+            ("SYSFIX_BACKEND", self.original_backend),
+            ("SYSFIX_SECRET_KEY", self.original_secret),
+        ):
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        self.temp_dir.cleanup()
+
+    def test_automacao_crud_conformidade_e_pdf(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="AutomaSec Ltda",
+                nome_usuario="Gestor Chefe",
+                email="gestor@automasec.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        # Cria técnico apenas de Automação
+        aut_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        aut_perms.update(auth_module.ROLE_PRESETS["tecnico_automacao"]["permissoes"])
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Técnico CFTV",
+                email="aut@automasec.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=aut_perms,
+            ),
+            current_user=admin,
+        )
+        tok = app_module.login_usuario(
+            app_module.LoginSchema(email="aut@automasec.com", senha="secret123")
+        )["token"]
+        tec = app_module.get_current_user(f"Bearer {tok}")
+
+        # Bloqueado em Cibersegurança
+        with self.assertRaises(HTTPException) as ctx_block:
+            app_module.require_permission("ver_ciberseguranca")(tec)
+        self.assertEqual(ctx_block.exception.status_code, 403)
+
+        # Cria câmera sem senha padrão alterada e sem firmware -> Crítico automático
+        cam = app_module.criar_ativo_automacao_api(
+            app_module.AutomacaoAtivoSchema(
+                pilar="cameras",
+                nome="Câmera Portaria Norte",
+                subtipo="IP Bullet PoE",
+                localizacao="Portaria",
+                ip_mac="10.20.30.15",
+                vlan="30",
+                fabricante_modelo="Intelbras VIP",
+                firmware="v2.1",
+                senha_padrao_alterada=False,
+                firmware_atualizado=False,
+                rede_segmentada=False,
+                energia_backup_ok=True,
+                monitoramento_ativo=False,
+            ),
+            current_user=app_module.require_permission("gerenciar_automacao")(tec),
+        )
+        self.assertEqual(cam["item"]["status_auditoria"], "Crítico")
+
+        # Cria central de alarme 100% conforme
+        app_module.criar_ativo_automacao_api(
+            app_module.AutomacaoAtivoSchema(
+                pilar="alarmes",
+                nome="Central Active 32 Duo",
+                subtipo="Alarme Monitorado",
+                localizacao="CPD",
+                ip_mac="10.20.40.10",
+                vlan="40",
+                fabricante_modelo="JFL",
+                senha_padrao_alterada=True,
+                firmware_atualizado=True,
+                rede_segmentada=True,
+                energia_backup_ok=True,
+                monitoramento_ativo=True,
+            ),
+            current_user=app_module.require_permission("gerenciar_automacao")(tec),
+        )
+
+        lst = app_module.listar_ativos_automacao(
+            current_user=app_module.require_permission("ver_automacao")(tec)
+        )
+        self.assertEqual(lst["resumo"]["total_ativos"], 2)
+        self.assertEqual(lst["resumo"]["criticos"], 1)
+        self.assertEqual(lst["resumo"]["conformes"], 1)
+
+        pdf = app_module.baixar_relatorio_automacao_pdf(
+            current_user=app_module.require_permission("ver_automacao")(tec)
+        )
+        self.assertEqual(pdf.media_type, "application/pdf")
+        self.assertTrue(pdf.body.startswith(b"%PDF"))
+
+    def test_ciberseguranca_governanca_anti_ssrf_auditoria_coletor_cis_e_kb(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="CyberCorp",
+                nome_usuario="CISO Admin",
+                email="ciso@cybercorp.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        # Cria analista Cyber
+        cyb_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        cyb_perms.update(auth_module.ROLE_PRESETS["analista_cyber"]["permissoes"])
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Analista SOC",
+                email="soc@cybercorp.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=cyb_perms,
+            ),
+            current_user=admin,
+        )
+        tok = app_module.login_usuario(
+            app_module.LoginSchema(email="soc@cybercorp.com", senha="secret123")
+        )["token"]
+        soc = app_module.get_current_user(f"Bearer {tok}")
+
+        # 1. Técnico não-admin não pode alterar governança
+        with self.assertRaises(HTTPException) as ctx_gov_non_admin:
+            app_module.require_admin(soc)
+        self.assertEqual(ctx_gov_non_admin.exception.status_code, 403)
+
+        # 2. Auditoria bloqueada antes do gestor liberar
+        with self.assertRaises(HTTPException) as ctx_locked:
+            app_module.executar_auditoria_cyber_api(
+                app_module.CyberExecutarAuditoriaSchema(alvo="192.168.50.0/29"),
+                current_user=app_module.require_permission("executar_auditoria_rede")(soc),
+            )
+        self.assertEqual(ctx_locked.exception.status_code, 403)
+
+        # 3. Admin tenta colocar localhost/metadata no escopo ou habilita com escopo válido
+        gov = app_module.atualizar_governanca_cyber_api(
+            app_module.CyberGovernancaSchema(
+                permitir_auditoria_rede=True,
+                escopo_autorizado=["192.168.50.0/29", "portal.cybercorp.local"],
+                observacao_termo="Autorizado pelo CISO para rede interna",
+            ),
+            current_user=app_module.require_admin(admin),
+        )
+        self.assertTrue(gov["governanca"]["permitir_auditoria_rede"])
+        soc = app_module.get_current_user(f"Bearer {tok}")
+
+        # Anti-SSRF: loopback / metadata / alvo fora do escopo devem ser bloqueados mesmo após liberação
+        for bad_target in ("127.0.0.1", "169.254.169.254", "8.8.8.8"):
+            with self.assertRaises(HTTPException) as ctx_ssrf:
+                app_module.executar_auditoria_cyber_api(
+                    app_module.CyberExecutarAuditoriaSchema(
+                        alvo=bad_target,
+                        tipo_auditoria="rede_privada",
+                    ),
+                    current_user=app_module.require_permission("executar_auditoria_rede")(soc),
+                )
+            self.assertEqual(ctx_ssrf.exception.status_code, 403)
+
+        # 4. Executa auditoria autorizada simulada (mock do engine para zero acesso de rede no teste)
+        orig_scan = automation_cyber.NetworkAuditEngine.auditar_rede_privada
+        try:
+            automation_cyber.NetworkAuditEngine.auditar_rede_privada = classmethod(
+                lambda cls, cidr: {
+                    "alvo": cidr,
+                    "hosts_ativos": 2,
+                    "portas_expostas": 2,
+                    "detalhes": {
+                        "cidr": cidr,
+                        "hosts": [{"ip": "192.168.50.1", "portas": [{"porta": 23}, {"porta": 443}]}],
+                    },
+                    "achados_detectados": [
+                        {
+                            "titulo": "Porta Telnet (23) exposta em 192.168.50.1",
+                            "severidade": "Crítica",
+                            "categoria": "Superfície de Rede",
+                            "alvo": "192.168.50.1",
+                            "recomendacao": "Desativar Telnet e migrar para SSHv2.",
+                        }
+                    ],
+                    "score": 70,
+                }
+            )
+            exec_res = app_module.executar_auditoria_cyber_api(
+                app_module.CyberExecutarAuditoriaSchema(
+                    alvo="192.168.50.0/29",
+                    tipo_auditoria="rede_privada",
+                    registrar_achados=True,
+                ),
+                current_user=app_module.require_permission("executar_auditoria_rede")(soc),
+            )
+            self.assertEqual(exec_res["auditoria"]["score"], 70)
+            self.assertEqual(exec_res["achados_criados"], 1)
+        finally:
+            automation_cyber.NetworkAuditEngine.auditar_rede_privada = orig_scan
+
+        # 5. Coletor LAN e importação JSON
+        coletor_ps1 = app_module.baixar_coletor_cyber_api(
+            formato="ps1",
+            current_user=app_module.require_permission("ver_ciberseguranca")(soc),
+        )
+        self.assertIn("Escopo autorizado", coletor_ps1.body.decode("utf-8"))
+
+        imp = app_module.importar_auditoria_cyber_api(
+            app_module.CyberImportarAuditoriaSchema(
+                payload={
+                    "alvo": "LAN-MATRIZ",
+                    "hosts": [
+                        {
+                            "ip": "192.168.1.254",
+                            "portas": [{"porta": 21}, {"porta": 80}, {"porta": 443}],
+                            "hostname": "gw-matriz",
+                        }
+                    ],
+                }
+            ),
+            current_user=app_module.require_permission("gerenciar_auditoria_cyber")(soc),
+        )
+        self.assertGreaterEqual(imp["achados_criados"], 1)
+
+        # 6. Checklist CIS/NIST + Base de Conhecimento + PDF Executivo
+        chk = app_module.obter_checklist_cyber_api(soc)
+        self.assertGreaterEqual(len(chk), 6)
+        chk[0]["status"] = "Conforme"
+        chk[1]["status"] = "Conforme"
+        saved_chk = app_module.salvar_checklist_cyber_api(
+            app_module.CyberChecklistSaveSchema(itens=chk),
+            current_user=app_module.require_permission("gerenciar_auditoria_cyber")(soc),
+        )
+        self.assertEqual(saved_chk["itens"][0]["status"], "Conforme")
+
+        kb = app_module.listar_conhecimento_cyber_api(busca="Zero Trust", current_user=soc)
+        self.assertGreaterEqual(len(kb), 1)
+        app_module.criar_conhecimento_cyber_api(
+            app_module.CyberConhecimentoSchema(
+                titulo="Hardening Mikrotik ISP",
+                categoria="ISP & BGP",
+                resumo="Boas práticas de borda",
+                conteudo="Desativar IP Services não usados e aplicar bogons.",
+                tags="isp,mikrotik",
+            ),
+            current_user=app_module.require_permission("gerenciar_auditoria_cyber")(soc),
+        )
+
+        # Mitiga achado manual e testa PDF
+        ach_res = app_module.criar_achado_cyber_api(
+            app_module.CyberAchadoSchema(
+                titulo="Backup sem teste de restore",
+                severidade="Média",
+                categoria="Continuidade",
+                alvo="NAS-01",
+                recomendacao="Testar restore mensalmente.",
+            ),
+            current_user=app_module.require_permission("gerenciar_auditoria_cyber")(soc),
+        )
+        upd_ach = app_module.atualizar_achado_cyber_api(
+            ach_res["item"]["id"],
+            app_module.CyberAchadoSchema(status="Resolvido"),
+            current_user=app_module.require_permission("gerenciar_auditoria_cyber")(soc),
+        )
+        self.assertEqual(upd_ach["item"]["status"], "Resolvido")
+
+        resumo = app_module.obter_resumo_cyber_api(soc)
+        self.assertGreater(resumo["maturidade_percent"], 0)
+        self.assertGreaterEqual(resumo["total_auditorias"], 2)
+
+        pdf = app_module.baixar_relatorio_cyber_pdf(
+            current_user=app_module.require_permission("exportar_pdf")(soc)
+        )
+        self.assertEqual(pdf.media_type, "application/pdf")
+        self.assertTrue(pdf.body.startswith(b"%PDF"))
+
+    def test_firestore_security_ops_store_compat(self):
+        fake_db = FakeFirestoreDB()
+        fs_store = automation_cyber.FirestoreSecurityOpsStore(fake_db)
+        svc = automation_cyber.AutomationCyberService(store=fs_store)
+
+        ativo = svc.criar_ativo_automacao(
+            "tenant_fs",
+            {
+                "pilar": "iot",
+                "nome": "Controlador Zigbee",
+                "senha_padrao_alterada": True,
+                "firmware_atualizado": True,
+                "rede_segmentada": True,
+                "energia_backup_ok": True,
+                "monitoramento_ativo": True,
+            },
+            actor="Admin",
+        )
+        self.assertEqual(ativo["status_auditoria"], "Conforme")
+        self.assertEqual(len(svc.listar_automacao("tenant_fs")), 1)
+
+        ach = svc.criar_achado(
+            "tenant_fs",
+            {"titulo": "Teste FS", "severidade": "Baixa"},
+            actor="Admin",
+        )
+        self.assertEqual(ach["titulo"], "Teste FS")
+        self.assertEqual(len(svc.listar_achados("tenant_fs")), 1)
 
 
 if __name__ == "__main__":

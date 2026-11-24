@@ -73,3 +73,77 @@ html.dark option {
   background-color: #141024;
   color: #f4f1ff;
 }
+
+/* ============================================================================
+   MINI SERES TECNOLÓGICOS CARREGANDO PACOTES (SETOR CIBERSEGURANÇA)
+   ============================================================================ */
+.cyber-bots-track {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.08) 0%, rgba(147, 51, 234, 0.16) 50%, rgba(79, 70, 229, 0.08) 100%);
+}
+
+html.dark .cyber-bots-track {
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.12) 0%, rgba(124, 58, 237, 0.24) 50%, rgba(79, 70, 229, 0.12) 100%);
+}
+
+.cyber-data-stream {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(139, 92, 246, 0.35) 0 12px,
+    transparent 12px 24px
+  );
+  background-size: 48px 2px;
+  animation: streamSlide 1.8s linear infinite;
+}
+
+.cyber-bots-track.scanning .cyber-data-stream {
+  animation-duration: 0.55s;
+}
+
+.cyber-bot-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.cyber-bot-card:hover {
+  transform: translateY(-3px);
+}
+
+.cyber-bot-svg {
+  animation: botBounce 2.2s ease-in-out infinite;
+}
+
+.cyber-bot-card:nth-child(2) .cyber-bot-svg { animation-delay: 0.25s; }
+.cyber-bot-card:nth-child(3) .cyber-bot-svg { animation-delay: 0.5s; }
+.cyber-bot-card:nth-child(4) .cyber-bot-svg { animation-delay: 0.75s; }
+.cyber-bot-card:nth-child(5) .cyber-bot-svg { animation-delay: 1s; }
+
+.cyber-bots-track.scanning .cyber-bot-svg {
+  animation-duration: 0.65s;
+}
+
+.cyber-packet {
+  animation: packetFloat 1.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.cyber-bots-track.scanning .cyber-packet {
+  animation-duration: 0.6s;
+}
+
+@keyframes botBounce {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-3px) rotate(-1.5deg); }
+  50% { transform: translateY(0px) rotate(0deg); }
+  75% { transform: translateY(-2px) rotate(1.5deg); }
+}
+
+@keyframes packetFloat {
+  0%, 100% { transform: translateY(0px) scale(1); opacity: 0.92; }
+  50% { transform: translateY(-2.5px) scale(1.06); opacity: 1; }
+}
+
+@keyframes streamSlide {
+  from { background-position: 0 0; }
+  to { background-position: 48px 0; }
+}

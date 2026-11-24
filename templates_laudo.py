@@ -22,7 +22,12 @@ CATEGORIAS_EQUIPAMENTO = [
     "Desktop / PC",
     "Impressora",
     "Servidor / Rack",
-    "Câmera / DVR / NVR",
+    "CFTV / Câmera IP",
+    "DVR / NVR",
+    "Central de Alarme",
+    "Controle de Acesso / Biometria",
+    "Dispositivo IoT / Sensor",
+    "Automação Predial / CLP",
     "Rádio / Antena PTP",
     "Outro",
 ]

@@ -430,6 +430,21 @@ function temAcessoSetorEstoque() {
   );
 }
 
+function temAcessoSetorAutomacao() {
+  return setorEmpresaAtivo('automacao') && (
+    temPermissao('ver_automacao') ||
+    temPermissao('gerenciar_automacao')
+  );
+}
+
+function temAcessoSetorCyber() {
+  return setorEmpresaAtivo('ciberseguranca') && (
+    temPermissao('ver_ciberseguranca') ||
+    temPermissao('gerenciar_auditoria_cyber') ||
+    temPermissao('executar_auditoria_rede')
+  );
+}
+
 function aplicarPermissoesNaUI() {
   const podeDashboard = temPermissao('ver_dashboard');
   const podeCustos = temPermissao('ver_custos');
@@ -453,6 +468,13 @@ function aplicarPermissoesNaUI() {
   const podeEstoque = temAcessoSetorEstoque();
   const podeGerirEstoque = temPermissao('gerenciar_estoque');
 
+  const podeAutomacao = temAcessoSetorAutomacao();
+  const podeGerirAutomacao = podeAutomacao && temPermissao('gerenciar_automacao');
+
+  const podeCyber = temAcessoSetorCyber();
+  const podeExecutarCyber = podeCyber && temPermissao('executar_auditoria_rede');
+  const podeGerirCyber = podeCyber && temPermissao('gerenciar_auditoria_cyber');
+
   const setHidden = (id, hide) => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', Boolean(hide));
@@ -462,6 +484,8 @@ function aplicarPermissoesNaUI() {
   setHidden('navBtnEquipamentos', !podeTI);
   setHidden('navBtnProvedor', !podeProvedor);
   setHidden('navBtnEstoque', !podeEstoque);
+  setHidden('navBtnAutomacao', !podeAutomacao);
+  setHidden('navBtnCyber', !podeCyber);
   setHidden('navBtnEmpresa', !podeEquipe && !podeBackup && !podeModelos);
   setHidden('btnExportarPdfHeader', !podePdf);
 
@@ -523,6 +547,24 @@ function aplicarPermissoesNaUI() {
   setHidden('kpiEstValorCard', !podeCustos);
   setHidden('grupoCustoEstoque', !podeCustos);
   setHidden('thCustoEstoque', !podeCustos);
+
+  setHidden('formCriarAutomacao', !podeGerirAutomacao);
+  setHidden('btnPdfAutomacao', !podePdf);
+  const cardListaAut = document.getElementById('cardListaAutomacao');
+  if (cardListaAut) {
+    cardListaAut.classList.toggle('lg:col-span-2', podeGerirAutomacao);
+    cardListaAut.classList.toggle('lg:col-span-3', !podeGerirAutomacao);
+  }
+
+  setHidden('formExecutarAuditoriaCyber', !podeExecutarCyber);
+  setHidden('formCriarAchadoCyber', !podeGerirCyber);
+  setHidden('formCriarKbCyber', !podeGerirCyber);
+  setHidden('btnPdfCyber', !podePdf);
+  const isAdminCyber = sessaoAtual?.user?.role === 'admin';
+  setHidden('btnCyberTab_governanca', !isAdminCyber);
+  if (!isAdminCyber && typeof cyberSubTabAtual !== 'undefined' && cyberSubTabAtual === 'governanca') {
+    setHidden('cyberTab_governanca', true);
+  }
 }
 
 function aplicarSessaoNaUI() {
@@ -562,7 +604,11 @@ function aplicarSessaoNaUI() {
       ? 'equipamentos'
       : (temAcessoSetorProvedor()
         ? 'provedor'
-        : (temAcessoSetorEstoque() ? 'estoque' : 'empresa')));
+        : (temAcessoSetorEstoque()
+          ? 'estoque'
+          : (temAcessoSetorAutomacao()
+            ? 'automacao'
+            : (temAcessoSetorCyber() ? 'cyber' : 'empresa')))));
   alternarVisao(primeiraVisao);
   if (temAcessoSetorTI() || temAcessoSetorProvedor()) {
     carregarLista('nao_finalizados');
@@ -764,6 +810,8 @@ function alternarVisao(visao) {
   toggleView('viewEquipamentos', visao === 'equipamentos');
   toggleView('viewProvedor', visao === 'provedor');
   toggleView('viewEstoque', visao === 'estoque');
+  toggleView('viewAutomacao', visao === 'automacao');
+  toggleView('viewCyber', visao === 'cyber');
   toggleView('viewEmpresa', visao === 'empresa');
 
   const active = 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all';
@@ -777,6 +825,8 @@ function alternarVisao(visao) {
   setBtnClass('navBtnEquipamentos', visao === 'equipamentos');
   setBtnClass('navBtnProvedor', visao === 'provedor');
   setBtnClass('navBtnEstoque', visao === 'estoque');
+  setBtnClass('navBtnAutomacao', visao === 'automacao');
+  setBtnClass('navBtnCyber', visao === 'cyber');
   setBtnClass('navBtnEmpresa', visao === 'empresa');
 
   if (visao === 'dashboard') {
@@ -785,6 +835,10 @@ function alternarVisao(visao) {
     carregarPainelProvedor();
   } else if (visao === 'estoque' && typeof carregarEstoqueOps === 'function') {
     carregarEstoqueOps();
+  } else if (visao === 'automacao' && typeof carregarPainelAutomacao === 'function') {
+    carregarPainelAutomacao();
+  } else if (visao === 'cyber' && typeof carregarPainelCyber === 'function') {
+    carregarPainelCyber();
   } else if (visao === 'empresa') {
     carregarTelaEmpresa();
   }
@@ -979,6 +1033,12 @@ function criarCardHtmlEntrada(labelTitulo, dados = {}, mostrarRemover = true) {
     ['Desktop / PC', 'Desktop / PC'],
     ['Impressora', 'Impressora'],
     ['Servidor / Rack', 'Servidor / Rack'],
+    ['CFTV / Câmera IP', 'CFTV / Câmera IP'],
+    ['DVR / NVR', 'DVR / NVR'],
+    ['Central de Alarme', 'Central de Alarme'],
+    ['Controle de Acesso / Biometria', 'Controle de Acesso / Biometria'],
+    ['Dispositivo IoT / Sensor', 'Dispositivo IoT / Sensor'],
+    ['Automação Predial / CLP', 'Automação Predial / CLP'],
     ['Câmera / DVR / NVR', 'Câmera / DVR / NVR'],
     ['Rádio / Antena PTP', 'Rádio / Antena PTP'],
     ['Outro', 'Outro']
@@ -1686,11 +1746,23 @@ async function carregarTelaEmpresa() {
     document.getElementById('emp_nome').value = tenant.nome || '';
     document.getElementById('emp_sla').value = tenant.sla_dias || 3;
     document.getElementById('emp_locs').value = (tenant.localizacoes || []).join('\n');
-    const setores = tenant.setores_ativos || { ti: true, provedor: true, estoque: true };
+    const setores = tenant.setores_ativos || {
+      ti: true,
+      provedor: true,
+      estoque: true,
+      automacao: true,
+      ciberseguranca: true
+    };
     if (document.getElementById('setor_ativo_ti')) {
       document.getElementById('setor_ativo_ti').checked = setores.ti !== false;
       document.getElementById('setor_ativo_provedor').checked = setores.provedor !== false;
       document.getElementById('setor_ativo_estoque').checked = setores.estoque !== false;
+      if (document.getElementById('setor_ativo_automacao')) {
+        document.getElementById('setor_ativo_automacao').checked = setores.automacao !== false;
+      }
+      if (document.getElementById('setor_ativo_ciberseguranca')) {
+        document.getElementById('setor_ativo_ciberseguranca').checked = setores.ciberseguranca !== false;
+      }
     }
     renderizarCheckboxesPermissoesNovoMembro();
     await carregarUsuariosEmpresa();
@@ -1706,6 +1778,8 @@ function obterSetoresPermissoes() {
     { key: 'ti', label: '🖥️ TI & Bancada (O.S.)', descricao: 'Atendimento e manutenção de TI.' },
     { key: 'provedor', label: '📡 Provedor (ISP / NOC)', descricao: 'Comodato CPEs, preventivas e POPs.' },
     { key: 'estoque', label: '📦 Estoque & Almoxarifado', descricao: 'Peças, insumos e baixas.' },
+    { key: 'automacao', label: '🤖 Automação, CFTV & IoT', descricao: 'Auditoria de câmeras, infra, IoT e alarmes.' },
+    { key: 'ciberseguranca', label: '🛡️ Cibersegurança & Auditoria', descricao: 'Auditoria autorizada, achados e CIS/NIST.' },
     { key: 'laudos', label: '📄 Laudos & Documentos', descricao: 'Laudos, comprovantes e link cliente.' },
     { key: 'financeiro', label: '💰 Financeiro & Indicadores', descricao: 'Dashboard e custos.' },
     { key: 'administracao', label: '🏢 Administração', descricao: 'Modelos, equipe e backups.' }
@@ -1726,6 +1800,11 @@ function obterCatalogoPermissoes() {
     { key: 'ver_estoque', setor: 'estoque', label: 'Consultar Estoque', descricao: 'Saldo e almoxarifados', default_tecnico: true },
     { key: 'movimentar_estoque', setor: 'estoque', label: 'Movimentar / Dar Baixa na O.S.', descricao: 'Entradas e saídas vinculadas', default_tecnico: true },
     { key: 'gerenciar_estoque', setor: 'estoque', label: 'Cadastrar e Excluir Itens', descricao: 'Criar SKUs e excluir itens', default_tecnico: false },
+    { key: 'ver_automacao', setor: 'automacao', label: 'Acessar Setor Automação & CFTV', descricao: 'Auditoria de câmeras, infra, IoT e alarmes', default_tecnico: true },
+    { key: 'gerenciar_automacao', setor: 'automacao', label: 'Auditar & Alterar Ativos Automação', descricao: 'Criar, atualizar e excluir ativos auditados', default_tecnico: true },
+    { key: 'ver_ciberseguranca', setor: 'ciberseguranca', label: 'Acessar Cibersegurança & Conhecimento', descricao: 'Consultar achados, CIS/NIST e guias', default_tecnico: false },
+    { key: 'gerenciar_auditoria_cyber', setor: 'ciberseguranca', label: 'Gerenciar Achados, CIS & Playbooks', descricao: 'Mitigar achados, checklists e guias', default_tecnico: false },
+    { key: 'executar_auditoria_rede', setor: 'ciberseguranca', label: 'Executar Auditoria Ativa (Se Autorizada)', descricao: 'Disparar varredura no escopo aprovado', default_tecnico: false },
     { key: 'gerenciar_laudos', setor: 'laudos', label: 'Emitir e Anexar Laudos', descricao: 'Laudos e pareceres em PDF', default_tecnico: true },
     { key: 'compartilhar_os', setor: 'laudos', label: 'Comprovante, Link e Assinatura', descricao: 'Link público, orçamento e WhatsApp', default_tecnico: true },
     { key: 'exportar_pdf', setor: 'laudos', label: 'Exportar Relatórios PDF', descricao: 'Gerar PDF consolidado', default_tecnico: true },
@@ -1792,9 +1871,11 @@ function obterMapaPreset(presetKey) {
   const fallback = {
     tecnico_ti: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true },
     tecnico_isp: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, gerenciar_laudos: true, compartilhar_os: true },
+    tecnico_automacao: { ver_automacao: true, gerenciar_automacao: true, ver_estoque: true, movimentar_estoque: true, gerenciar_laudos: true, exportar_pdf: true },
+    analista_cyber: { ver_ciberseguranca: true, gerenciar_auditoria_cyber: true, executar_auditoria_rede: true, ver_automacao: true, ver_dashboard: true, exportar_pdf: true },
     estoquista: { ver_estoque: true, movimentar_estoque: true, gerenciar_estoque: true },
-    financeiro_gestor: { ver_dashboard: true, ver_custos: true, exportar_pdf: true, ver_ti: true, ver_provedor: true, ver_estoque: true },
-    operacional_sem_custos: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
+    financeiro_gestor: { ver_dashboard: true, ver_custos: true, exportar_pdf: true, ver_ti: true, ver_provedor: true, ver_estoque: true, ver_automacao: true, ver_ciberseguranca: true },
+    operacional_sem_custos: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, ver_automacao: true, gerenciar_automacao: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
   };
   return fallback[presetKey] || null;
 }
@@ -1837,6 +1918,8 @@ async function salvarConfiguracoesEmpresa(event) {
     ti: Boolean(document.getElementById('setor_ativo_ti')?.checked),
     provedor: Boolean(document.getElementById('setor_ativo_provedor')?.checked),
     estoque: Boolean(document.getElementById('setor_ativo_estoque')?.checked),
+    automacao: Boolean(document.getElementById('setor_ativo_automacao')?.checked),
+    ciberseguranca: Boolean(document.getElementById('setor_ativo_ciberseguranca')?.checked),
   };
 
   try {

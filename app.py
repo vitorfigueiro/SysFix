@@ -36,6 +36,7 @@ from importer import (
 from mensagens import obter_mensagem_erro
 from models import ColetaModel
 from ops_modules import OpsModulesService
+from automation_cyber import AutomationCyberService
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
 from reports import PDFReportGenerator
 from templates_laudo import (
@@ -97,6 +98,10 @@ def _get_auth_service() -> AuthService:
 
 def _get_ops_service() -> OpsModulesService:
     return OpsModulesService()
+
+
+def _get_security_ops_service() -> AutomationCyberService:
+    return AutomationCyberService()
 
 
 def require_any_permission(*perm_keys: str):
@@ -395,6 +400,63 @@ class ClientePopSchema(BaseModel):
     telefone: Optional[str] = None
     endereco: Optional[str] = None
     observacoes: Optional[str] = None
+
+
+class AutomacaoAtivoSchema(BaseModel):
+    pilar: Optional[str] = None
+    nome: Optional[str] = None
+    subtipo: Optional[str] = None
+    localizacao: Optional[str] = None
+    ip_mac: Optional[str] = None
+    vlan: Optional[str] = None
+    fabricante_modelo: Optional[str] = None
+    firmware: Optional[str] = None
+    senha_padrao_alterada: Optional[bool] = None
+    firmware_atualizado: Optional[bool] = None
+    rede_segmentada: Optional[bool] = None
+    energia_backup_ok: Optional[bool] = None
+    monitoramento_ativo: Optional[bool] = None
+    status_auditoria: Optional[str] = None
+    observacoes: Optional[str] = None
+    ultima_auditoria: Optional[Union[str, date]] = None
+
+
+class CyberGovernancaSchema(BaseModel):
+    permitir_auditoria_rede: bool = False
+    escopo_autorizado: List[str] = []
+    observacao_termo: Optional[str] = ""
+
+
+class CyberExecutarAuditoriaSchema(BaseModel):
+    alvo: str
+    tipo_auditoria: str = "web_tls"
+    registrar_achados: bool = True
+
+
+class CyberImportarAuditoriaSchema(BaseModel):
+    payload: dict
+
+
+class CyberAchadoSchema(BaseModel):
+    titulo: Optional[str] = None
+    severidade: Optional[str] = "Média"
+    categoria: Optional[str] = "Geral"
+    alvo: Optional[str] = ""
+    status: Optional[str] = "Aberto"
+    recomendacao: Optional[str] = ""
+
+
+class CyberChecklistSaveSchema(BaseModel):
+    itens: List[dict]
+
+
+class CyberConhecimentoSchema(BaseModel):
+    titulo: str
+    categoria: Optional[str] = "Playbook Interno"
+    nivel: Optional[str] = "Operacional"
+    resumo: Optional[str] = ""
+    conteudo: str
+    tags: Optional[Union[str, List[str]]] = ""
 
 
 class EntradaSchema(BaseModel):
@@ -2004,6 +2066,335 @@ def excluir_cliente_ops(
     if not _get_ops_service().excluir_cliente(current_user["tenant_id"], item_id):
         raise HTTPException(status_code=404, detail="Cliente/POP não encontrado.")
     return {"sucesso": True}
+
+
+# ==============================================================================
+# SETOR AUTOMAÇÃO (CÂMERAS, INFRAESTRUTURA, IOT & ALARMES) E CIBERSEGURANÇA
+# ==============================================================================
+
+
+@app.get("/api/automacao/ativos")
+def listar_ativos_automacao(
+    pilar: Optional[str] = None,
+    current_user: dict[str, Any] = Depends(require_permission("ver_automacao")),
+):
+    svc = _get_security_ops_service()
+    return {
+        "resumo": svc.resumo_automacao(current_user["tenant_id"]),
+        "ativos": svc.listar_automacao(current_user["tenant_id"], pilar=pilar),
+    }
+
+
+@app.post("/api/automacao/ativos")
+def criar_ativo_automacao_api(
+    payload: AutomacaoAtivoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_automacao")),
+):
+    try:
+        dados = payload.model_dump()
+        if isinstance(dados.get("ultima_auditoria"), date):
+            dados["ultima_auditoria"] = dados["ultima_auditoria"].strftime("%Y-%m-%d")
+        item = _get_security_ops_service().criar_ativo_automacao(
+            current_user["tenant_id"],
+            dados,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "item": item}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao criar ativo de automação")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.patch("/api/automacao/ativos/{item_id}")
+def atualizar_ativo_automacao_api(
+    item_id: str,
+    payload: AutomacaoAtivoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_automacao")),
+):
+    try:
+        dados = payload.model_dump(exclude_unset=True)
+        item = _get_security_ops_service().atualizar_ativo_automacao(
+            current_user["tenant_id"],
+            item_id,
+            dados,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not item:
+            raise HTTPException(status_code=404, detail="Ativo de automação não encontrado.")
+        return {"sucesso": True, "item": item}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao atualizar ativo de automação")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.delete("/api/automacao/ativos/{item_id}")
+def excluir_ativo_automacao_api(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_automacao")),
+):
+    if not _get_security_ops_service().excluir_ativo_automacao(
+        current_user["tenant_id"], item_id
+    ):
+        raise HTTPException(status_code=404, detail="Ativo de automação não encontrado.")
+    return {"sucesso": True}
+
+
+@app.get("/api/automacao/relatorio/pdf")
+def baixar_relatorio_automacao_pdf(
+    current_user: dict[str, Any] = Depends(require_permission("ver_automacao")),
+):
+    try:
+        ativos = _get_security_ops_service().listar_automacao(current_user["tenant_id"])
+        pdf_buf = PDFReportGenerator.relatorio_auditoria_automacao(
+            ativos, tenant=current_user["tenant"]
+        )
+        return Response(
+            content=pdf_buf.getvalue(),
+            media_type="application/pdf",
+            headers={'Content-Disposition': 'inline; filename="Auditoria_Automacao_SysFix.pdf"'},
+        )
+    except Exception:
+        logger.exception("Erro ao gerar relatório PDF de automação")
+        raise HTTPException(status_code=500, detail="Erro ao gerar relatório de automação.")
+
+
+@app.get("/api/cyber/resumo")
+def obter_resumo_cyber_api(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().resumo_cyber(current_user["tenant"])
+
+
+@app.put("/api/cyber/governanca")
+def atualizar_governanca_cyber_api(
+    payload: CyberGovernancaSchema,
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    try:
+        tenant = _get_auth_service().update_cyber_governance(
+            admin_ctx=current_user,
+            permitir_auditoria_rede=payload.permitir_auditoria_rede,
+            escopo_autorizado=payload.escopo_autorizado,
+            observacao_termo=payload.observacao_termo or "",
+        )
+        return {"sucesso": True, "tenant": tenant, "governanca": tenant["cyber_governanca"]}
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao atualizar governança de cibersegurança")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/cyber/auditorias")
+def listar_auditorias_cyber_api(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_auditorias(current_user["tenant_id"])
+
+
+@app.post("/api/cyber/auditorias/executar")
+def executar_auditoria_cyber_api(
+    payload: CyberExecutarAuditoriaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("executar_auditoria_rede")),
+):
+    try:
+        res = _get_security_ops_service().executar_auditoria_rede(
+            tenant=current_user["tenant"],
+            alvo=payload.alvo,
+            tipo_auditoria=payload.tipo_auditoria,
+            registrar_achados=payload.registrar_achados,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, **res}
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao executar auditoria de cibersegurança")
+        raise HTTPException(status_code=500, detail="Erro ao executar auditoria defensiva.")
+
+
+@app.post("/api/cyber/auditorias/importar")
+def importar_auditoria_cyber_api(
+    payload: CyberImportarAuditoriaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    try:
+        res = _get_security_ops_service().importar_auditoria_json(
+            tenant_id=current_user["tenant_id"],
+            payload=payload.payload,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, **res}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao importar JSON de auditoria")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/cyber/coletor")
+def baixar_coletor_cyber_api(
+    formato: str = Query("ps1"),
+    current_user: dict[str, Any] = Depends(require_permission("executar_auditoria_rede")),
+):
+    try:
+        from automation_cyber import NetworkAuditEngine
+
+        escopo = (current_user["tenant"].get("cyber_governanca") or {}).get("escopo_autorizado") or []
+        conteudo, media_type, filename = NetworkAuditEngine.gerar_script_coletor_local(formato, escopo)
+        return Response(
+            content=conteudo,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.get("/api/cyber/achados")
+def listar_achados_cyber_api(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_achados(current_user["tenant_id"])
+
+
+@app.post("/api/cyber/achados")
+def criar_achado_cyber_api(
+    payload: CyberAchadoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    try:
+        item = _get_security_ops_service().criar_achado(
+            current_user["tenant_id"],
+            payload.model_dump(),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "item": item}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.patch("/api/cyber/achados/{item_id}")
+def atualizar_achado_cyber_api(
+    item_id: str,
+    payload: CyberAchadoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    try:
+        item = _get_security_ops_service().atualizar_achado(
+            current_user["tenant_id"], item_id, payload.model_dump(exclude_unset=True)
+        )
+        if not item:
+            raise HTTPException(status_code=404, detail="Achado não encontrado.")
+        return {"sucesso": True, "item": item}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.delete("/api/cyber/achados/{item_id}")
+def excluir_achado_cyber_api(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    if not _get_security_ops_service().excluir_achado(current_user["tenant_id"], item_id):
+        raise HTTPException(status_code=404, detail="Achado não encontrado.")
+    return {"sucesso": True}
+
+
+@app.get("/api/cyber/checklist")
+def obter_checklist_cyber_api(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().obter_checklist_cyber(current_user["tenant_id"])
+
+
+@app.put("/api/cyber/checklist")
+def salvar_checklist_cyber_api(
+    payload: CyberChecklistSaveSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    try:
+        itens = _get_security_ops_service().salvar_checklist_cyber(
+            current_user["tenant_id"],
+            payload.itens,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "itens": itens}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.get("/api/cyber/conhecimento")
+def listar_conhecimento_cyber_api(
+    busca: Optional[str] = "",
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_conhecimento(
+        current_user["tenant_id"], busca=busca or ""
+    )
+
+
+@app.post("/api/cyber/conhecimento")
+def criar_conhecimento_cyber_api(
+    payload: CyberConhecimentoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    try:
+        item = _get_security_ops_service().criar_artigo_conhecimento(
+            current_user["tenant_id"],
+            payload.model_dump(),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "item": item}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.delete("/api/cyber/conhecimento/{item_id}")
+def excluir_conhecimento_cyber_api(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    if not _get_security_ops_service().excluir_artigo_conhecimento(
+        current_user["tenant_id"], item_id
+    ):
+        raise HTTPException(status_code=404, detail="Artigo não encontrado.")
+    return {"sucesso": True}
+
+
+@app.get("/api/cyber/relatorio/pdf")
+def baixar_relatorio_cyber_pdf(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    try:
+        svc = _get_security_ops_service()
+        tid = current_user["tenant_id"]
+        pdf_buf = PDFReportGenerator.relatorio_auditoria_cyber(
+            auditorias=svc.listar_auditorias(tid),
+            achados=svc.listar_achados(tid),
+            checklist=svc.obter_checklist_cyber(tid),
+            tenant=current_user["tenant"],
+        )
+        return Response(
+            content=pdf_buf.getvalue(),
+            media_type="application/pdf",
+            headers={'Content-Disposition': 'inline; filename="Auditoria_Ciberseguranca_SysFix.pdf"'},
+        )
+    except Exception:
+        logger.exception("Erro ao gerar relatório PDF de cibersegurança")
+        raise HTTPException(status_code=500, detail="Erro ao gerar relatório de cibersegurança.")
 
 
 if __name__ == "__main__":

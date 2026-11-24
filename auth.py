@@ -37,6 +37,8 @@ DEFAULT_ACTIVE_SECTORS: dict[str, bool] = {
     "ti": True,
     "provedor": True,
     "estoque": True,
+    "automacao": True,
+    "ciberseguranca": True,
 }
 
 PERMISSION_SECTORS = [
@@ -54,6 +56,16 @@ PERMISSION_SECTORS = [
         "key": "estoque",
         "label": "📦 Estoque & Almoxarifado",
         "descricao": "Controle de peças, insumos, almoxarifados e baixas vinculadas à O.S.",
+    },
+    {
+        "key": "automacao",
+        "label": "🤖 Automação, CFTV & IoT",
+        "descricao": "Auditoria de câmeras, infraestrutura, sensores IoT e alarmes de segurança.",
+    },
+    {
+        "key": "ciberseguranca",
+        "label": "🛡️ Cibersegurança & Auditoria",
+        "descricao": "Auditoria defensiva autorizada, vulnerabilidades, CIS/NIST/LGPD e playbooks.",
     },
     {
         "key": "laudos",
@@ -151,6 +163,43 @@ PERMISSIONS_CATALOG = [
         "setor": "estoque",
         "label": "Cadastrar e Excluir Itens",
         "descricao": "Criar novos SKUs, definir estoque mínimo e remover itens.",
+        "default_tecnico": False,
+    },
+    # --- SETOR: AUTOMAÇÃO, CFTV & IOT ---
+    {
+        "key": "ver_automacao",
+        "setor": "automacao",
+        "label": "Consultar Auditoria de Automação",
+        "descricao": "Visualizar câmeras, infraestrutura, dispositivos IoT e alarmes.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "gerenciar_automacao",
+        "setor": "automacao",
+        "label": "Auditar & Cadastrar Automação/IoT",
+        "descricao": "Registrar e auditar CFTV, infraestrutura, IoT e alarmes.",
+        "default_tecnico": True,
+    },
+    # --- SETOR: CIBERSEGURANÇA & AUDITORIA ---
+    {
+        "key": "ver_ciberseguranca",
+        "setor": "ciberseguranca",
+        "label": "Acessar Painel & Base Cyber",
+        "descricao": "Consultar maturidade, checklists CIS/NIST/LGPD e base de conhecimento.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "gerenciar_auditoria_cyber",
+        "setor": "ciberseguranca",
+        "label": "Gerir Achados, Checklists & KB",
+        "descricao": "Registrar vulnerabilidades, atualizar controles e importar coletas LAN.",
+        "default_tecnico": False,
+    },
+    {
+        "key": "executar_auditoria_rede",
+        "setor": "ciberseguranca",
+        "label": "Executar Auditoria Ativa (c/ Gestor)",
+        "descricao": "Disparar auditorias de rede/TLS dentro do escopo autorizado pelo gestor.",
         "default_tecnico": False,
     },
     # --- SETOR: LAUDOS, DOCUMENTOS & CLIENTE ---
@@ -306,6 +355,33 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
         "label": "⚙️ Técnico Padrão",
         "descricao": "Configuração padrão equilibrada.",
         "permissoes": dict(DEFAULT_TECH_PERMISSIONS),
+    },
+    "tecnico_automacao": {
+        "label": "🤖 Técnico Automação / CFTV",
+        "descricao": "Auditoria de câmeras, infra, IoT, alarmes, O.S. de bancada e laudos.",
+        "permissoes": {
+            "ver_ti": True,
+            "registrar_entrada": True,
+            "editar_entrada": True,
+            "registrar_saida": True,
+            "ver_automacao": True,
+            "gerenciar_automacao": True,
+            "gerenciar_laudos": True,
+            "compartilhar_os": True,
+        },
+    },
+    "analista_cyber": {
+        "label": "🛡️ Analista Cibersegurança",
+        "descricao": "Auditorias autorizadas pelo gestor, achados, checklists e base de conhecimento.",
+        "permissoes": {
+            "ver_ciberseguranca": True,
+            "gerenciar_auditoria_cyber": True,
+            "executar_auditoria_rede": True,
+            "ver_automacao": True,
+            "ver_ti": True,
+            "ver_provedor": True,
+            "exportar_pdf": True,
+        },
     },
 }
 
@@ -463,6 +539,14 @@ def sanitizar_tenant(tenant: dict) -> dict:
         for key in DEFAULT_ACTIVE_SECTORS:
             if key in setores_raw:
                 setores[key] = bool(setores_raw[key])
+    gov_raw = tenant.get("cyber_governanca")
+    gov = {
+        "permitir_auditoria_rede": bool(gov_raw.get("permitir_auditoria_rede")) if isinstance(gov_raw, dict) else False,
+        "escopo_autorizado": list(gov_raw.get("escopo_autorizado") or []) if isinstance(gov_raw, dict) else [],
+        "observacao_termo": str(gov_raw.get("observacao_termo") or "") if isinstance(gov_raw, dict) else "",
+        "autorizado_por": str(gov_raw.get("autorizado_por") or "") if isinstance(gov_raw, dict) else "",
+        "autorizado_em": str(gov_raw.get("autorizado_em") or "") if isinstance(gov_raw, dict) else "",
+    }
     return {
         "id": tenant.get("id", ""),
         "nome": tenant.get("nome", "SysFix"),
@@ -471,6 +555,7 @@ def sanitizar_tenant(tenant: dict) -> dict:
         "sla_dias": int(tenant.get("sla_dias") or 3),
         "localizacoes": list(tenant.get("localizacoes") or DEFAULT_LOCATIONS),
         "setores_ativos": setores,
+        "cyber_governanca": gov,
         "cnpj": tenant.get("cnpj", ""),
         "telefone": tenant.get("telefone", ""),
         "endereco": tenant.get("endereco", ""),
@@ -764,6 +849,13 @@ class AuthService:
             "sla_dias": 3,
             "localizacoes": list(DEFAULT_LOCATIONS),
             "setores_ativos": dict(DEFAULT_ACTIVE_SECTORS),
+            "cyber_governanca": {
+                "permitir_auditoria_rede": False,
+                "escopo_autorizado": [],
+                "observacao_termo": "",
+                "autorizado_por": "",
+                "autorizado_em": "",
+            },
             "cnpj": "",
             "telefone": "",
             "endereco": "",
@@ -1148,6 +1240,47 @@ class AuthService:
             return sanitizar_tenant(tenant)
 
         updated = self.user_store.update_tenant(user_ctx["tenant_id"], updates)
+        if not updated:
+            raise LookupError("Empresa não encontrada.")
+        return sanitizar_tenant(updated)
+
+    def update_cyber_governance(
+        self,
+        admin_ctx: dict[str, Any],
+        permitir_auditoria_rede: bool,
+        escopo_autorizado: list[str] | None = None,
+        observacao_termo: str = "",
+    ) -> dict[str, Any]:
+        if admin_ctx.get("role") != "admin":
+            raise AuthorizationError(
+                "Apenas administradores/gestores podem autorizar auditorias de rede."
+            )
+
+        escopo_limpo: list[str] = []
+        vistos: set[str] = set()
+        for item in escopo_autorizado or []:
+            txt = SecurityValidator.sanitizar_texto(item)
+            if txt and txt.lower() not in vistos:
+                vistos.add(txt.lower())
+                escopo_limpo.append(txt[:120])
+
+        permitir = bool(permitir_auditoria_rede)
+        if permitir and not escopo_limpo:
+            raise ValueError(
+                "Para habilitar auditorias de rede, informe pelo menos uma faixa privada (ex.: 192.168.1.0/24) ou domínio autorizado."
+            )
+
+        autor = admin_ctx.get("nome") or admin_ctx.get("email") or "Gestor"
+        gov = {
+            "permitir_auditoria_rede": permitir,
+            "escopo_autorizado": escopo_limpo[:30],
+            "observacao_termo": SecurityValidator.sanitizar_texto(observacao_termo)[:300],
+            "autorizado_por": SecurityValidator.sanitizar_texto(autor) if permitir else "",
+            "autorizado_em": _now_iso() if permitir else "",
+        }
+        updated = self.user_store.update_tenant(
+            admin_ctx["tenant_id"], {"cyber_governanca": gov}
+        )
         if not updated:
             raise LookupError("Empresa não encontrada.")
         return sanitizar_tenant(updated)

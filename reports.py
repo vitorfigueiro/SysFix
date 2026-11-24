@@ -973,3 +973,180 @@ class PDFReportGenerator:
         doc.build(elements)
         buffer.seek(0)
         return buffer
+
+    @classmethod
+    def relatorio_auditoria_automacao(
+        cls,
+        ativos: list[dict],
+        tenant: dict | None = None,
+    ) -> io.BytesIO:
+        """Gera relatório PDF timbrado da auditoria do setor Automação (CFTV, Infra, IoT, Alarmes)."""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=32, bottomMargin=32
+        )
+        styles = getSampleStyleSheet()
+        cor_hex = cls._cor_tema_hex(tenant)
+        sec_style = ParagraphStyle(
+            "AutSec", parent=styles["Normal"], fontSize=8.5, leading=11, fontName="Helvetica-Bold", textColor=colors.whitesmoke
+        )
+        cell_st = ParagraphStyle(
+            "AutCell", parent=styles["Normal"], fontSize=8, leading=10.5, textColor=colors.HexColor("#1E293B")
+        )
+        footer_st = ParagraphStyle(
+            "AutFooter", parent=styles["Normal"], fontSize=8, leading=10, alignment=1, textColor=colors.HexColor("#64748B")
+        )
+
+        total = len(ativos)
+        conformes = sum(1 for a in ativos if a.get("status_auditoria") == "Conforme")
+        criticos = sum(1 for a in ativos if a.get("status_auditoria") == "Crítico")
+        taxa = round((conformes / total) * 100, 1) if total > 0 else 100.0
+
+        elements = cls._construir_cabecalho_timbrado(
+            tenant,
+            titulo_doc="AUDITORIA DE AUTOMAÇÃO, CFTV & IOT",
+            subtitulo_doc=f"Ativos: {total} | Conformidade: {taxa}% | Críticos: {criticos} • {datetime.now().strftime('%d/%m/%Y')}",
+            cor_hex=cor_hex,
+        )
+
+        if not ativos:
+            elements.append(Spacer(1, 16))
+            elements.append(Paragraph("Nenhum ativo de automação cadastrado até o momento.", cell_st))
+            doc.build(elements)
+            buffer.seek(0)
+            return buffer
+
+        rows = [[
+            Paragraph("Pilar", sec_style),
+            Paragraph("Dispositivo / Local", sec_style),
+            Paragraph("IP / MAC / VLAN", sec_style),
+            Paragraph("Firmware / Modelo", sec_style),
+            Paragraph("Status", sec_style),
+        ]]
+        for a in ativos:
+            rows.append([
+                cls._safe_paragraph(a.get("pilar"), cell_st),
+                cls._safe_paragraph(f"{a.get('nome') or '-'} ({a.get('localizacao') or '-'})", cell_st),
+                cls._safe_paragraph(f"{a.get('ip_mac') or '-'} / {a.get('vlan') or '-'}", cell_st),
+                cls._safe_paragraph(f"{a.get('fabricante_modelo') or '-'} {a.get('firmware') or ''}", cell_st),
+                cls._safe_paragraph(a.get("status_auditoria") or "Alerta", cell_st),
+            ])
+
+        tbl = Table(rows, colWidths=[72, 165, 115, 108, 63], repeatRows=1)
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F3FF")]),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDD6FE")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        elements.extend([tbl, Spacer(1, 14)])
+        rodape = (tenant or {}).get("rodape_documento") or "Relatório de Auditoria Técnica de Automação — SysFix"
+        elements.append(Paragraph(html.escape(rodape), footer_st))
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer
+
+    @classmethod
+    def relatorio_auditoria_cyber(
+        cls,
+        auditorias: list[dict],
+        achados: list[dict],
+        checklist: list[dict],
+        tenant: dict | None = None,
+    ) -> io.BytesIO:
+        """Gera relatório executivo PDF de Cibersegurança, achados e controles CIS/NIST/LGPD."""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=32, bottomMargin=32
+        )
+        styles = getSampleStyleSheet()
+        cor_hex = cls._cor_tema_hex(tenant)
+        sec_style = ParagraphStyle(
+            "CybSec", parent=styles["Normal"], fontSize=8.5, leading=11, fontName="Helvetica-Bold", textColor=colors.whitesmoke
+        )
+        cell_st = ParagraphStyle(
+            "CybCell", parent=styles["Normal"], fontSize=8, leading=10.5, textColor=colors.HexColor("#1E293B")
+        )
+        footer_st = ParagraphStyle(
+            "CybFooter", parent=styles["Normal"], fontSize=8, leading=10, alignment=1, textColor=colors.HexColor("#64748B")
+        )
+
+        abertos = [a for a in achados if a.get("status") in {"Aberto", "Em Mitigação"}]
+        conformes = sum(1 for c in checklist if c.get("status") == "Conforme")
+
+        elements = cls._construir_cabecalho_timbrado(
+            tenant,
+            titulo_doc="RELATÓRIO EXECUTIVO DE CIBERSEGURANÇA",
+            subtitulo_doc=f"Auditorias: {len(auditorias)} | Achados Abertos: {len(abertos)} | Controles Conformes: {conformes}/{len(checklist)}",
+            cor_hex=cor_hex,
+        )
+
+        if achados:
+            ach_rows = [[
+                Paragraph("Sev.", sec_style),
+                Paragraph("Achado / Risco", sec_style),
+                Paragraph("Alvo", sec_style),
+                Paragraph("Recomendação", sec_style),
+                Paragraph("Status", sec_style),
+            ]]
+            for a in achados[:35]:
+                ach_rows.append([
+                    cls._safe_paragraph(a.get("severidade"), cell_st),
+                    cls._safe_paragraph(a.get("titulo"), cell_st),
+                    cls._safe_paragraph(a.get("alvo") or "-", cell_st),
+                    cls._safe_paragraph(a.get("recomendacao") or "-", cell_st),
+                    cls._safe_paragraph(a.get("status"), cell_st),
+                ])
+            t_ach = Table(ach_rows, colWidths=[52, 155, 85, 173, 58], repeatRows=1)
+            t_ach.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F3FF")]),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDD6FE")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            elements.extend([t_ach, Spacer(1, 12)])
+
+        if checklist:
+            chk_rows = [[
+                Paragraph("Framework", sec_style),
+                Paragraph("Controle de Segurança", sec_style),
+                Paragraph("Status", sec_style),
+            ]]
+            for c in checklist:
+                chk_rows.append([
+                    cls._safe_paragraph(c.get("framework"), cell_st),
+                    cls._safe_paragraph(c.get("controle"), cell_st),
+                    cls._safe_paragraph(c.get("status"), cell_st),
+                ])
+            t_chk = Table(chk_rows, colWidths=[95, 345, 83], repeatRows=1)
+            t_chk.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F3FF")]),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDD6FE")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            elements.extend([t_chk, Spacer(1, 12)])
+
+        rodape = (tenant or {}).get("rodape_documento") or "Relatório de Postura e Auditoria Defensiva — SysFix"
+        elements.append(Paragraph(html.escape(rodape), footer_st))
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer

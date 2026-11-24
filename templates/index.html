@@ -47,7 +47,7 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/static/theme.css?v=2.2.1">
+  <link rel="stylesheet" href="/static/theme.css?v=2.3.0">
 </head>
 <body class="h-screen flex flex-col overflow-hidden relative bg-[#F6F4FC] dark:bg-[#0B0816] text-[#1C1635] dark:text-[#F4F1FF]">
 
@@ -219,6 +219,12 @@
           </button>
           <button id="navBtnEstoque" onclick="alternarVisao('estoque')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
             📦 Estoque
+          </button>
+          <button id="navBtnAutomacao" onclick="alternarVisao('automacao')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
+            🤖 Automação &amp; CFTV
+          </button>
+          <button id="navBtnCyber" onclick="alternarVisao('cyber')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
+            🛡️ Cibersegurança
           </button>
           <button id="navBtnEmpresa" onclick="alternarVisao('empresa')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
             🏢 Empresa &amp; Equipe
@@ -495,6 +501,12 @@
                       <option value="Desktop / PC">Desktop / PC</option>
                       <option value="Impressora">Impressora</option>
                       <option value="Servidor / Rack">Servidor / Rack</option>
+                      <option value="CFTV / Câmera IP">CFTV / Câmera IP</option>
+                      <option value="DVR / NVR">DVR / NVR</option>
+                      <option value="Central de Alarme">Central de Alarme</option>
+                      <option value="Controle de Acesso / Biometria">Controle de Acesso / Biometria</option>
+                      <option value="Dispositivo IoT / Sensor">Dispositivo IoT / Sensor</option>
+                      <option value="Automação Predial / CLP">Automação Predial / CLP</option>
                       <option value="Câmera / DVR / NVR">Câmera / DVR / NVR</option>
                       <option value="Rádio / Antena PTP">Rádio / Antena PTP</option>
                       <option value="Outro">Outro</option>
@@ -1049,6 +1061,359 @@
     </section>
 
     <!-- ==================================================================== -->
+    <!-- VISÃO 2C: AUTOMAÇÃO, CFTV, INFRAESTRUTURA, IOT & ALARMES             -->
+    <!-- ==================================================================== -->
+    <section id="viewAutomacao" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
+      <div class="max-w-7xl mx-auto space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🤖 Setor Automação, CFTV, IoT &amp; Segurança Eletrônica</h2>
+            <p class="text-xs text-slate-500 dark:text-violet-300/80">Auditoria técnica de câmeras IP/NVR, infraestrutura predial, aparelhos IoT e centrais de alarme/acesso.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-800">
+              <button id="btnAutTabTodas" type="button" onclick="alternarAutomacaoPilar('todas')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">Todos</button>
+              <button id="btnAutTabCameras" type="button" onclick="alternarAutomacaoPilar('cameras')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📷 Câmeras / CFTV</button>
+              <button id="btnAutTabInfra" type="button" onclick="alternarAutomacaoPilar('infraestrutura')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🏗️ Infraestrutura</button>
+              <button id="btnAutTabIot" type="button" onclick="alternarAutomacaoPilar('iot')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🌐 IoT &amp; Sensores</button>
+              <button id="btnAutTabAlarmes" type="button" onclick="alternarAutomacaoPilar('alarmes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🚨 Alarmes &amp; Acesso</button>
+            </div>
+            <button id="btnPdfAutomacao" type="button" onclick="baixarRelatorioAutomacaoPdf()" class="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              📄 Relatório PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Ativos Auditados</span>
+            <div id="kpiAutTotal" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">0</div>
+          </div>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-emerald-600 uppercase">Taxa de Conformidade</span>
+            <div id="kpiAutTaxa" class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">100%</div>
+          </div>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-amber-600 uppercase">Em Alerta</span>
+            <div id="kpiAutAlertas" class="text-2xl font-extrabold text-amber-600 mt-1">0</div>
+          </div>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-rose-600 uppercase">Risco Crítico</span>
+            <div id="kpiAutCriticos" class="text-2xl font-extrabold text-rose-600 mt-1">0</div>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-5">
+          <form id="formCriarAutomacao" onsubmit="criarAtivoAutomacao(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2.5 text-xs">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Nova Auditoria de Automação</h3>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Pilar / Domínio *</label>
+              <select id="aut_pilar" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                <option value="cameras">📷 Câmeras / CFTV &amp; NVR</option>
+                <option value="infraestrutura">🏗️ Infraestrutura &amp; Rack</option>
+                <option value="iot">🌐 Aparelhos IoT &amp; Sensores</option>
+                <option value="alarmes">🚨 Alarme &amp; Controle de Acesso</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Nome / Identificação *</label>
+              <input type="text" id="aut_nome" required placeholder="Ex: Câmera Portaria 01 / Central JFL" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Subtipo</label>
+                <input type="text" id="aut_subtipo" placeholder="IP PoE / NVR / Zigbee" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Localização</label>
+                <input type="text" id="aut_loc" placeholder="Bloco A / Garagem" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">IP / MAC</label>
+                <input type="text" id="aut_ip_mac" placeholder="10.20.0.50 / AA:BB..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">VLAN</label>
+                <input type="text" id="aut_vlan" placeholder="Ex: 30 (CFTV)" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Fabricante / Modelo</label>
+                <input type="text" id="aut_modelo" placeholder="Intelbras VIP / Hikvision" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Firmware</label>
+                <input type="text" id="aut_firmware" placeholder="v2.800.00" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-1.5">
+              <span class="block text-[11px] font-bold text-violet-800 dark:text-violet-200">Checklist de Hardening &amp; Segurança</span>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="aut_chk_senha" class="rounded text-violet-600"><span>Senha padrão alterada + credencial forte</span></label>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="aut_chk_fw" class="rounded text-violet-600"><span>Firmware atualizado / sem CVE crítica</span></label>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="aut_chk_vlan" class="rounded text-violet-600"><span>Rede segmentada (VLAN / ACL isolada)</span></label>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="aut_chk_energia" class="rounded text-violet-600"><span>Nobreak / PoE / Bateria de backup OK</span></label>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="aut_chk_mon" class="rounded text-violet-600"><span>Logs, NTP e monitoramento ativos</span></label>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Observações Técnicas</label>
+              <textarea id="aut_obs" rows="2" placeholder="Ex: UPnP desativado, gravação 30 dias em NVR RAID..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-sm">
+              💾 Salvar Auditoria do Ativo
+            </button>
+          </form>
+
+          <div id="cardListaAutomacao" class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-violet-100 dark:border-violet-900/60 flex flex-wrap justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Inventário Auditado</h3>
+              <input type="text" id="aut_busca" oninput="renderizarTabelaAutomacao()" placeholder="🔎 Buscar por nome, IP, VLAN, modelo..." class="px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none w-64">
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-violet-50/70 dark:bg-[#1C1633] text-[10px] font-bold uppercase text-violet-700 dark:text-violet-300">
+                  <tr>
+                    <th class="p-3">Pilar</th>
+                    <th class="p-3">Ativo / Modelo</th>
+                    <th class="p-3">IP / VLAN</th>
+                    <th class="p-3">Checks</th>
+                    <th class="p-3">Status</th>
+                    <th class="p-3 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaAutomacaoAtivos" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- VISÃO 2D: CIBERSEGURANÇA, AUDITORIA AUTORIZADA & MINI SERES          -->
+    <!-- ==================================================================== -->
+    <section id="viewCyber" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
+      <div class="max-w-7xl mx-auto space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🛡️ Setor Cibersegurança, Auditoria &amp; Governança</h2>
+            <p class="text-xs text-slate-500 dark:text-violet-300/80">Auditoria defensiva autorizada pelo gestor, gestão de vulnerabilidades, conformidade CIS v8/NIST/OWASP/LGPD e base de conhecimento.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-800">
+              <button id="btnCyberTab_auditoria" type="button" onclick="alternarCyberTab('auditoria')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">🔍 Auditoria de Rede</button>
+              <button id="btnCyberTab_achados" type="button" onclick="alternarCyberTab('achados')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🐞 Vulnerabilidades</button>
+              <button id="btnCyberTab_checklists" type="button" onclick="alternarCyberTab('checklists')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📋 CIS / NIST / LGPD</button>
+              <button id="btnCyberTab_conhecimento" type="button" onclick="alternarCyberTab('conhecimento')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📚 Conhecimento</button>
+              <button id="btnCyberTab_governanca" type="button" onclick="alternarCyberTab('governanca')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🔐 Governança</button>
+            </div>
+            <button id="btnPdfCyber" type="button" onclick="baixarRelatorioCyberPdf()" class="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              📄 Relatório PDF
+            </button>
+          </div>
+        </div>
+
+        <!-- Menu Interativo de Mini Seres Tecnológicos Carregando Pacotes -->
+        <div id="cyberBotsTrack" class="cyber-bots-track rounded-2xl border border-violet-300/80 dark:border-violet-800/80 bg-gradient-to-r from-violet-100/90 via-fuchsia-50/90 to-indigo-100/90 dark:from-[#161029] dark:via-[#1E1438] dark:to-[#141024] p-4 shadow-sm">
+          <div class="cyber-data-stream rounded-full mb-3"></div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-extrabold uppercase tracking-wider">Esquadrão de Pacotes</span>
+              <span class="text-xs font-bold text-violet-950 dark:text-violet-100">Clique em um mini ser tecnológico para navegar nos módulos de Cibersegurança</span>
+            </div>
+            <button id="btnMinimizarCyberBots" type="button" onclick="alternarMinimizarCyberBots()" class="px-2.5 py-1 rounded-lg bg-white/90 dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-[11px] font-bold text-violet-700 dark:text-violet-200">
+              Minimizar
+            </button>
+          </div>
+          <div id="cyberBotsBody" class="grid sm:grid-cols-2 lg:grid-cols-5 gap-2.5"></div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-emerald-600 uppercase">Maturidade CIS/NIST</span>
+            <div id="kpiCybMaturidade" class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">0%</div>
+          </div>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-rose-600 uppercase">Achados Abertos</span>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="kpiCybAbertos" class="text-2xl font-extrabold text-slate-900 dark:text-white">0</span>
+              <span id="kpiCybCriticos" class="text-[11px] font-bold text-rose-600">0 críticos</span>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-violet-600 uppercase">Auditorias Salvas</span>
+            <div id="kpiCybAuditorias" class="text-2xl font-extrabold text-violet-700 dark:text-violet-300 mt-1">0</div>
+          </div>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Política do Gestor</span>
+            <div id="kpiCybGovBadge" class="text-xs font-extrabold text-amber-600 mt-1.5">🔒 Bloqueada (Aguarda Gestor)</div>
+          </div>
+        </div>
+
+        <!-- Aba 1: Auditoria de Rede Autorizada + Coletor LAN -->
+        <div id="cyberTab_auditoria" class="grid lg:grid-cols-3 gap-5">
+          <div class="space-y-4">
+            <form id="formExecutarAuditoriaCyber" onsubmit="executarAuditoriaCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔍 Auditoria Ativa Autorizada</h3>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Requer liberação explícita do administrador na aba Governança e alvo dentro da lista autorizada.</p>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Alvo (Domínio, IP ou Sub-rede CIDR) *</label>
+                <input type="text" id="cyb_aud_alvo" required placeholder="Ex: portal.empresa.com.br ou 192.168.10.0/24" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Modo da Auditoria Defensiva</label>
+                <select id="cyb_aud_tipo" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="rede_privada">🌐 Varredura Defensiva de Rede / Portas (IP ou CIDR)</option>
+                  <option value="web_tls">🔒 Web / TLS / Certificados &amp; Headers OWASP</option>
+                </select>
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="cyb_aud_gerar_achados" checked class="rounded text-violet-600">
+                <span>Registrar vulnerabilidades encontradas na fila</span>
+              </label>
+              <button id="btnExecutarAuditoriaCyber" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white font-bold rounded-xl shadow-sm">
+                🚀 Executar Auditoria Autorizada
+              </button>
+            </form>
+
+            <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">💻 Coletor LAN Local (Somente Leitura)</h3>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Para auditar redes internas privadas isoladas da nuvem, rode o coletor localmente e importe o JSON gerado.</p>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" onclick="baixarColetorCyber('ps1')" class="py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-violet-800 dark:text-violet-200">⬇️ PowerShell (.ps1)</button>
+                <button type="button" onclick="baixarColetorCyber('py')" class="py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-violet-800 dark:text-violet-200">⬇️ Python (.py)</button>
+              </div>
+              <label class="block">
+                <span class="block text-[11px] font-semibold mb-1">Importar JSON do Coletor LAN</span>
+                <input type="file" accept=".json,application/json" onchange="importarAuditoriaLanJson(event)" class="block w-full text-[11px] text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-violet-600 file:text-white hover:file:bg-violet-700 cursor-pointer">
+              </label>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Histórico de Auditorias e Scores</h3>
+            <div id="listaAuditoriasCyber" class="space-y-2.5"></div>
+          </div>
+        </div>
+
+        <!-- Aba 2: Gestão de Achados e Vulnerabilidades -->
+        <div id="cyberTab_achados" class="grid lg:grid-cols-3 gap-5 hidden">
+          <form id="formCriarAchadoCyber" onsubmit="criarAchadoCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Registrar Vulnerabilidade / Achado</h3>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Título *</label>
+              <input type="text" id="ach_titulo" required placeholder="Ex: Porta Telnet 23 aberta em switch" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Severidade</label>
+                <select id="ach_sev" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="Crítica">Crítica</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Média" selected>Média</option>
+                  <option value="Baixa">Baixa</option>
+                  <option value="Informativa">Informativa</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Categoria</label>
+                <input type="text" id="ach_cat" value="Hardening & Rede" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Alvo / Equipamento</label>
+              <input type="text" id="ach_alvo" placeholder="192.168.1.2 / Servidor AD" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Recomendação de Mitigação</label>
+              <textarea id="ach_rec" rows="3" placeholder="Desabilitar Telnet, habilitar SSHv2 com chave e ACL..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">💾 Registrar Achado</button>
+          </form>
+
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Fila de Achados e Plano de Remediação</h3>
+            <div id="listaAchadosCyber" class="space-y-2.5"></div>
+          </div>
+        </div>
+
+        <!-- Aba 3: Checklists CIS Controls v8, NIST CSF 2.0, OWASP & LGPD -->
+        <div id="cyberTab_checklists" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs hidden">
+          <div class="flex flex-wrap justify-between items-center gap-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Controles de Maturidade (CIS v8 • NIST CSF 2.0 • OWASP • LGPD • CFTV/ISP)</h3>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Atualize o status de cada controle para calcular automaticamente a maturidade cibernética da empresa.</p>
+            </div>
+          </div>
+          <div id="listaChecklistCyber" class="space-y-2"></div>
+        </div>
+
+        <!-- Aba 4: Base de Conhecimento & Playbooks -->
+        <div id="cyberTab_conhecimento" class="grid lg:grid-cols-3 gap-5 hidden">
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+            <div class="flex flex-wrap justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Base de Conhecimento &amp; Hardening</h3>
+              <input type="text" id="kb_busca" oninput="carregarConhecimentoCyber()" placeholder="🔎 Buscar guia (Zero Trust, CFTV, BGP, LGPD...)" class="px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none w-72">
+            </div>
+            <div id="listaConhecimentoCyber" class="space-y-3"></div>
+          </div>
+
+          <form id="formCriarKbCyber" onsubmit="criarArtigoKbCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs h-fit">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Publicar Playbook Interno</h3>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Título *</label>
+              <input type="text" id="kb_titulo" required placeholder="Ex: Playbook Isolamento Ransomware" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Categoria</label>
+              <input type="text" id="kb_cat" value="Playbook Interno" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Resumo</label>
+              <input type="text" id="kb_resumo" placeholder="Objetivo e quando acionar..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Procedimento / Conteúdo *</label>
+              <textarea id="kb_conteudo" required rows="5" placeholder="1. Desconectar host da rede..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Tags</label>
+              <input type="text" id="kb_tags" placeholder="incidente, soc, firewall" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">📚 Publicar Guia</button>
+          </form>
+        </div>
+
+        <!-- Aba 5: Governança & Autorização do Gestor (Admin) -->
+        <div id="cyberTab_governanca" class="bg-white dark:bg-[#141024] p-6 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4 text-xs hidden">
+          <div class="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200">
+            <b>⚠️ Governança &amp; Segurança Jurídica:</b> A auditoria ativa de rede só executa quando autorizada formalmente pelo Administrador/Gestor e exclusivamente contra domínios/IPs listados no escopo aprovado (com bloqueio anti-SSRF automático).
+          </div>
+          <p id="gov_info_auditoria" class="text-xs font-semibold text-violet-700 dark:text-violet-300"></p>
+          <form id="formGovernancaCyber" onsubmit="salvarGovernancaCyber(event)" class="space-y-3 max-w-2xl">
+            <label class="flex items-center gap-2.5 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 cursor-pointer font-bold">
+              <input type="checkbox" id="gov_permitir_auditoria" class="rounded text-violet-600">
+              <span>Autorizar equipe com permissão a auditar alvos dentro do escopo desta empresa</span>
+            </label>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Escopo Autorizado (1 domínio, IP ou CIDR por linha)</label>
+              <textarea id="gov_escopo" rows="4" placeholder="192.168.10.0/24&#10;portal.suaempresa.com.br" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl font-mono outline-none"></textarea>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Termo / Observação de Autorização</label>
+              <input type="text" id="gov_termo" placeholder="Autorizado pela diretoria de TI para auditoria interna trimestral." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <button type="submit" class="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-sm">
+              🔐 Salvar Política de Governança
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================== -->
     <!-- VISÃO 3: GESTÃO DE EQUIPE & EMPRESA (ADMIN)                          -->
     <!-- ==================================================================== -->
     <section id="viewEmpresa" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
@@ -1080,6 +1445,14 @@
             <label class="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" id="setor_ativo_estoque" checked class="rounded border-violet-300 text-violet-600">
               <span>📦 Estoque &amp; Almoxarifado</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="setor_ativo_automacao" checked class="rounded border-violet-300 text-violet-600">
+              <span>🤖 Automação, CFTV &amp; IoT</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="setor_ativo_ciberseguranca" checked class="rounded border-violet-300 text-violet-600">
+              <span>🛡️ Cibersegurança &amp; Auditoria</span>
             </label>
           </div>
           <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
@@ -1118,6 +1491,8 @@
                 <div class="flex flex-wrap gap-1">
                   <button type="button" onclick="aplicarPresetNovoMembro('tecnico_ti')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🖥️ Téc. TI</button>
                   <button type="button" onclick="aplicarPresetNovoMembro('tecnico_isp')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">📡 Téc. ISP</button>
+                  <button type="button" onclick="aplicarPresetNovoMembro('tecnico_automacao')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🤖 Automação</button>
+                  <button type="button" onclick="aplicarPresetNovoMembro('analista_cyber')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🛡️ Cyber</button>
                   <button type="button" onclick="aplicarPresetNovoMembro('estoquista')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">📦 Estoquista</button>
                   <button type="button" onclick="aplicarPresetNovoMembro('financeiro_gestor')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">💰 Gestor</button>
                 </div>
@@ -1430,6 +1805,12 @@
         <button type="button" onclick="aplicarPresetPermissoes('tecnico_isp')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
           📡 Técnico ISP
         </button>
+        <button type="button" onclick="aplicarPresetPermissoes('tecnico_automacao')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+          🤖 Téc. Automação
+        </button>
+        <button type="button" onclick="aplicarPresetPermissoes('analista_cyber')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+          🛡️ Analista Cyber
+        </button>
         <button type="button" onclick="aplicarPresetPermissoes('estoquista')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
           📦 Estoquista
         </button>
@@ -1635,7 +2016,8 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.2.1"></script>
-  <script src="/static/laudos_ops.js?v=2.2.1"></script>
+  <script src="/static/app.js?v=2.3.0"></script>
+  <script src="/static/laudos_ops.js?v=2.3.0"></script>
+  <script src="/static/automation_cyber.js?v=2.3.0"></script>
 </body>
 </html>

@@ -1552,7 +1552,12 @@ def atualizar_modelos_e_branding_empresa(
 def importar_arquivo_modelo_laudo(
     payload: ImportarModeloLaudoSchema,
     _current_user: dict[str, Any] = Depends(
-        require_any_permission("gerenciar_modelos", "gerenciar_laudos", "gerenciar_equipe")
+        require_any_permission(
+            "gerenciar_modelos",
+            "gerenciar_laudos",
+            "acessar_criador_laudos",
+            "gerenciar_equipe",
+        )
     ),
 ):
     try:
@@ -1752,11 +1757,76 @@ def enviar_orcamento_os(
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
+@app.get("/api/laudos")
+def listar_laudos_criador_api(
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("acessar_criador_laudos", "gerenciar_laudos")
+    ),
+):
+    try:
+        registros = ColetaModel.buscar_todos(tenant_id=current_user["tenant_id"])
+        equipamentos = []
+        laudos = []
+        for reg in registros:
+            equipamentos.append(
+                {
+                    "id": reg.get("id"),
+                    "equipamento": reg.get("equipamento", ""),
+                    "tombamento": reg.get("tombamento", ""),
+                    "serial_mac": reg.get("serial_mac", ""),
+                    "categoria": reg.get("categoria", ""),
+                    "tipo_fluxo": reg.get("tipo_fluxo", ""),
+                    "origem": reg.get("origem", ""),
+                    "localizacao": reg.get("localizacao", ""),
+                    "problema": reg.get("problema", ""),
+                    "resolucao": reg.get("resolucao", ""),
+                    "data_coleta": reg.get("data_coleta", ""),
+                    "data_entrega": reg.get("data_entrega", ""),
+                    "garantia_dias": reg.get("garantia_dias", 0),
+                    "garantia_ate": reg.get("garantia_ate", ""),
+                    "status": reg.get("status", "Pendente"),
+                }
+            )
+            for l in reg.get("laudos") or []:
+                laudos.append(
+                    {
+                        **dict(l),
+                        "registro_id": reg.get("id"),
+                        "equipamento": reg.get("equipamento", ""),
+                        "tombamento": reg.get("tombamento", ""),
+                        "origem": reg.get("origem", ""),
+                        "status_os": reg.get("status", "Pendente"),
+                    }
+                )
+
+        equipamentos.sort(key=lambda e: int(e.get("id") or 0), reverse=True)
+        laudos.sort(key=lambda l: str(l.get("emitido_em") or ""), reverse=True)
+        aprovados = sum(
+            1 for l in laudos if "aprovado" in str(l.get("conclusao") or "").lower()
+        )
+        visiveis = sum(1 for l in laudos if l.get("visivel_cliente"))
+        return {
+            "resumo": {
+                "total_laudos": len(laudos),
+                "aprovados": aprovados,
+                "visiveis_cliente": visiveis,
+                "total_equipamentos": len(equipamentos),
+            },
+            "laudos": laudos,
+            "equipamentos": equipamentos,
+        }
+    except Exception:
+        logger.exception("Erro ao listar laudos no criador dedicado")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
 @app.post("/api/equipamentos/{registro_id}/laudos")
 def criar_laudo_equipamento(
     registro_id: int,
     payload: LaudoSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_laudos")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_laudos", "acessar_criador_laudos")
+    ),
 ):
     try:
         res = ColetaModel.salvar_laudo(
@@ -1788,7 +1858,9 @@ def atualizar_laudo_equipamento(
     registro_id: int,
     laudo_id: str,
     payload: LaudoSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_laudos")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_laudos", "acessar_criador_laudos")
+    ),
 ):
     try:
         res = ColetaModel.salvar_laudo(
@@ -1822,7 +1894,9 @@ def atualizar_laudo_equipamento(
 def remover_laudo_equipamento(
     registro_id: int,
     laudo_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_laudos")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_laudos", "acessar_criador_laudos")
+    ),
 ):
     try:
         reg_atualizado = ColetaModel.excluir_laudo(
@@ -1851,7 +1925,9 @@ def remover_laudo_equipamento(
 def baixar_laudo_pdf(
     registro_id: int,
     laudo_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_laudos")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_laudos", "acessar_criador_laudos")
+    ),
 ):
     try:
         reg = ColetaModel.buscar_por_id(

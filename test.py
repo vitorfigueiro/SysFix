@@ -1651,6 +1651,114 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
             app_module.require_permission("gerenciar_estoque")(isp_user)
         self.assertEqual(ctx_isp_est.exception.status_code, 403)
 
+    def test_criador_de_laudos_separado_e_permissao_tecnico(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="LaudoTech Labs",
+                nome_usuario="Admin Master",
+                email="admin@laudotech.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        me = app_module.obter_sessao_atual(admin)
+        cat_keys = {c["key"]: c for c in me["permissions_catalog"]}
+        self.assertIn("acessar_criador_laudos", cat_keys)
+        self.assertEqual(cat_keys["acessar_criador_laudos"]["setor"], "laudos")
+        self.assertTrue(me["role_presets"]["tecnico_ti"]["permissoes"]["acessar_criador_laudos"])
+
+        # Cria uma O.S. com custo interno para testar que o criador de laudos não vaza custos
+        ent = app_module.criar_entrada(
+            app_module.EntradaSchema(
+                equipamento="Nobreak APC 1500VA",
+                tombamento="NB-550",
+                tecnico="Admin Master",
+                data_coleta="24/11/2026",
+                origem="Matriz",
+                os_coleta="OS-900",
+                localizacao="Bancada TI",
+                problema="Bateria estufada",
+            ),
+            current_user=admin,
+        )
+        os_id = ent["id"]
+        app_module.registrar_saida(
+            os_id,
+            app_module.SaidaSchema(
+                tecnico_entrega="Admin Master",
+                data_entrega="24/11/2026",
+                os_entrega="OS-900",
+                status_custo="Com Custo",
+                valor_custo=450.0,
+                resolucao="Troca de bateria selada",
+            ),
+            current_user=admin,
+        )
+
+        # Técnico 1: possui acessar_criador_laudos=True (sem ver_ti e sem ver_custos)
+        perms_laudo_only = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        perms_laudo_only["acessar_criador_laudos"] = True
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Técnico Laudos",
+                email="laudos@laudotech.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=perms_laudo_only,
+            ),
+            current_user=admin,
+        )
+        tok_laudo = app_module.login_usuario(
+            app_module.LoginSchema(email="laudos@laudotech.com", senha="secret123")
+        )["token"]
+        tec_laudo = app_module.get_current_user(f"Bearer {tok_laudo}")
+
+        guard = app_module.require_any_permission("acessar_criador_laudos", "gerenciar_laudos")
+        painel = app_module.listar_laudos_criador_api(current_user=guard(tec_laudo))
+        self.assertEqual(painel["resumo"]["total_equipamentos"], 1)
+        self.assertNotIn("valor_custo", painel["equipamentos"][0])
+
+        criado = app_module.criar_laudo_equipamento(
+            os_id,
+            app_module.LaudoSchema(
+                titulo="LAUDO DE BANCADA ELÉTRICA",
+                conclusao="Reparado / Aprovado",
+                diagnostico="Baterias com tensão abaixo de 10V",
+                parecer="Substituído banco de baterias 12V 7Ah e testado autonomia.",
+                recomendacoes="Manter em ambiente climatizado.",
+                tecnico_responsavel="Técnico Laudos",
+            ),
+            current_user=guard(tec_laudo),
+        )
+        laudo_id = criado["laudo"]["id"]
+        pdf_resp = app_module.baixar_laudo_pdf(
+            os_id, laudo_id, current_user=guard(tec_laudo)
+        )
+        self.assertEqual(pdf_resp.media_type, "application/pdf")
+        self.assertTrue(pdf_resp.body.startswith(b"%PDF"))
+
+        # Técnico 2: sem permissão de criador de laudos -> bloqueado com 403
+        perms_sem_laudo = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        perms_sem_laudo["ver_ti"] = True
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Técnico Sem Laudo",
+                email="semlaudo@laudotech.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=perms_sem_laudo,
+            ),
+            current_user=admin,
+        )
+        tok_sem = app_module.login_usuario(
+            app_module.LoginSchema(email="semlaudo@laudotech.com", senha="secret123")
+        )["token"]
+        tec_sem = app_module.get_current_user(f"Bearer {tok_sem}")
+        with self.assertRaises(HTTPException) as ctx_403:
+            guard(tec_sem)
+        self.assertEqual(ctx_403.exception.status_code, 403)
+
 
 class AutomationAndCyberSecurityTests(unittest.TestCase):
     def setUp(self):

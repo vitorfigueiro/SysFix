@@ -785,6 +785,8 @@ async function salvarBrandingEModelos() {
   const data = await res.json();
   sessaoAtual.tenant = data.tenant;
   carregarBrandingEModelosNaUI();
+  if (typeof popularSelectModelosCriador === 'function') popularSelectModelosCriador();
+  if (typeof atualizarPreviewCriadorLaudo === 'function') atualizarPreviewCriadorLaudo();
   mostrarToast('Timbre, checklist e modelos de laudo salvos!', 'sucesso');
 }
 
@@ -1213,4 +1215,353 @@ async function criarClienteOps(event) {
 async function excluirClienteOps(itemId) {
   const res = await apiFetch(`/ops/clientes/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
   if (res.ok) await carregarClientesOps();
+}
+
+// ==============================================================================
+// VISÃO DEDICADA: CRIADOR DE LAUDOS, PARECERES & MODELOS (SEPARADO)
+// ==============================================================================
+
+let laudosEmitidosCache = [];
+let laudosEquipamentosCache = [];
+let criadorLaudoEditando = null;
+let laudoViewTabAtual = 'criar';
+
+function alternarLaudoViewTab(tab) {
+  laudoViewTabAtual = tab;
+  ['criar', 'emitidos', 'modelos'].forEach(key => {
+    const sec = document.getElementById(`laudoTab_${key}`);
+    if (sec) sec.classList.toggle('hidden', key !== tab);
+    const btn = document.getElementById(`btnLaudoTab_${key}`);
+    if (btn) {
+      btn.className = key === tab
+        ? 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white'
+        : 'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200';
+    }
+  });
+  if (tab === 'modelos' && typeof carregarBrandingEModelosNaUI === 'function') {
+    carregarBrandingEModelosNaUI();
+  }
+}
+
+async function carregarPainelLaudos() {
+  const podeCriar = temPermissao('acessar_criador_laudos');
+  const podeEmitidos = podeCriar || temPermissao('gerenciar_laudos');
+  const podeModelos = temPermissao('gerenciar_modelos') || temPermissao('gerenciar_equipe');
+
+  let tabInicial = laudoViewTabAtual;
+  if (tabInicial === 'criar' && !podeCriar) {
+    tabInicial = podeEmitidos ? 'emitidos' : 'modelos';
+  } else if (tabInicial === 'emitidos' && !podeEmitidos) {
+    tabInicial = podeCriar ? 'criar' : 'modelos';
+  } else if (tabInicial === 'modelos' && !podeModelos) {
+    tabInicial = podeCriar ? 'criar' : 'emitidos';
+  }
+  alternarLaudoViewTab(tabInicial);
+
+  const modelosCount = (sessaoAtual?.tenant?.modelos_laudo || presetsTiCache?.modelos_laudo_padrao || []).length;
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setTxt('kpiLaudoModelos', modelosCount);
+
+  if (podeModelos && typeof carregarBrandingEModelosNaUI === 'function') {
+    carregarBrandingEModelosNaUI();
+  }
+  popularSelectModelosCriador();
+
+  if (podeEmitidos) {
+    const res = await apiFetch('/laudos');
+    if (res.ok) {
+      const data = await res.json();
+      const r = data.resumo || {};
+      laudosEmitidosCache = Array.isArray(data.laudos) ? data.laudos : [];
+      laudosEquipamentosCache = Array.isArray(data.equipamentos) ? data.equipamentos : [];
+      setTxt('kpiLaudoTotal', r.total_laudos ?? laudosEmitidosCache.length);
+      setTxt('kpiLaudoAprovados', r.aprovados ?? 0);
+      setTxt('kpiLaudoVisiveis', r.visiveis_cliente ?? 0);
+      popularSelectEquipamentosCriador();
+      renderizarListaLaudosEmitidos();
+    }
+  }
+
+  const tecInp = document.getElementById('cl_tecnico');
+  if (tecInp && !tecInp.value && sessaoAtual?.user?.nome) {
+    tecInp.value = sessaoAtual.user.nome;
+  }
+  atualizarPreviewCriadorLaudo();
+}
+
+function popularSelectEquipamentosCriador() {
+  const select = document.getElementById('cl_os_select');
+  if (!select) return;
+  const termo = (document.getElementById('cl_os_busca')?.value || '').trim().toLowerCase();
+  const prevVal = select.value;
+
+  const filtrados = laudosEquipamentosCache.filter(e => {
+    if (!termo) return true;
+    return [e.id, e.equipamento, e.tombamento, e.serial_mac, e.origem, e.localizacao]
+      .some(v => String(v || '').toLowerCase().includes(termo));
+  });
+
+  if (filtrados.length === 0) {
+    select.innerHTML = '<option value="">Nenhuma O.S. encontrada</option>';
+  } else {
+    select.innerHTML = filtrados.map(e => {
+      const label = `#${e.id} • ${e.equipamento} (${e.tombamento || 'S/N'}) — ${e.origem || 'Interno'}`;
+      return `<option value="${e.id}">${escapeHtml(label)}</option>`;
+    }).join('');
+    if (prevVal && filtrados.some(e => String(e.id) === String(prevVal))) {
+      select.value = prevVal;
+    }
+  }
+  atualizarPreviewCriadorLaudo();
+}
+
+function popularSelectModelosCriador() {
+  const select = document.getElementById('cl_modelo_select');
+  if (!select) return;
+  const modelos = sessaoAtual?.tenant?.modelos_laudo || presetsTiCache?.modelos_laudo_padrao || [];
+  select.innerHTML = modelos.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.nome)}</option>`).join('');
+  const elCount = document.getElementById('kpiLaudoModelos');
+  if (elCount) elCount.textContent = modelos.length;
+}
+
+function _obterEquipamentoSelecionadoCriador() {
+  const idSel = Number(document.getElementById('cl_os_select')?.value || 0);
+  return laudosEquipamentosCache.find(e => Number(e.id) === idSel) || null;
+}
+
+function _aplicarModeloObjetoNoCriador(modelo) {
+  if (!modelo) return;
+  const reg = _obterEquipamentoSelecionadoCriador() || {};
+  document.getElementById('cl_titulo').value = substituirVariaveisLaudoNoCliente(modelo.titulo || 'LAUDO TÉCNICO', reg);
+  document.getElementById('cl_conclusao').value = modelo.conclusao_padrao || 'Reparado / Aprovado';
+  document.getElementById('cl_diagnostico').value = substituirVariaveisLaudoNoCliente(modelo.diagnostico || '', reg);
+  document.getElementById('cl_parecer').value = substituirVariaveisLaudoNoCliente(modelo.corpo || '', reg);
+  document.getElementById('cl_recomendacoes').value = substituirVariaveisLaudoNoCliente(modelo.recomendacoes || '', reg);
+  atualizarPreviewCriadorLaudo();
+}
+
+function aplicarModeloNoCriadorLaudo() {
+  const idSel = document.getElementById('cl_modelo_select')?.value;
+  const modelos = sessaoAtual?.tenant?.modelos_laudo || presetsTiCache?.modelos_laudo_padrao || [];
+  const modelo = modelos.find(m => m.id === idSel) || modelos[0];
+  if (!modelo) {
+    mostrarToast('Nenhum modelo disponível.', 'erro');
+    return;
+  }
+  _aplicarModeloObjetoNoCriador(modelo);
+  mostrarToast(`Modelo "${modelo.nome}" aplicado!`, 'sucesso');
+}
+
+async function importarModeloNoCriadorLaudo(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  try {
+    const b64 = await lerArquivoBase64(file);
+    const res = await apiFetch('/laudos/importar-modelo', {
+      method: 'POST',
+      body: JSON.stringify({ filename: file.name, conteudo_base64: b64 })
+    });
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Erro ao ler modelo enviado.'), 'erro');
+      return;
+    }
+    const data = await res.json();
+    _aplicarModeloObjetoNoCriador(data.modelo);
+    mostrarToast(`Modelo "${data.modelo.nome}" carregado!`, 'sucesso');
+  } catch (e) {
+    mostrarToast('Falha ao importar arquivo de modelo.', 'erro');
+  }
+}
+
+function atualizarPreviewCriadorLaudo() {
+  const box = document.getElementById('cl_preview_box');
+  if (!box) return;
+
+  const tenant = sessaoAtual?.tenant || {};
+  const cor = tenant.cor_documento || '#4C1D95';
+  const reg = _obterEquipamentoSelecionadoCriador();
+  const titulo = (document.getElementById('cl_titulo')?.value || 'LAUDO TÉCNICO').trim();
+  const conclusao = document.getElementById('cl_conclusao')?.value || 'Reparado / Aprovado';
+  const diag = (document.getElementById('cl_diagnostico')?.value || '').trim();
+  const parecer = (document.getElementById('cl_parecer')?.value || '').trim();
+  const rec = (document.getElementById('cl_recomendacoes')?.value || '').trim();
+  const tec = (document.getElementById('cl_tecnico')?.value || sessaoAtual?.user?.nome || '-').trim();
+  const regProf = (document.getElementById('cl_reg_prof')?.value || '').trim();
+
+  box.innerHTML = `
+    <div class="rounded-lg p-3 text-white flex items-center justify-between gap-2" style="background:${escapeHtml(cor)}">
+      <div>
+        <div class="text-[10px] uppercase opacity-80">${escapeHtml(tenant.nome || 'SysFix')}${tenant.cnpj ? ` • ${escapeHtml(tenant.cnpj)}` : ''}</div>
+        <div class="text-sm font-extrabold">${escapeHtml(titulo)}</div>
+      </div>
+      <span class="px-2 py-0.5 rounded bg-white/20 text-[10px] font-bold">${criadorLaudoEditando ? escapeHtml(criadorLaudoEditando.numero) : 'PRÉVIA'}</span>
+    </div>
+    <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 grid grid-cols-2 gap-1.5 text-[11px]">
+      <div><b>O.S.:</b> ${reg ? `#${reg.id}` : 'Selecione uma O.S.'}</div>
+      <div><b>Conclusão:</b> ${escapeHtml(conclusao)}</div>
+      <div><b>Equipamento:</b> ${escapeHtml(reg?.equipamento || '-')}</div>
+      <div><b>Tombamento:</b> ${escapeHtml(reg?.tombamento || '-')}</div>
+      <div><b>Cliente / Origem:</b> ${escapeHtml(reg?.origem || '-')}</div>
+      <div><b>Data:</b> ${escapeHtml(formatarDataBR(obterDataHojeISO()))}</div>
+    </div>
+    ${diag ? `<div><div class="text-[10px] font-extrabold uppercase text-slate-500">Diagnóstico</div><p class="whitespace-pre-line text-[11px] mt-0.5">${escapeHtml(diag)}</p></div>` : ''}
+    <div>
+      <div class="text-[10px] font-extrabold uppercase text-slate-500">Parecer Técnico</div>
+      <p class="whitespace-pre-line text-[11px] mt-0.5">${escapeHtml(parecer || 'Comece a redigir o parecer técnico ou selecione um modelo pronto ao lado...')}</p>
+    </div>
+    ${rec ? `<div><div class="text-[10px] font-extrabold uppercase text-slate-500">Recomendações</div><p class="whitespace-pre-line text-[11px] mt-0.5">${escapeHtml(rec)}</p></div>` : ''}
+    <div class="pt-3 border-t border-slate-200 flex justify-between items-end text-[10px] text-slate-500">
+      <div>
+        <div class="font-bold text-slate-800">${escapeHtml(tec)}</div>
+        ${regProf ? `<div>${escapeHtml(regProf)}</div>` : ''}
+      </div>
+      <span>${escapeHtml(tenant.rodape_documento || 'Documento técnico emitido via SysFix')}</span>
+    </div>
+  `;
+}
+
+function limparCriadorLaudo() {
+  criadorLaudoEditando = null;
+  document.getElementById('cl_edit_badge')?.classList.add('hidden');
+  document.getElementById('cl_titulo').value = 'LAUDO TÉCNICO';
+  document.getElementById('cl_conclusao').value = 'Reparado / Aprovado';
+  document.getElementById('cl_diagnostico').value = '';
+  document.getElementById('cl_parecer').value = '';
+  document.getElementById('cl_recomendacoes').value = '';
+  document.getElementById('cl_tecnico').value = sessaoAtual?.user?.nome || '';
+  document.getElementById('cl_reg_prof').value = '';
+  document.getElementById('cl_inc_checklist').checked = true;
+  document.getElementById('cl_visivel_cliente').checked = true;
+  document.getElementById('cl_upload_modelo').value = '';
+  atualizarPreviewCriadorLaudo();
+}
+
+async function salvarLaudoCriador(abrirPdfDepois = false) {
+  const regId = Number(document.getElementById('cl_os_select')?.value || 0);
+  if (!regId) {
+    mostrarToast('Selecione um equipamento / O.S. para vincular o laudo.', 'erro');
+    return;
+  }
+  const payload = {
+    titulo: document.getElementById('cl_titulo').value.trim(),
+    conclusao: document.getElementById('cl_conclusao').value,
+    diagnostico: document.getElementById('cl_diagnostico').value.trim(),
+    parecer: document.getElementById('cl_parecer').value.trim(),
+    recomendacoes: document.getElementById('cl_recomendacoes').value.trim(),
+    tecnico_responsavel: document.getElementById('cl_tecnico').value.trim(),
+    registro_profissional: document.getElementById('cl_reg_prof').value.trim(),
+    incluir_checklist: document.getElementById('cl_inc_checklist').checked,
+    visivel_cliente: document.getElementById('cl_visivel_cliente').checked,
+  };
+  if (!payload.titulo || !payload.parecer) {
+    mostrarToast('Informe o título e o parecer técnico do laudo.', 'erro');
+    return;
+  }
+
+  const editandoMesmaOs = criadorLaudoEditando && Number(criadorLaudoEditando.registroId) === regId;
+  const path = editandoMesmaOs
+    ? `/equipamentos/${regId}/laudos/${encodeURIComponent(criadorLaudoEditando.laudoId)}`
+    : `/equipamentos/${regId}/laudos`;
+
+  const res = await apiFetch(path, {
+    method: editandoMesmaOs ? 'PUT' : 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    mostrarToast(await extrairErroResposta(res, 'Não foi possível salvar o laudo.'), 'erro');
+    return;
+  }
+  const data = await res.json();
+  const laudoId = data.laudo?.id;
+  mostrarToast(data.mensagem || 'Laudo salvo e anexado à O.S.!', 'sucesso');
+  limparCriadorLaudo();
+  await carregarPainelLaudos();
+
+  if (abrirPdfDepois && laudoId) {
+    abrirLaudoPdfDireto(regId, laudoId);
+  }
+}
+
+function renderizarListaLaudosEmitidos() {
+  const box = document.getElementById('listaLaudosEmitidos');
+  if (!box) return;
+  const termo = (document.getElementById('cl_busca_emitidos')?.value || '').trim().toLowerCase();
+  const podeCriar = temPermissao('acessar_criador_laudos');
+
+  const filtrados = laudosEmitidosCache.filter(l => {
+    if (!termo) return true;
+    return [l.numero, l.titulo, l.conclusao, l.equipamento, l.tombamento, l.origem, l.tecnico_responsavel]
+      .some(v => String(v || '').toLowerCase().includes(termo));
+  });
+
+  if (filtrados.length === 0) {
+    box.innerHTML = '<p class="text-slate-400 md:col-span-2">Nenhum laudo técnico emitido encontrado.</p>';
+    return;
+  }
+
+  box.innerHTML = filtrados.map(l => `
+    <div class="p-4 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
+      <div class="flex flex-wrap justify-between items-start gap-2">
+        <div>
+          <span class="text-[10px] font-extrabold text-violet-600 dark:text-violet-400 uppercase">${escapeHtml(l.numero)} • O.S. #${l.registro_id} • ${formatarDataBR(l.emitido_em)}</span>
+          <h4 class="text-xs font-extrabold text-slate-900 dark:text-white">${escapeHtml(l.titulo)} — ${escapeHtml(l.equipamento)}</h4>
+          <p class="text-[11px] text-slate-500 dark:text-violet-300/80">${escapeHtml(l.conclusao)} • Técnico: ${escapeHtml(l.tecnico_responsavel || '-')}</p>
+        </div>
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${l.visivel_cliente ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-700'}">
+          ${l.visivel_cliente ? 'Público' : 'Interno'}
+        </span>
+      </div>
+      <p class="text-[11px] text-slate-700 dark:text-violet-100 line-clamp-2 whitespace-pre-line">${escapeHtml(l.parecer)}</p>
+      <div class="flex flex-wrap gap-1.5 pt-1">
+        <button type="button" onclick="abrirLaudoPdfDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">🖨️ Imprimir / PDF</button>
+        ${podeCriar ? `<button type="button" onclick="editarLaudoNoCriador(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-violet-800 dark:text-violet-200 text-[11px] font-semibold">✏️ Editar no Criador</button>` : ''}
+        <button type="button" onclick="excluirLaudoDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold">🗑️ Excluir</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function editarLaudoNoCriador(registroId, laudoId) {
+  const item = laudosEmitidosCache.find(l => Number(l.registro_id) === Number(registroId) && l.id === laudoId);
+  if (!item) return;
+  criadorLaudoEditando = { registroId: Number(registroId), laudoId: item.id, numero: item.numero };
+  const badge = document.getElementById('cl_edit_badge');
+  if (badge) {
+    badge.textContent = `Editando ${item.numero}`;
+    badge.classList.remove('hidden');
+  }
+  document.getElementById('cl_os_busca').value = '';
+  popularSelectEquipamentosCriador();
+  document.getElementById('cl_os_select').value = String(registroId);
+  document.getElementById('cl_titulo').value = item.titulo || 'LAUDO TÉCNICO';
+  document.getElementById('cl_conclusao').value = item.conclusao || 'Reparado / Aprovado';
+  document.getElementById('cl_diagnostico').value = item.diagnostico || '';
+  document.getElementById('cl_parecer').value = item.parecer || '';
+  document.getElementById('cl_recomendacoes').value = item.recomendacoes || '';
+  document.getElementById('cl_tecnico').value = item.tecnico_responsavel || '';
+  document.getElementById('cl_reg_prof').value = item.registro_profissional || '';
+  document.getElementById('cl_inc_checklist').checked = item.incluir_checklist !== false;
+  document.getElementById('cl_visivel_cliente').checked = item.visivel_cliente !== false;
+  alternarLaudoViewTab('criar');
+  atualizarPreviewCriadorLaudo();
+}
+
+function abrirLaudoPdfDireto(registroId, laudoId) {
+  abrirPdfAutenticado(
+    `/equipamentos/${registroId}/laudos/${encodeURIComponent(laudoId)}/pdf`,
+    'Erro ao gerar PDF do laudo técnico.'
+  );
+}
+
+async function excluirLaudoDireto(registroId, laudoId) {
+  if (!window.confirm('Remover este laudo técnico anexado ao equipamento?')) return;
+  const res = await apiFetch(`/equipamentos/${registroId}/laudos/${encodeURIComponent(laudoId)}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    mostrarToast(await extrairErroResposta(res, 'Erro ao excluir laudo.'), 'erro');
+    return;
+  }
+  mostrarToast('Laudo removido.', 'info');
+  await carregarPainelLaudos();
 }

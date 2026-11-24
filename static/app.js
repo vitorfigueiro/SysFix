@@ -544,6 +544,14 @@ function temAcessoSetorCyber() {
   );
 }
 
+function temAcessoSetorLaudos() {
+  return (
+    temPermissao('acessar_criador_laudos') ||
+    temPermissao('gerenciar_laudos') ||
+    temPermissao('gerenciar_modelos')
+  );
+}
+
 function aplicarPermissoesNaUI() {
   const podeDashboard = temPermissao('ver_dashboard');
   const podeCustos = temPermissao('ver_custos');
@@ -555,7 +563,8 @@ function aplicarPermissoesNaUI() {
   const podePdf = temPermissao('exportar_pdf');
   const podeEquipe = temPermissao('gerenciar_equipe');
   const podeBackup = temPermissao('importar_exportar_dados');
-  const podeLaudos = temPermissao('gerenciar_laudos');
+  const podeCriadorLaudos = temPermissao('acessar_criador_laudos');
+  const podeLaudos = temPermissao('gerenciar_laudos') || podeCriadorLaudos;
   const podeCompartilhar = temPermissao('compartilhar_os');
   const podeModelos = temPermissao('gerenciar_modelos');
 
@@ -581,12 +590,17 @@ function aplicarPermissoesNaUI() {
 
   setHidden('navBtnDashboard', !podeDashboard);
   setHidden('navBtnEquipamentos', !podeTI);
+  setHidden('navBtnLaudos', !temAcessoSetorLaudos());
   setHidden('navBtnProvedor', !podeProvedor);
   setHidden('navBtnEstoque', !podeEstoque);
   setHidden('navBtnAutomacao', !podeAutomacao);
   setHidden('navBtnCyber', !podeCyber);
-  setHidden('navBtnEmpresa', !podeEquipe && !podeBackup && !podeModelos);
+  setHidden('navBtnEmpresa', !podeEquipe && !podeBackup);
   setHidden('btnExportarPdfHeader', !podePdf);
+
+  setHidden('btnLaudoTab_criar', !podeCriadorLaudos);
+  setHidden('btnLaudoTab_emitidos', !podeLaudos);
+  setHidden('btnLaudoTab_modelos', !podeModelos && !podeEquipe);
 
   setHidden('kpiCardCustoMes', !podeCustos);
   setHidden('dashBlocoProporcaoCusto', !podeCustos);
@@ -716,13 +730,15 @@ function aplicarSessaoNaUI() {
     ? 'dashboard'
     : (temAcessoSetorTI()
       ? 'equipamentos'
-      : (temAcessoSetorProvedor()
-        ? 'provedor'
-        : (temAcessoSetorEstoque()
-          ? 'estoque'
-          : (temAcessoSetorAutomacao()
-            ? 'automacao'
-            : (temAcessoSetorCyber() ? 'cyber' : 'empresa')))));
+      : (temAcessoSetorLaudos()
+        ? 'laudos'
+        : (temAcessoSetorProvedor()
+          ? 'provedor'
+          : (temAcessoSetorEstoque()
+            ? 'estoque'
+            : (temAcessoSetorAutomacao()
+              ? 'automacao'
+              : (temAcessoSetorCyber() ? 'cyber' : 'empresa'))))));
   alternarVisao(primeiraVisao);
   if (temAcessoSetorTI() || temAcessoSetorProvedor()) {
     carregarLista('nao_finalizados');
@@ -929,6 +945,7 @@ function alternarVisao(visao) {
   };
   toggleView('viewDashboard', visao === 'dashboard');
   toggleView('viewEquipamentos', visao === 'equipamentos');
+  toggleView('viewLaudos', visao === 'laudos');
   toggleView('viewProvedor', visao === 'provedor');
   toggleView('viewEstoque', visao === 'estoque');
   toggleView('viewAutomacao', visao === 'automacao');
@@ -944,6 +961,7 @@ function alternarVisao(visao) {
   };
   setBtnClass('navBtnDashboard', visao === 'dashboard');
   setBtnClass('navBtnEquipamentos', visao === 'equipamentos');
+  setBtnClass('navBtnLaudos', visao === 'laudos');
   setBtnClass('navBtnProvedor', visao === 'provedor');
   setBtnClass('navBtnEstoque', visao === 'estoque');
   setBtnClass('navBtnAutomacao', visao === 'automacao');
@@ -952,6 +970,8 @@ function alternarVisao(visao) {
 
   if (visao === 'dashboard') {
     carregarDashboard();
+  } else if (visao === 'laudos' && typeof carregarPainelLaudos === 'function') {
+    carregarPainelLaudos();
   } else if (visao === 'provedor' && typeof carregarPainelProvedor === 'function') {
     carregarPainelProvedor();
   } else if (visao === 'estoque' && typeof carregarEstoqueOps === 'function') {
@@ -1929,6 +1949,7 @@ function obterCatalogoPermissoes() {
     { key: 'ver_ciberseguranca', setor: 'ciberseguranca', label: 'Acessar Cibersegurança & Conhecimento', descricao: 'Consultar achados, CIS/NIST e guias', default_tecnico: false },
     { key: 'gerenciar_auditoria_cyber', setor: 'ciberseguranca', label: 'Gerenciar Achados, CIS & Playbooks', descricao: 'Mitigar achados, checklists e guias', default_tecnico: false },
     { key: 'executar_auditoria_rede', setor: 'ciberseguranca', label: 'Executar Auditoria Ativa (Se Autorizada)', descricao: 'Disparar varredura no escopo aprovado', default_tecnico: false },
+    { key: 'acessar_criador_laudos', setor: 'laudos', label: 'Acessar Criador de Laudos', descricao: 'Abrir aba separada do Criador de Laudos', default_tecnico: true },
     { key: 'gerenciar_laudos', setor: 'laudos', label: 'Emitir e Anexar Laudos', descricao: 'Laudos e pareceres em PDF', default_tecnico: true },
     { key: 'compartilhar_os', setor: 'laudos', label: 'Comprovante, Link e Assinatura', descricao: 'Link público, orçamento e WhatsApp', default_tecnico: true },
     { key: 'exportar_pdf', setor: 'laudos', label: 'Exportar Relatórios PDF', descricao: 'Gerar PDF consolidado', default_tecnico: true },
@@ -1993,13 +2014,13 @@ function obterMapaPreset(presetKey) {
     return rolePresets[presetKey].permissoes;
   }
   const fallback = {
-    tecnico_ti: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true },
-    tecnico_isp: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, gerenciar_laudos: true, compartilhar_os: true },
-    tecnico_automacao: { ver_automacao: true, gerenciar_automacao: true, ver_estoque: true, movimentar_estoque: true, gerenciar_laudos: true, exportar_pdf: true },
+    tecnico_ti: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true },
+    tecnico_isp: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true },
+    tecnico_automacao: { ver_automacao: true, gerenciar_automacao: true, ver_estoque: true, movimentar_estoque: true, acessar_criador_laudos: true, gerenciar_laudos: true, exportar_pdf: true },
     analista_cyber: { ver_ciberseguranca: true, gerenciar_auditoria_cyber: true, executar_auditoria_rede: true, ver_automacao: true, ver_dashboard: true, exportar_pdf: true },
     estoquista: { ver_estoque: true, movimentar_estoque: true, gerenciar_estoque: true },
     financeiro_gestor: { ver_dashboard: true, ver_custos: true, exportar_pdf: true, ver_ti: true, ver_provedor: true, ver_estoque: true, ver_automacao: true, ver_ciberseguranca: true },
-    operacional_sem_custos: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, ver_automacao: true, gerenciar_automacao: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
+    operacional_sem_custos: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, ver_automacao: true, gerenciar_automacao: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
   };
   return fallback[presetKey] || null;
 }

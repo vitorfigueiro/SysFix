@@ -1,37 +1,111 @@
+from contextlib import asynccontextmanager
 from datetime import date, datetime
+import logging
 import os
+from pathlib import Path
 from typing import Any, List, Optional, Union
 
-from database import get_connection, init_db
+from auth import (
+    AuthenticationError,
+    AuthorizationError,
+    AuthService,
+    OnboardingRequiredError,
+    sanitizar_tenant,
+    sanitizar_usuario,
+)
+from config import get_cors_origins, get_public_client_config, get_storage_backend
+from database import init_db
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from mensagens import obter_mensagem_erro
 from models import ColetaModel
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
 from reports import PDFReportGenerator
 import uvicorn
 
-# Inicializa o banco de dados e aplica migrações
-init_db()
+logger = logging.getLogger("sysfix")
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+
 
 app = FastAPI(
-    title="API de Gerenciamento de Coletas - SysFix", version="1.1.0"
+    title="API de Gerenciamento de Coletas - SysFix SaaS",
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
-# Configuração de CORS para liberar conexões do frontend/Railway
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+_cors_origins = get_cors_origins()
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-# Monta diretório de arquivos estáticos (CSS, JS, Imagens) se existir
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+def _get_auth_service() -> AuthService:
+    return AuthService()
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> str:
+    if not authorization:
+        raise AuthenticationError("Cabeçalho Authorization não fornecido.")
+    parts = authorization.strip().split(" ", 1)
+    if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
+        raise AuthenticationError("Formato inválido do token Bearer.")
+    return parts[1].strip()
+
+
+def get_current_user(
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+) -> dict[str, Any]:
+    try:
+        token = _extract_bearer_token(authorization)
+        return _get_auth_service().authenticate_token(token)
+    except OnboardingRequiredError as ore:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "codigo": "ONBOARDING_REQUIRED",
+                "mensagem": str(ore),
+                "email": ore.identity.get("email", ""),
+                "nome": ore.identity.get("name", ""),
+            },
+        )
+    except AuthenticationError as ae:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(ae),
+        )
+    except AuthorizationError as aze:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(aze),
+        )
+
+
+def require_admin(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito aos administradores da empresa.",
+        )
+    return current_user
 
 
 def validar_e_formatar_data(v: Union[str, date, None]) -> str:
@@ -45,14 +119,12 @@ def validar_e_formatar_data(v: Union[str, date, None]) -> str:
     if not v:
         return ""
 
-    # Tenta ler formato Brasileiro DD/MM/YYYY
     try:
         dt = datetime.strptime(v, "%d/%m/%Y")
         return dt.strftime("%d/%m/%Y")
     except ValueError:
         pass
 
-    # Tenta ler formato ISO YYYY-MM-DD
     try:
         dt = datetime.strptime(v, "%Y-%m-%d")
         return dt.strftime("%d/%m/%Y")
@@ -76,6 +148,42 @@ def serializar_registro(registro: dict) -> dict:
     return resultado
 
 
+class RegisterSchema(BaseModel):
+    nome_empresa: str
+    nome_usuario: str
+    email: str
+    senha: str
+
+
+class LoginSchema(BaseModel):
+    email: str
+    senha: str
+
+
+class OnboardingSchema(BaseModel):
+    nome_empresa: str
+    nome_usuario: Optional[str] = ""
+
+
+class TeamMemberCreateSchema(BaseModel):
+    nome: str
+    email: str
+    senha: str
+    role: Optional[str] = "tecnico"
+
+
+class TeamMemberUpdateSchema(BaseModel):
+    nome: Optional[str] = None
+    role: Optional[str] = None
+    ativo: Optional[bool] = None
+
+
+class TenantSettingsSchema(BaseModel):
+    nome: Optional[str] = None
+    sla_dias: Optional[int] = None
+    localizacoes: Optional[List[str]] = None
+
+
 class EntradaSchema(BaseModel):
     equipamento: Optional[str] = ""
     tombamento: Optional[str] = ""
@@ -93,7 +201,6 @@ class EntradaSchema(BaseModel):
     @classmethod
     def compatibilizar_campos_entrada(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            # Mapeia tecnico_coleta para tecnico se enviado do frontend
             if "tecnico_coleta" in data and not data.get("tecnico"):
                 data["tecnico"] = data["tecnico_coleta"]
         return data
@@ -109,8 +216,8 @@ class SaidaSchema(BaseModel):
     data_entrega: Optional[Union[str, date]] = ""
     os_entrega: Optional[str] = ""
     status_custo: Optional[str] = "Sem Custo"
-    valor_custo: Optional[float] = 0.0
-    valor: Optional[float] = 0.0
+    valor_custo: Optional[Union[float, int, str]] = 0.0
+    valor: Optional[Union[float, int, str]] = None
     resolucao: Optional[str] = ""
     laudado: Optional[str] = "Não"
 
@@ -120,9 +227,8 @@ class SaidaSchema(BaseModel):
     @classmethod
     def compatibilizar_campos_saida(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            # Mapeia valor para valor_custo se enviado do frontend
             if "valor" in data and (
-                "valor_custo" not in data or data["valor_custo"] == 0.0
+                "valor_custo" not in data or data["valor_custo"] in (None, "")
             ):
                 data["valor_custo"] = data["valor"]
         return data
@@ -133,97 +239,204 @@ class SaidaSchema(BaseModel):
         return validar_e_formatar_data(v)
 
 
-class DeleteSchema(BaseModel):
-    """Schema para validação do corpo da requisição de exclusão."""
+# ==============================================================================
+# ROTAS PÚBLICAS (FRONTEND, CONFIGURAÇÃO E AUTENTICAÇÃO)
+# ==============================================================================
 
-    senha_adm: str
 
-
-# Rota Principal: Servir o Frontend (index.html)
 @app.get("/", response_class=FileResponse)
 def read_index():
-    index_path = os.path.join(
-        os.path.dirname(__file__), "templates/index.html"
-    )
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
+    index_path = BASE_DIR / "templates" / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
     raise HTTPException(
         status_code=404, detail="Arquivo index.html não encontrado no servidor."
     )
 
 
-# Rota de Diagnóstico do Banco de Dados
+@app.get("/api/config")
+def obter_configuracao_cliente():
+    return get_public_client_config()
+
+
+@app.get("/api/health")
 @app.get("/debug-db")
-def debug_db():
-    conn = get_connection()
-    cursor = conn.cursor()
+def health_check():
     try:
-        cursor.execute("SELECT COUNT(*) FROM coletas;")
-        res = cursor.fetchone()
-        total_coletas = res["count"] if isinstance(res, dict) else res[0]
-
-        cursor.execute(
-            "SELECT id, equipamento, status, data_coleta FROM coletas ORDER BY id DESC LIMIT 5;"
-        )
-        ultimos_registros = cursor.fetchall()
-        registros_formatados = [
-            serializar_registro(dict(r)) for r in ultimos_registros
-        ]
-
+        backend = get_storage_backend()
         return {
             "status": "online",
-            "total_registros_coletas": total_coletas,
-            "ultimos_5_registros": registros_formatados,
+            "armazenamento": "Cloud Firestore" if backend == "firebase" else "JSON local",
+            "backend": backend,
+            "versao": "2.0.0",
         }
-    except Exception as e:
-        return {"error": str(e)}
-    finally:
-        cursor.close()
-        conn.close()
+    except Exception:
+        logger.exception("Erro no health check do sistema")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
-# Rotas da API de Equipamentos
+@app.post("/api/auth/register")
+def registrar_empresa(payload: RegisterSchema):
+    try:
+        return _get_auth_service().register_local(
+            nome_empresa=payload.nome_empresa,
+            nome_usuario=payload.nome_usuario,
+            email=payload.email,
+            senha=payload.senha,
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao registrar empresa")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/auth/login")
+def login_usuario(payload: LoginSchema):
+    try:
+        return _get_auth_service().login_local(
+            email=payload.email, senha=payload.senha
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except AuthenticationError as ae:
+        raise HTTPException(status_code=401, detail=str(ae))
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+    except Exception:
+        logger.exception("Erro ao autenticar usuário")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/auth/onboarding")
+def onboarding_firebase(
+    payload: OnboardingSchema,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+):
+    try:
+        token = _extract_bearer_token(authorization)
+        return _get_auth_service().onboard_firebase_user(
+            token=token,
+            nome_empresa=payload.nome_empresa,
+            nome_usuario=payload.nome_usuario or "",
+        )
+    except AuthenticationError as ae:
+        raise HTTPException(status_code=401, detail=str(ae))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro no onboarding Firebase")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/auth/me")
+def obter_sessao_atual(current_user: dict[str, Any] = Depends(get_current_user)):
+    return {
+        "user": sanitizar_usuario(current_user),
+        "tenant": sanitizar_tenant(current_user["tenant"]),
+    }
+
+
+# ==============================================================================
+# ROTAS DO DASHBOARD E OPERAÇÃO DE EQUIPAMENTOS (ISOLADAS POR TENANT)
+# ==============================================================================
+
+
+@app.get("/api/dashboard")
+def obter_dashboard(
+    mes: Optional[int] = Query(None, ge=1, le=12),
+    ano: Optional[int] = Query(None, ge=2000, le=2100),
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    try:
+        tenant = current_user["tenant"]
+        return ColetaModel.obter_dashboard(
+            tenant_id=current_user["tenant_id"],
+            mes=mes,
+            ano=ano,
+            sla_dias=tenant.get("sla_dias", 3),
+        )
+    except Exception:
+        logger.exception("Erro ao calcular métricas do dashboard")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
 @app.get("/api/equipamentos")
 def listar_equipamentos(
-    filtro: Optional[str] = None, status: Optional[str] = None
+    filtro: Optional[str] = None,
+    status: Optional[str] = None,
+    busca: Optional[str] = None,
+    current_user: dict[str, Any] = Depends(get_current_user),
 ):
     try:
+        tenant_id = current_user["tenant_id"]
         valor_filtro = (status or filtro or "nao_finalizados").lower().strip()
 
         if valor_filtro in ["finalizados", "entregues", "entregue", "finalizado"]:
-            dados = ColetaModel.buscar_finalizados_mes_atual()
+            dados = ColetaModel.buscar_finalizados_mes_atual(tenant_id=tenant_id)
         elif valor_filtro == "todos":
-            dados = ColetaModel.buscar_todos()
+            dados = ColetaModel.buscar_todos(tenant_id=tenant_id)
         else:
-            dados = ColetaModel.buscar_nao_finalizados_mes_atual()
+            dados = ColetaModel.buscar_nao_finalizados_mes_atual(tenant_id=tenant_id)
+
+        termo = (busca or "").strip().lower()
+        if termo:
+            dados = [
+                item
+                for item in dados
+                if any(
+                    termo in str(item.get(campo) or "").lower()
+                    for campo in (
+                        "id",
+                        "equipamento",
+                        "tombamento",
+                        "os_coleta",
+                        "os_entrega",
+                        "origem",
+                        "localizacao",
+                        "tecnico_coleta",
+                        "tecnico_entrega",
+                    )
+                )
+            ]
 
         return [serializar_registro(dict(item)) for item in dados]
-    except Exception as e:
-        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
-        raise HTTPException(status_code=500, detail=erro)
+    except Exception:
+        logger.exception("Erro ao listar equipamentos")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
 @app.get("/api/equipamentos/{registro_id}")
-def obter_equipamento(registro_id: int):
+def obter_equipamento(
+    registro_id: int,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
     try:
-        dados = ColetaModel.buscar_por_id(registro_id)
+        dados = ColetaModel.buscar_por_id(
+            registro_id, tenant_id=current_user["tenant_id"]
+        )
         if not dados:
-            erro = obter_mensagem_erro("NOT_FOUND")
-            raise HTTPException(status_code=404, detail=erro)
-
+            raise HTTPException(
+                status_code=404, detail=obter_mensagem_erro("NOT_FOUND")
+            )
         return serializar_registro(dict(dados))
     except HTTPException:
         raise
-    except Exception as e:
-        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
-        raise HTTPException(status_code=500, detail=erro)
+    except Exception:
+        logger.exception("Erro ao buscar equipamento %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
 @app.post("/api/equipamentos")
-def criar_entrada(payload: Union[EntradaSchema, List[EntradaSchema]]):
+def criar_entrada(
+    payload: Union[EntradaSchema, List[EntradaSchema]],
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
     """Endpoint flexível: aceita um único objeto de entrada ou uma lista em lote."""
+    tenant_id = current_user["tenant_id"]
+    actor = current_user.get("nome") or current_user.get("email") or ""
+    allowed_locations = current_user["tenant"].get("localizacoes")
+
     try:
         if isinstance(payload, list):
             if not payload:
@@ -232,19 +445,12 @@ def criar_entrada(payload: Union[EntradaSchema, List[EntradaSchema]]):
                     detail="A lista de equipamentos enviados está vazia.",
                 )
 
-            ids_criados = []
-            for item in payload:
-                novo_id = ColetaModel.registrar_entrada(
-                    equipamento=item.equipamento,
-                    tombamento=item.tombamento,
-                    tecnico=item.tecnico or item.tecnico_coleta,
-                    data_coleta=item.data_coleta,
-                    origem=item.origem,
-                    os_coleta=item.os_coleta,
-                    localizacao=item.localizacao,
-                    problema=item.problema,
-                )
-                ids_criados.append(novo_id)
+            ids_criados = ColetaModel.registrar_entrada_em_lote(
+                [item.model_dump() for item in payload],
+                tenant_id=tenant_id,
+                actor=actor,
+                allowed_locations=allowed_locations,
+            )
 
             return {
                 "sucesso": True,
@@ -252,84 +458,120 @@ def criar_entrada(payload: Union[EntradaSchema, List[EntradaSchema]]):
                 "mensagem": f"{len(ids_criados)} entrada(s) registrada(s) com sucesso.",
             }
 
-        else:
-            novo_id = ColetaModel.registrar_entrada(
-                equipamento=payload.equipamento,
-                tombamento=payload.tombamento,
-                tecnico=payload.tecnico or payload.tecnico_coleta,
-                data_coleta=payload.data_coleta,
-                origem=payload.origem,
-                os_coleta=payload.os_coleta,
-                localizacao=payload.localizacao,
-                problema=payload.problema,
-            )
-            return {
-                "sucesso": True,
-                "id": novo_id,
-                "mensagem": "Entrada registrada com sucesso.",
-            }
+        novo_id = ColetaModel.registrar_entrada(
+            equipamento=payload.equipamento,
+            tombamento=payload.tombamento,
+            tecnico=payload.tecnico or payload.tecnico_coleta,
+            data_coleta=payload.data_coleta,
+            origem=payload.origem,
+            os_coleta=payload.os_coleta,
+            localizacao=payload.localizacao,
+            problema=payload.problema,
+            tenant_id=tenant_id,
+            actor=actor,
+            allowed_locations=allowed_locations,
+        )
+        return {
+            "sucesso": True,
+            "id": novo_id,
+            "mensagem": "Entrada registrada com sucesso.",
+        }
 
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except HTTPException:
         raise
-    except Exception as e:
-        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
-        raise HTTPException(status_code=500, detail=erro)
+    except Exception:
+        logger.exception("Erro ao registrar entrada")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
 @app.put("/api/equipamentos/{registro_id}/saida")
-def registrar_saida(registro_id: int, payload: SaidaSchema):
+def registrar_saida(
+    registro_id: int,
+    payload: SaidaSchema,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
     try:
-        ColetaModel.registrar_saida(
+        valor_informado = (
+            payload.valor_custo
+            if payload.valor_custo is not None
+            else payload.valor
+        )
+        atualizado = ColetaModel.registrar_saida(
             registro_id=registro_id,
             tecnico_entrega=payload.tecnico_entrega,
             data_entrega=payload.data_entrega,
             os_entrega=payload.os_entrega,
             status_custo=payload.status_custo,
-            valor_custo=payload.valor_custo or payload.valor,
+            valor_custo=valor_informado,
             resolucao=payload.resolucao,
             laudado=payload.laudado,
+            tenant_id=current_user["tenant_id"],
+            actor=current_user.get("nome") or current_user.get("email") or "",
         )
+        if not atualizado:
+            raise HTTPException(
+                status_code=404, detail=obter_mensagem_erro("NOT_FOUND")
+            )
         return {
             "sucesso": True,
             "mensagem": "Saída/Entrega registrada com sucesso.",
         }
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
-        raise HTTPException(status_code=500, detail=erro)
+    except Exception:
+        logger.exception("Erro ao registrar saída do registro %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
 @app.put("/api/equipamentos/{registro_id}")
-def atualizar_equipamento_unificado(registro_id: int, payload: dict):
+def atualizar_equipamento_unificado(
+    registro_id: int,
+    payload: dict,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
     """Endpoint unificado PUT para atualização de Entrada ou registro de Saída."""
+    tenant_id = current_user["tenant_id"]
+    actor = current_user.get("nome") or current_user.get("email") or ""
+    allowed_locations = current_user["tenant"].get("localizacoes")
+
     try:
-        # Verifica se é uma requisição de saída/entrega
         if "tecnico_entrega" in payload or payload.get("status") in [
             "Entregue",
             "Finalizado",
         ]:
             saida_data = SaidaSchema(**payload)
-            ColetaModel.registrar_saida(
+            valor_informado = (
+                saida_data.valor_custo
+                if saida_data.valor_custo is not None
+                else saida_data.valor
+            )
+            atualizado = ColetaModel.registrar_saida(
                 registro_id=registro_id,
                 tecnico_entrega=saida_data.tecnico_entrega,
                 data_entrega=saida_data.data_entrega,
                 os_entrega=saida_data.os_entrega,
                 status_custo=saida_data.status_custo,
-                valor_custo=saida_data.valor_custo or saida_data.valor,
+                valor_custo=valor_informado,
                 resolucao=saida_data.resolucao,
                 laudado=saida_data.laudado,
+                tenant_id=tenant_id,
+                actor=actor,
             )
+            if not atualizado:
+                raise HTTPException(
+                    status_code=404, detail=obter_mensagem_erro("NOT_FOUND")
+                )
             return {
                 "sucesso": True,
                 "mensagem": "Saída registrada com sucesso.",
             }
 
-        # Caso contrário, trata como atualização de dados de Entrada
         entrada_data = EntradaSchema(**payload)
-        ColetaModel.atualizar_entrada(
+        atualizado = ColetaModel.atualizar_entrada(
             registro_id=registro_id,
             equipamento=entrada_data.equipamento,
             tombamento=entrada_data.tombamento,
@@ -339,45 +581,49 @@ def atualizar_equipamento_unificado(registro_id: int, payload: dict):
             os_coleta=entrada_data.os_coleta,
             localizacao=entrada_data.localizacao,
             problema=entrada_data.problema,
+            tenant_id=tenant_id,
+            actor=actor,
+            allowed_locations=allowed_locations,
         )
+        if not atualizado:
+            raise HTTPException(
+                status_code=404, detail=obter_mensagem_erro("NOT_FOUND")
+            )
         return {
             "sucesso": True,
             "mensagem": "Registro atualizado com sucesso.",
         }
 
+    except HTTPException:
+        raise
+    except ValidationError as ve:
+        detalhes = "; ".join(err["msg"] for err in ve.errors())
+        raise HTTPException(status_code=400, detail=detalhes)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
-        raise HTTPException(status_code=500, detail=erro)
+    except Exception:
+        logger.exception("Erro ao atualizar registro %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
 @app.delete("/api/equipamentos/{registro_id}")
 def deletar_equipamento(
     registro_id: int,
-    payload: Optional[DeleteSchema] = None,
-    x_admin_password: Optional[str] = Header(None, alias="X-Admin-Password"),
-    senha_query: Optional[str] = Query(None, alias="senha_adm"),
+    current_user: dict[str, Any] = Depends(require_admin),
 ):
-    """
-    Exclui um registro do banco de dados. 
-    Exige a senha administrativa (pode ser enviada via Body JSON, Header 'X-Admin-Password' ou Query 'senha_adm').
-    """
-    senha_fornecida = (
-        (payload.senha_adm if payload else None)
-        or x_admin_password
-        or senha_query
-    )
-
-    if not senha_fornecida:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Senha administrativa não fornecida.",
-        )
-
+    """Exclui um registro da empresa atual (permitido apenas para administradores)."""
     try:
-        ColetaModel.excluir(registro_id, senha_adm=senha_fornecida)
+        excluido = ColetaModel.excluir(
+            registro_id, is_admin=True, tenant_id=current_user["tenant_id"]
+        )
+        if not excluido:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=obter_mensagem_erro("NOT_FOUND"),
+            )
         return {"sucesso": True, "mensagem": "Registro excluído com sucesso."}
+    except HTTPException:
+        raise
     except PermissionError as pe:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(pe)
@@ -386,39 +632,175 @@ def deletar_equipamento(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve)
         )
-    except Exception as e:
-        erro = obter_mensagem_erro("DB_ERROR", detalhe_tecnico=str(e))
+    except Exception:
+        logger.exception("Erro ao excluir registro %s", registro_id)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=erro
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=obter_mensagem_erro("DB_ERROR"),
         )
 
 
-# Rota para Geração de Relatórios PDF
+# ==============================================================================
+# GESTÃO DE EQUIPE E CONFIGURAÇÕES DA EMPRESA (SOMENTE ADMIN)
+# ==============================================================================
+
+
+@app.get("/api/empresa/usuarios")
+def listar_usuarios_empresa(
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    try:
+        return _get_auth_service().list_team_members(current_user)
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+    except Exception:
+        logger.exception("Erro ao listar usuários da empresa")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/empresa/usuarios")
+def criar_usuario_empresa(
+    payload: TeamMemberCreateSchema,
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    try:
+        membro = _get_auth_service().create_team_member(
+            admin_ctx=current_user,
+            nome=payload.nome,
+            email=payload.email,
+            senha=payload.senha,
+            role=payload.role or "tecnico",
+        )
+        return {"sucesso": True, "usuario": membro}
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao criar usuário na empresa")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.patch("/api/empresa/usuarios/{uid}")
+def atualizar_usuario_empresa(
+    uid: str,
+    payload: TeamMemberUpdateSchema,
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    try:
+        membro = _get_auth_service().update_team_member(
+            admin_ctx=current_user,
+            target_uid=uid,
+            nome=payload.nome,
+            role=payload.role,
+            ativo=payload.ativo,
+        )
+        return {"sucesso": True, "usuario": membro}
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao atualizar usuário %s", uid)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.put("/api/empresa/configuracoes")
+def atualizar_configuracoes_empresa(
+    payload: TenantSettingsSchema,
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    try:
+        tenant = _get_auth_service().update_tenant_settings(
+            admin_ctx=current_user,
+            nome=payload.nome,
+            sla_dias=payload.sla_dias,
+            localizacoes=payload.localizacoes,
+        )
+        return {"sucesso": True, "tenant": tenant}
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao atualizar configurações da empresa")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+# ==============================================================================
+# RELATÓRIOS PDF (ISOLADOS POR TENANT)
+# ==============================================================================
 
 
 @app.get("/api/relatorio/pdf")
 def gerar_relatorio_pdf(
-    mes: int = Query(..., ge=1, le=12),
-    ano: int = Query(..., ge=2000, le=2100),
+    tipo: str = Query("mensal"),
+    mes: Optional[int] = Query(None, ge=1, le=12),
+    ano: Optional[int] = Query(None, ge=2000, le=2100),
     anonimizar: bool = Query(False),
+    current_user: dict[str, Any] = Depends(get_current_user),
 ):
     try:
-        pdf_buffer = PDFReportGenerator.relatorio_por_mes(
-            mes=mes, ano=ano, anonimizar=anonimizar
-        )
+        tenant_id = current_user["tenant_id"]
+        nome_empresa = current_user["tenant"].get("nome") or "SysFix"
+        tipo_normalizado = tipo.strip().lower()
 
-        filename = f"Relatorio_SysFix_{mes:02d}_{ano}.pdf"
+        if tipo_normalizado == "mensal":
+            if mes is None or ano is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Informe os parâmetros 'mes' e 'ano' para o relatório mensal.",
+                )
+            pdf_buffer = PDFReportGenerator.relatorio_por_mes(
+                mes=mes,
+                ano=ano,
+                anonimizar=anonimizar,
+                tenant_id=tenant_id,
+                nome_empresa=nome_empresa,
+            )
+            filename = f"Relatorio_SysFix_{mes:02d}_{ano}.pdf"
+        elif tipo_normalizado == "pendentes":
+            pdf_buffer = PDFReportGenerator.relatorio_pendentes(
+                anonimizar=anonimizar,
+                tenant_id=tenant_id,
+                nome_empresa=nome_empresa,
+            )
+            filename = "Relatorio_SysFix_Pendentes.pdf"
+        elif tipo_normalizado == "geral":
+            pdf_buffer = PDFReportGenerator.relatorio_geral(
+                anonimizar=anonimizar,
+                tenant_id=tenant_id,
+                nome_empresa=nome_empresa,
+            )
+            filename = "Relatorio_SysFix_Geral.pdf"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Tipo de relatório inválido. Use 'mensal', 'pendentes' ou 'geral'.",
+            )
+
         headers = {"Content-Disposition": f'inline; filename="{filename}"'}
-
-        return StreamingResponse(
-            pdf_buffer, media_type="application/pdf", headers=headers
+        return Response(
+            content=pdf_buffer.getvalue(),
+            media_type="application/pdf",
+            headers=headers,
         )
-    except Exception as e:
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao gerar relatório PDF")
         raise HTTPException(
-            status_code=500, detail=f"Erro ao gerar relatório PDF: {str(e)}"
+            status_code=500, detail="Erro ao gerar relatório PDF."
         )
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    host = os.getenv("HOST", "0.0.0.0")
+    uvicorn.run(app, host=host, port=port)

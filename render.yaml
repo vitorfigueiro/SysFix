@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: sysfix-saas
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: SYSFIX_BACKEND
+        value: firebase
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FIREBASE_WEB_API_KEY
+        sync: false
+      - key: FIREBASE_WEB_AUTH_DOMAIN
+        value: sysfix-saas.firebaseapp.com
+      - key: FIREBASE_WEB_PROJECT_ID
+        value: sysfix-saas
+      - key: FIREBASE_WEB_STORAGE_BUCKET
+        value: sysfix-saas.firebasestorage.app
+      - key: FIREBASE_WEB_MESSAGING_SENDER_ID
+        value: "1096111759143"
+      - key: FIREBASE_WEB_APP_ID
+        value: 1:1096111759143:web:199bb7ce6c8545c77b1302
+      - key: SYSFIX_TOKEN_TTL_HOURS
+        value: "24"

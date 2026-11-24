@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// Regras de Segurança do Cloud Firestore para o SysFix SaaS 2.0
+// Toda leitura e gravação é intermediada pelo backend FastAPI usando Firebase Admin SDK
+// (que valida JWT, tenant_id e papel admin/tecnico antes de qualquer operação).
+// Portanto, o acesso direto do navegador ao Firestore permanece bloqueado por padrão.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

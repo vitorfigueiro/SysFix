@@ -1,0 +1,14 @@
+.git/
+.gitignore
+.venv/
+.venv-anterior-*/
+__pycache__/
+*.py[cod]
+.env
+.secret_key
+*firebase-adminsdk*.json
+*service-account*.json
+data/
+*.log
+*.bat
+*.ps1

@@ -3,15 +3,21 @@ __pycache__/
 *.py[cod]
 venv/
 .venv/
+.venv-anterior-*/
 
 # PyInstaller / Resíduos anteriores
 build/
 dist/
 *.spec
 
-# Variáveis de ambiente com senhas do banco
+# Variáveis de ambiente, segredos e dados locais
 .env
+.secret_key
+*firebase-adminsdk*.json
+*service-account*.json
+data/
+*.log
 
-# Banco de dados local (se houver SQLite ou dumps)
+# Bancos de dados locais
 *.db
 *.sqlite3

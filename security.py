@@ -1,5 +1,6 @@
 from datetime import date, datetime
 import hmac
+import math
 import os
 import re
 from typing import Union
@@ -27,8 +28,8 @@ class SecurityValidator:
         "padrão",
     }
 
-    # Senha administrativa carregada via variável de ambiente (ou fallback 'admin123')
-    _ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+    # A senha precisa ser configurada pelo administrador do servidor.
+    _ADMIN_PASSWORD = ""
 
     # Pré-compilação de Regex e mapas de busca para alta performance
     _REGEX_ESPACOS = re.compile(r"\s+")
@@ -37,18 +38,33 @@ class SecurityValidator:
     }
 
     @staticmethod
+    def obter_senha_admin() -> str:
+        """Obtém dinamicamente a senha administrativa configurada no ambiente."""
+        return os.getenv("ADMIN_PASSWORD", "") or SecurityValidator._ADMIN_PASSWORD
+
+    @staticmethod
+    def senha_admin_configurada() -> bool:
+        """Indica se uma senha administrativa não vazia está configurada no servidor."""
+        return bool(SecurityValidator.obter_senha_admin().strip())
+
+    @staticmethod
     def validar_senha_admin(senha_fornecida: Union[str, None]) -> bool:
         """
         Valida se a senha digitada corresponde à senha administrativa.
         Utiliza hmac.compare_digest para impedir ataques de tempo (timing attacks).
         """
-        if not senha_fornecida or not isinstance(senha_fornecida, str):
+        senha_configurada = SecurityValidator.obter_senha_admin().strip()
+        if (
+            not senha_configurada
+            or not senha_fornecida
+            or not isinstance(senha_fornecida, str)
+        ):
             return False
 
         senha_limpa = senha_fornecida.strip()
         return hmac.compare_digest(
             senha_limpa.encode("utf-8"),
-            SecurityValidator._ADMIN_PASSWORD.encode("utf-8"),
+            senha_configurada.encode("utf-8"),
         )
 
     @staticmethod
@@ -120,12 +136,17 @@ class SecurityValidator:
         if value_input is None or value_input == "":
             return 0.0
 
+        if isinstance(value_input, bool):
+            raise ValueError("Valor de custo numérico inválido.")
+
         if isinstance(value_input, (int, float)):
             val = float(value_input)
         else:
             clean_value = (
                 str(value_input).replace("R$", "").replace(" ", "").strip()
             )
+            if not clean_value:
+                return 0.0
 
             # Trata notação PT-BR (ex: 1.250,50 -> 1250.50)
             if "," in clean_value:
@@ -135,6 +156,9 @@ class SecurityValidator:
                 val = float(clean_value)
             except ValueError:
                 raise ValueError("Valor de custo numérico inválido.")
+
+        if not math.isfinite(val):
+            raise ValueError("Valor de custo numérico inválido.")
 
         if val < 0:
             raise ValueError("O valor do custo não pode ser negativo.")

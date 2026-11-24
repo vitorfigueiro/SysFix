@@ -15,7 +15,8 @@ class PDFReportGenerator:
     @staticmethod
     def _safe_paragraph(text: str, style: ParagraphStyle) -> Paragraph:
         """Sanitiza caracteres especiais de XML/HTML para evitar quebras no ReportLab."""
-        clean_text = html.escape(str(text if text is not None else "-"))
+        texto = "" if text is None else str(text).strip()
+        clean_text = html.escape(texto or "-")
         return Paragraph(clean_text, style)
 
     @staticmethod
@@ -72,13 +73,59 @@ class PDFReportGenerator:
         )
 
         elements.append(Paragraph(f"<b>{html.escape(titulo)}</b>", title_style))
+
+        total_registros = len(dados)
+        total_entregues = sum(
+            1
+            for reg in dados
+            if str(reg.get("status") or "").strip().lower() in {"entregue", "finalizado"}
+        )
+        total_pendentes = total_registros - total_entregues
+        custo_total = 0.0
+        for reg in dados:
+            raw_valor_resumo = reg.get("valor_custo")
+            if raw_valor_resumo is None or raw_valor_resumo == "":
+                raw_valor_resumo = reg.get("valor", 0.0)
+            try:
+                custo_total += float(raw_valor_resumo)
+            except (ValueError, TypeError):
+                pass
+        custo_total_fmt = (
+            f"R$ {custo_total:,.2f}"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
+
         elements.append(
             Paragraph(
-                f"Emitido em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}",
+                f"Emitido em: {datetime.now().strftime('%d/%m/%Y às %H:%M')} | "
+                f"Total: {total_registros} | Entregues: {total_entregues} | "
+                f"Pendentes: {total_pendentes} | Custo Total: {custo_total_fmt}",
                 meta_style,
             )
         )
         elements.append(Spacer(1, 10))
+
+        if not dados:
+            empty_style = ParagraphStyle(
+                "EmptyStyle",
+                parent=styles["Normal"],
+                fontSize=10,
+                leading=14,
+                alignment=1,
+                textColor=colors.HexColor("#64748B"),
+                spaceBefore=24,
+            )
+            elements.append(
+                Paragraph(
+                    "Nenhum registro encontrado para o filtro selecionado.",
+                    empty_style,
+                )
+            )
+            doc.build(elements)
+            buffer.seek(0)
+            return buffer
 
         headers = [
             "ID",
@@ -101,7 +148,9 @@ class PDFReportGenerator:
 
         for reg in dados:
             # Formatação de valores financeiros
-            raw_valor = reg.get("valor") or reg.get("valor_custo") or 0.0
+            raw_valor = reg.get("valor_custo")
+            if raw_valor is None or raw_valor == "":
+                raw_valor = reg.get("valor", 0.0)
             try:
                 val_num = float(raw_valor)
                 val_fmt = (
@@ -122,7 +171,7 @@ class PDFReportGenerator:
                     data_fmt = datetime.strptime(
                         iso_date, "%Y-%m-%d"
                     ).strftime("%d/%m/%Y")
-                except Exception:
+                except ValueError:
                     data_fmt = raw_data
 
             # Trata nomes para exibição/anonimização
@@ -197,8 +246,18 @@ class PDFReportGenerator:
 
     @classmethod
     def relatorio_por_mes(
-        cls, mes: int, ano: int, anonimizar: bool = False
+        cls,
+        mes: int,
+        ano: int,
+        anonimizar: bool = False,
+        tenant_id: str = "default",
+        nome_empresa: str = "SysFix",
     ) -> io.BytesIO:
+        if isinstance(mes, bool) or not isinstance(mes, int) or not (1 <= mes <= 12):
+            raise ValueError("Mês inválido. Informe um valor entre 1 e 12.")
+        if isinstance(ano, bool) or not isinstance(ano, int) or not (2000 <= ano <= 2100):
+            raise ValueError("Ano inválido. Informe um valor entre 2000 e 2100.")
+
         nome_meses = [
             "",
             "Janeiro",
@@ -214,18 +273,31 @@ class PDFReportGenerator:
             "Novembro",
             "Dezembro",
         ]
-        dados = ColetaModel.buscar_por_mes_ano(mes, ano)
-        titulo = f"Relatório de Equipamentos - {nome_meses[mes]} / {ano}"
+        dados = ColetaModel.buscar_por_mes_ano(mes, ano, tenant_id=tenant_id)
+        prefixo = f"{nome_empresa} — " if nome_empresa else ""
+        titulo = f"{prefixo}Relatório de Equipamentos - {nome_meses[mes]} / {ano}"
         return cls._gerar_pdf_buffer(titulo, dados, anonimizar=anonimizar)
 
     @classmethod
-    def relatorio_pendentes(cls, anonimizar: bool = False) -> io.BytesIO:
-        dados = ColetaModel.buscar_nao_finalizados_mes_atual()
-        titulo = "Relatório de Equipamentos Pendentes / Em Manutenção"
+    def relatorio_pendentes(
+        cls,
+        anonimizar: bool = False,
+        tenant_id: str = "default",
+        nome_empresa: str = "SysFix",
+    ) -> io.BytesIO:
+        dados = ColetaModel.buscar_nao_finalizados_mes_atual(tenant_id=tenant_id)
+        prefixo = f"{nome_empresa} — " if nome_empresa else ""
+        titulo = f"{prefixo}Relatório de Equipamentos Pendentes / Em Manutenção"
         return cls._gerar_pdf_buffer(titulo, dados, anonimizar=anonimizar)
 
     @classmethod
-    def relatorio_geral(cls, anonimizar: bool = False) -> io.BytesIO:
-        dados = ColetaModel.buscar_todos()
-        titulo = "Relatório Geral de Coletas e Manutenções"
+    def relatorio_geral(
+        cls,
+        anonimizar: bool = False,
+        tenant_id: str = "default",
+        nome_empresa: str = "SysFix",
+    ) -> io.BytesIO:
+        dados = ColetaModel.buscar_todos(tenant_id=tenant_id)
+        prefixo = f"{nome_empresa} — " if nome_empresa else ""
+        titulo = f"{prefixo}Relatório Geral de Coletas e Manutenções"
         return cls._gerar_pdf_buffer(titulo, dados, anonimizar=anonimizar)

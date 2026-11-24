@@ -3,13 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SysFix - Gestão de Equipamentos</title>
-  <!-- Tailwind CSS via CDN -->
+  <title>SysFix SaaS - Gestão Inteligente de Equipamentos</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
       theme: {
@@ -47,275 +45,629 @@
 </head>
 <body class="h-screen flex flex-col overflow-hidden relative">
 
-  <!-- BARRA DE NAVEGAÇÃO SUPERIOR -->
-  <header class="bg-white border-b border-pastel-border px-6 py-3.5 flex justify-between items-center shadow-sm z-10">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-        ⚙️
-      </div>
-      <div>
-        <h1 class="text-base font-bold text-slate-800 tracking-tight">SysFix</h1>
-        <p class="text-xs text-slate-500 font-medium">Sistema de Gestão de Equipamentos</p>
-      </div>
-    </div>
-    <div class="flex items-center gap-3">
-      <button onclick="abrirModalRelatorio()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 border border-slate-200">
-        📄 Exportar Relatório
-      </button>
-    </div>
-  </header>
-
-  <!-- CORPO PRINCIPAL -->
-  <div class="flex-1 flex overflow-hidden">
-    
-    <!-- PAINEL ESQUERDO: FORMULÁRIOS (ENTRADA EM LOTE / SAÍDA) -->
-    <aside id="painelFormularios" class="w-[420px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
-      
-      <!-- TABS DE NAVEGAÇÃO DO FORMULÁRIO -->
-      <div class="grid grid-cols-2 p-3 gap-2 border-b border-pastel-border bg-slate-50">
-        <button id="btnTabEntrada" onclick="alternarTab('entrada')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200">
-          📥 Registrar Entrada
-        </button>
-        <button id="btnTabSaida" onclick="alternarTab('saida')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800">
-          📤 Dar Saída
-        </button>
-      </div>
-
-      <!-- FORMULÁRIO DE ENTRADA (MÚLTIPLOS EQUIPAMENTOS) -->
-      <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
-        
-        <!-- DADOS GERAIS DA COLETA -->
-        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2.5">
-          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Dados da Coleta</span>
-          
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Téc. Coleta</label>
-              <input type="text" id="ent_tec" placeholder="Ex: Carlos Silva" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+  <!-- ====================================================================== -->
+  <!-- TELA DE AUTENTICAÇÃO (LOGIN / CADASTRO DE EMPRESA / ONBOARDING)       -->
+  <!-- ====================================================================== -->
+  <div id="telaAuth" class="flex-1 overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-sky-950 flex items-center justify-center p-4">
+    <div class="w-full max-w-4xl grid md:grid-cols-2 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200/60">
+      <!-- Lado esquerdo: Apresentação comercial -->
+      <div class="bg-slate-900 text-white p-8 flex flex-col justify-between space-y-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-2xl">
+              ⚙️
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Data Coleta</label>
-              <input type="date" id="ent_data" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+              <h1 class="text-xl font-extrabold tracking-tight">SysFix <span class="text-sky-400">SaaS</span></h1>
+              <p class="text-xs text-slate-400">Controle de O.S., Manutenções e SLA</p>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Origem</label>
-              <input type="text" id="ent_origem" placeholder="Ex: Financeiro" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">O.S Coleta</label>
-              <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-            </div>
-          </div>
+          <h2 class="text-2xl font-bold leading-snug pt-2">
+            Gerencie coletas, entregas e custos da sua assistência em um só lugar.
+          </h2>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Cada empresa possui ambiente isolado, painel de indicadores em tempo real, relatórios PDF com opção LGPD e controle de equipe por perfil.
+          </p>
 
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Localização Inicial</label>
-            <select id="ent_loc" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
-              <option value="Bancada TI">Bancada TI</option>
-              <option value="PlayLan">PlayLan</option>
-              <option value="Central Informática">Central Informática</option>
-              <option value="Aguardando Peça">Aguardando Peça</option>
-              <!--<option value="Bancada">Bancada</option>
-              <option value="Sede">Sede</option>-->
-            </select>
-          </div>
+          <ul class="space-y-2.5 pt-2 text-xs text-slate-200">
+            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Dashboard executivo com SLA, custos e produtividade</li>
+            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Entrada em lote atômica e ficha técnica completa</li>
+            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Integração nativa com Firebase Auth &amp; Cloud Firestore</li>
+            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Relatórios em PDF prontos para auditoria e clientes</li>
+          </ul>
         </div>
 
-        <!-- LISTA DINÂMICA DE EQUIPAMENTOS -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-700">Equipamentos (<span id="countItens">1</span>)</span>
-            <button onclick="adicionarItemEntrada()" class="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-lg border border-sky-200 transition-all flex items-center gap-1">
-              ➕ Adicionar Outro
+        <div class="pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+          <span>SysFix v2.0</span>
+          <span id="badgeModoAuth" class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-sky-300 font-semibold">
+            Carregando modo...
+          </span>
+        </div>
+      </div>
+
+      <!-- Lado direito: Formulários de Login e Cadastro -->
+      <div class="p-8 flex flex-col justify-center bg-white">
+        <!-- Card principal Login / Registro -->
+        <div id="cardLoginRegistro" class="space-y-5">
+          <div class="grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <button id="btnAuthTabLogin" onclick="alternarAuthTab('login')" class="py-2 text-xs font-bold rounded-lg bg-white text-slate-800 shadow-sm transition-all">
+              Entrar
+            </button>
+            <button id="btnAuthTabRegister" onclick="alternarAuthTab('register')" class="py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-800 transition-all">
+              Criar Empresa
             </button>
           </div>
 
-          <div id="listaItensEntrada" class="space-y-3">
-            <!-- Item Card 1 -->
-            <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
-              <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #1</span>
-                <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
+          <!-- Formulário Entrar -->
+          <form id="formLogin" onsubmit="enviarLogin(event)" class="space-y-3.5">
+            <div>
+              <label for="login_email" class="block text-xs font-semibold text-slate-600 mb-1">E-mail *</label>
+              <input type="email" id="login_email" required autocomplete="email" placeholder="voce@empresa.com" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+            </div>
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label for="login_senha" class="block text-xs font-semibold text-slate-600">Senha *</label>
+                <button type="button" id="btnEsqueciSenha" onclick="recuperarSenhaFirebase()" class="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hidden">
+                  Esqueci minha senha
+                </button>
               </div>
+              <input type="password" id="login_senha" required autocomplete="current-password" placeholder="••••••" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+            </div>
+            <button id="btnEntrar" type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+              Entrar no Sistema
+            </button>
+          </form>
 
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento</label>
-                <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Notebook Dell Vostro">
-              </div>
+          <!-- Formulário Criar Empresa -->
+          <form id="formRegister" onsubmit="enviarCadastroEmpresa(event)" class="space-y-3 hidden">
+            <div>
+              <label for="reg_empresa" class="block text-xs font-semibold text-slate-600 mb-1">Nome da Empresa *</label>
+              <input type="text" id="reg_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+            </div>
+            <div>
+              <label for="reg_nome" class="block text-xs font-semibold text-slate-600 mb-1">Seu Nome *</label>
+              <input type="text" id="reg_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+            </div>
+            <div>
+              <label for="reg_email" class="block text-xs font-semibold text-slate-600 mb-1">E-mail Corporativo *</label>
+              <input type="email" id="reg_email" required autocomplete="email" placeholder="carlos@empresa.com" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+            </div>
+            <div>
+              <label for="reg_senha" class="block text-xs font-semibold text-slate-600 mb-1">Senha (mínimo 6 caracteres) *</label>
+              <input type="password" id="reg_senha" required minlength="6" autocomplete="new-password" placeholder="••••••" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+            </div>
+            <button id="btnCadastrarEmpresa" type="submit" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+              Criar Conta e Empresa
+            </button>
+          </form>
+        </div>
 
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento</label>
-                <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 123456">
-              </div>
+        <!-- Card Onboarding (usuário Firebase já autenticado sem empresa) -->
+        <form id="cardOnboarding" onsubmit="concluirOnboardingFirebase(event)" class="space-y-4 hidden">
+          <div>
+            <span class="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
+              Último passo
+            </span>
+            <h3 class="text-base font-bold text-slate-800 mt-2">Configure sua Empresa</h3>
+            <p id="onboardEmailInfo" class="text-xs text-slate-500 mt-1">Informe o nome da empresa para criar seu ambiente isolado.</p>
+          </div>
+          <div>
+            <label for="onb_empresa" class="block text-xs font-semibold text-slate-600 mb-1">Nome da Empresa *</label>
+            <input type="text" id="onb_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+          </div>
+          <div>
+            <label for="onb_nome" class="block text-xs font-semibold text-slate-600 mb-1">Seu Nome *</label>
+            <input type="text" id="onb_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+          </div>
+          <div class="flex gap-2">
+            <button id="btnConcluirOnboarding" type="submit" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-all">
+              Concluir Cadastro
+            </button>
+            <button type="button" onclick="sairSistema()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">
+              Sair
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
+  <!-- ====================================================================== -->
+  <!-- SHELL PRINCIPAL AUTENTICADO                                            -->
+  <!-- ====================================================================== -->
+  <div id="appShell" class="flex-1 flex flex-col overflow-hidden hidden">
+
+    <!-- BARRA DE NAVEGAÇÃO SUPERIOR -->
+    <header class="bg-white border-b border-pastel-border px-5 py-2.5 flex flex-wrap justify-between items-center gap-3 shadow-sm z-10">
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-white font-bold text-base shadow-sm">
+            ⚙️
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 id="headerEmpresaNome" class="text-sm font-bold text-slate-800 tracking-tight">SysFix</h1>
+              <span id="headerPlanoBadge" class="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-sky-50 text-sky-700 border border-sky-200">PRO</span>
+            </div>
+            <p class="text-[11px] text-slate-500 font-medium">Gestão de Equipamentos &amp; O.S.</p>
+          </div>
+        </div>
+
+        <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button id="navBtnDashboard" onclick="alternarVisao('dashboard')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-white text-slate-800 shadow-sm transition-all">
+            📊 Dashboard
+          </button>
+          <button id="navBtnEquipamentos" onclick="alternarVisao('equipamentos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">
+            🖥️ Equipamentos
+          </button>
+          <button id="navBtnEmpresa" onclick="alternarVisao('empresa')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all hidden">
+            🏢 Equipe &amp; Empresa
+          </button>
+        </nav>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <button onclick="abrirModalRelatorio()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 border border-slate-200">
+          📄 Exportar PDF
+        </button>
+
+        <div class="flex items-center gap-2 pl-2 border-l border-slate-200">
+          <div class="text-right leading-tight">
+            <div id="headerUsuarioNome" class="text-xs font-bold text-slate-800">Usuário</div>
+            <div id="headerUsuarioRole" class="text-[10px] font-semibold text-slate-500 uppercase">Técnico</div>
+          </div>
+          <button onclick="sairSistema()" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg border border-rose-200 transition-all">
+            Sair
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ==================================================================== -->
+    <!-- VISÃO 1: DASHBOARD EXECUTIVO                                         -->
+    <!-- ==================================================================== -->
+    <section id="viewDashboard" class="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
+      <div class="max-w-7xl mx-auto space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-800">Dashboard Operacional</h2>
+            <p id="dashSubtitulo" class="text-xs text-slate-500">Visão geral de atendimentos, SLA e custos.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="dash_mes" class="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white outline-none">
+              <option value="1">Janeiro</option>
+              <option value="2">Fevereiro</option>
+              <option value="3">Março</option>
+              <option value="4">Abril</option>
+              <option value="5">Maio</option>
+              <option value="6">Junho</option>
+              <option value="7">Julho</option>
+              <option value="8">Agosto</option>
+              <option value="9">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+            <input type="number" id="dash_ano" min="2000" max="2100" class="w-24 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white outline-none">
+            <button onclick="carregarDashboard()" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-all">
+              Atualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI CARDS -->
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Pendentes</span>
+            <div id="kpi_pendentes" class="text-2xl font-extrabold text-amber-600 mt-1">0</div>
+            <p class="text-[11px] text-slate-500 mt-1">Em atendimento</p>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-rose-200 shadow-sm">
+            <span class="text-[11px] font-bold text-rose-500 uppercase">Atrasados (&gt; SLA)</span>
+            <div id="kpi_atrasados" class="text-2xl font-extrabold text-rose-600 mt-1">0</div>
+            <p id="kpi_sla_label" class="text-[11px] text-slate-500 mt-1">Acima de 3 dias</p>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Entregues</span>
+            <div id="kpi_entregues" class="text-2xl font-extrabold text-emerald-600 mt-1">0</div>
+            <p id="kpi_total_geral" class="text-[11px] text-slate-500 mt-1">de 0 registros</p>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Taxa Resolução</span>
+            <div id="kpi_taxa" class="text-2xl font-extrabold text-sky-600 mt-1">0%</div>
+            <p class="text-[11px] text-slate-500 mt-1">Histórico acumulado</p>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Tempo Médio</span>
+            <div id="kpi_tempo_medio" class="text-2xl font-extrabold text-slate-800 mt-1">0d</div>
+            <p class="text-[11px] text-slate-500 mt-1">Coleta até entrega</p>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Custo no Mês</span>
+            <div id="kpi_custo_mes" class="text-xl font-extrabold text-slate-800 mt-1">R$ 0,00</div>
+            <p id="kpi_custo_geral" class="text-[11px] text-slate-500 mt-1">Total: R$ 0,00</p>
+          </div>
+        </div>
+
+        <!-- GRÁFICOS PRINCIPAIS -->
+        <div class="grid lg:grid-cols-3 gap-5">
+          <div class="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <div class="flex items-center justify-between">
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
-                <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
+                <h3 class="text-sm font-bold text-slate-800">Evolução dos Últimos 6 Meses</h3>
+                <p class="text-[11px] text-slate-500">Entradas coletadas vs. equipamentos entregues</p>
               </div>
+              <div class="flex items-center gap-3 text-[11px] font-semibold">
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500 inline-block"></span> Entradas</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"></span> Entregas</span>
+              </div>
+            </div>
+            <div id="dashEvolucaoGrafico" class="h-52 flex items-end gap-3 pt-4 border-b border-slate-100"></div>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <div>
+              <h3 class="text-sm font-bold text-slate-800">Pendentes por Localização</h3>
+              <p class="text-[11px] text-slate-500">Onde os equipamentos estão agora</p>
+            </div>
+            <div id="dashLocalizacoes" class="space-y-3"></div>
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span class="text-slate-500 font-medium">Com custo / Sem custo:</span>
+              <span id="dashProporcaoCusto" class="font-bold text-slate-700">0 / 0</span>
             </div>
           </div>
         </div>
 
-        <div class="pt-2 space-y-2">
-          <button onclick="salvarEntrada()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+        <!-- RANKINGS E ALERTAS DE SLA -->
+        <div class="grid lg:grid-cols-3 gap-5">
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-slate-800">Ranking de Técnicos</h3>
+            <div id="dashTecnicos" class="space-y-2 text-xs"></div>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-slate-800">Principais Origens / Setores</h3>
+            <div id="dashOrigens" class="space-y-2 text-xs"></div>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-rose-200 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-rose-700">🚨 Alertas de Atraso (SLA)</h3>
+              <span class="text-[11px] text-slate-400">Clique para abrir</span>
+            </div>
+            <div id="dashAlertasAtraso" class="space-y-2 text-xs"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- VISÃO 2: OPERAÇÃO DE EQUIPAMENTOS                                    -->
+    <!-- ==================================================================== -->
+    <div id="viewEquipamentos" class="flex-1 flex overflow-x-auto overflow-y-hidden hidden">
+
+      <!-- PAINEL ESQUERDO: FORMULÁRIOS -->
+      <aside id="painelFormularios" class="w-[360px] xl:w-[420px] shrink-0 bg-white border-r border-pastel-border flex flex-col shadow-sm">
+        <div class="grid grid-cols-2 p-3 gap-2 border-b border-pastel-border bg-slate-50">
+          <button id="btnTabEntrada" onclick="alternarTab('entrada')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200">
             📥 Registrar Entrada
           </button>
-          <button onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
-            🔒 ✏️ Editar Entrada do Item Selecionado
+          <button id="btnTabSaida" onclick="alternarTab('saida')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800">
+            📤 Dar Saída
           </button>
         </div>
-      </div>
 
-      <!-- FORMULÁRIO DE SAÍDA -->
-      <div id="formSaidaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4 hidden">
-        <div id="badgeStatusSelecao" class="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2">
-          ⚠️ Nenhum item selecionado na lista
+        <!-- FORMULÁRIO DE ENTRADA -->
+        <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2.5">
+            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Dados da Coleta</span>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Téc. Coleta *</label>
+                <input type="text" id="ent_tec" list="datalistTecnicos" placeholder="Ex: Carlos Silva" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Data Coleta *</label>
+                <input type="date" id="ent_data" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Origem *</label>
+                <input type="text" id="ent_origem" list="datalistOrigens" placeholder="Ex: Financeiro" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">O.S Coleta *</label>
+                <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Localização Inicial</label>
+              <select id="ent_loc" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+                <option value="Bancada TI">Bancada TI</option>
+                <option value="PlayLan">PlayLan</option>
+                <option value="Central Informática">Central Informática</option>
+                <option value="Aguardando Peça">Aguardando Peça</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-700">Equipamentos (<span id="countItens">1</span>)</span>
+              <button onclick="adicionarItemEntrada()" class="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-lg border border-sky-200 transition-all flex items-center gap-1">
+                ➕ Adicionar Outro
+              </button>
+            </div>
+
+            <div id="listaItensEntrada" class="space-y-3">
+              <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                  <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #1</span>
+                  <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
+                </div>
+
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento *</label>
+                  <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Notebook Dell Vostro">
+                </div>
+
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento *</label>
+                  <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 123456">
+                </div>
+
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
+                  <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 space-y-2">
+            <button id="btnSalvarEntrada" onclick="salvarEntrada()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+              📥 Registrar Entrada
+            </button>
+            <button id="btnAtualizarEntrada" onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
+              ✏️ Atualizar Entrada do Item Selecionado
+            </button>
+          </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <!-- FORMULÁRIO DE SAÍDA -->
+        <div id="formSaidaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4 hidden">
+          <div id="badgeStatusSelecao" class="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2">
+            ⚠️ Nenhum item selecionado na lista
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Entrega *</label>
+              <input type="text" id="sai_tec" list="datalistTecnicos" placeholder="Ex: Roberto Gomes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Entrega *</label>
+              <input type="text" id="sai_os" placeholder="Ex: OS-2026-99" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Data Entrega *</label>
+              <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Laudado?</label>
+              <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+                <option value="Não">Não</option>
+                <option value="Sim">Sim</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Status Custo</label>
+              <select id="sai_status_custo" onchange="alternarCampoCusto()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+                <option value="Sem Custo">Sem Custo</option>
+                <option value="Com Custo">Com Custo</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Valor (R$)</label>
+              <input type="number" min="0" step="0.01" id="sai_valor" value="0.00" disabled class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all">
+            </div>
+          </div>
+
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Entrega</label>
-            <input type="text" id="sai_tec" placeholder="Ex: Roberto Gomes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Serviço / Resolução</label>
+            <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
+          </div>
+
+          <button id="btnSalvarSaida" onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+            ✅ Finalizar &amp; Marcar Entregue
+          </button>
+        </div>
+
+        <div class="p-3 bg-slate-50 border-t border-pastel-border flex gap-2">
+          <button id="btnExcluirItem" onclick="excluirRegistroAdmin()" class="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg transition-all border border-rose-200 hidden">
+            🗑️ Excluir
+          </button>
+          <button onclick="limparFormularios()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all">
+            🧹 Limpar
+          </button>
+        </div>
+      </aside>
+
+      <!-- PAINEL CENTRAL: LISTA DE EQUIPAMENTOS -->
+      <main id="painelLista" class="w-[410px] xl:w-[490px] shrink-0 bg-white border-r border-pastel-border flex flex-col shadow-sm">
+        <div class="p-3 border-b border-pastel-border bg-slate-50 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-700">Equipamentos (<span id="listaContagem">0</span>)</span>
+            <div class="flex gap-1">
+              <button id="btnFiltroPendentes" onclick="carregarLista('nao_finalizados')" class="px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white rounded-md shadow-sm transition-all">Pendentes</button>
+              <button id="btnFiltroEntregues" onclick="carregarLista('finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all">Entregues</button>
+              <button id="btnFiltroTodos" onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all">Todos</button>
+            </div>
+          </div>
+          <input type="search" id="inputBuscaLista" oninput="filtrarTabelaLocal()" placeholder="Buscar por ID, equipamento, tombamento, O.S., origem ou técnico..." class="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+        </div>
+
+        <div class="flex-1 overflow-y-auto custom-scrollbar">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-100 sticky top-0 text-slate-600 font-bold border-b border-pastel-border">
+              <tr>
+                <th class="p-2.5">ID</th>
+                <th class="p-2.5">Equipamento</th>
+                <th class="p-2.5">Tombamento</th>
+                <th class="p-2.5">Status</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaCorpo" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </main>
+
+      <!-- PAINEL DIREITO: FICHA TÉCNICA DETALHADA -->
+      <section id="painelFicha" class="flex-1 min-w-[360px] bg-slate-50 flex flex-col overflow-y-auto p-6 custom-scrollbar">
+        <div id="fichaVazia" class="flex-1 flex flex-col items-center justify-center text-slate-400">
+          <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl mb-3">📋</div>
+          <p class="text-xs font-medium">Selecione um equipamento na lista para carregar a ficha técnica.</p>
+        </div>
+
+        <div id="fichaConteudo" class="hidden space-y-4 max-w-2xl mx-auto w-full">
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start">
+            <div>
+              <span id="f_id" class="text-xs font-bold text-sky-600 uppercase tracking-wider">REGISTRO #0</span>
+              <h2 id="f_equipamento" class="text-lg font-bold text-slate-800 mt-1">NOME DO EQUIPAMENTO</h2>
+              <p id="f_tombamento" class="text-xs text-slate-500 font-medium">Tombamento: ---</p>
+            </div>
+            <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+              ⏳ PENDENTE
+            </span>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📥 Dados de Entrada</h3>
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div><span class="text-slate-400 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 font-medium block">O.S. Coleta:</span><span id="f_os_coleta" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-700">---</span></div>
+            </div>
+            <div class="pt-2">
+              <span class="text-slate-400 font-medium block text-xs">Problema Relatado:</span>
+              <p id="f_problema" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📤 Resolução &amp; Entrega</h3>
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div><span class="text-slate-400 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 font-medium block">O.S. Entrega:</span><span id="f_os_entrega" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-700">---</span></div>
+            </div>
+            <div class="pt-2">
+              <span class="text-slate-400 font-medium block text-xs">Serviço Realizado:</span>
+              <p id="f_resolucao" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ==================================================================== -->
+    <!-- VISÃO 3: GESTÃO DE EQUIPE & EMPRESA (ADMIN)                          -->
+    <!-- ==================================================================== -->
+    <section id="viewEmpresa" class="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar hidden">
+      <div class="max-w-6xl mx-auto grid lg:grid-cols-3 gap-6">
+        <!-- Configurações da Empresa -->
+        <form onsubmit="salvarConfiguracoesEmpresa(event)" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 h-fit">
+          <h2 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">🏢 Configurações da Empresa</h2>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Nome da Empresa *</label>
+            <input type="text" id="emp_nome" required class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-200">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Entrega</label>
-            <input type="text" id="sai_os" placeholder="Ex: OS-2026-99" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Data Entrega</label>
-            <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Prazo SLA (dias) *</label>
+            <input type="number" id="emp_sla" min="1" max="60" required class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-200">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Laudado?</label>
-            <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
-              <option value="Não">Não</option>
-              <option value="Sim">Sim</option>
-            </select>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Localizações Permitidas (uma por linha)</label>
+            <textarea id="emp_locs" rows="5" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-200"></textarea>
           </div>
-        </div>
+          <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-all">
+            Salvar Configurações
+          </button>
+        </form>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Status Custo</label>
-            <select id="sai_status_custo" onchange="alternarCampoCusto()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
-              <option value="Sem Custo">Sem Custo</option>
-              <option value="Com Custo">Com Custo</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Valor (R$)</label>
-            <input type="number" step="0.01" id="sai_valor" value="0.00" disabled class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all">
-          </div>
-        </div>
+        <!-- Equipe da Empresa -->
+        <div class="lg:col-span-2 space-y-5">
+          <form onsubmit="adicionarMembroEquipe(event)" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+            <h2 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">👥 Adicionar Colaborador</h2>
+            <div class="grid md:grid-cols-4 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Nome *</label>
+                <input type="text" id="mem_nome" required placeholder="Nome completo" class="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">E-mail *</label>
+                <input type="email" id="mem_email" required placeholder="email@empresa.com" class="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Senha Inicial *</label>
+                <input type="password" id="mem_senha" required minlength="6" placeholder="Mín. 6 chars" class="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Papel</label>
+                <select id="mem_role" class="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg bg-white outline-none">
+                  <option value="tecnico">Técnico</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-all">
+                ➕ Cadastrar Colaborador
+              </button>
+            </div>
+          </form>
 
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Serviço / Resolução</label>
-          <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
-        </div>
-
-        <button onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
-          ✅ Finalizar & Marcar Entregue
-        </button>
-      </div>
-
-      <!-- BOTÕES DE AÇÕES DA BARRA LATERAL -->
-      <div class="p-3 bg-slate-50 border-t border-pastel-border flex gap-2">
-        <button onclick="excluirRegistroAdmin()" class="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg transition-all border border-rose-200">
-          🗑️ Excluir
-        </button>
-        <button onclick="limparFormularios()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all">
-          🧹 Limpar
-        </button>
-      </div>
-    </aside>
-
-    <!-- PAINEL CENTRAL: LISTA DE EQUIPAMENTOS -->
-    <main id="painelLista" class="w-[480px] bg-white border-r border-pastel-border flex flex-col shadow-sm">
-      <div class="p-3 border-b border-pastel-border bg-slate-50 flex items-center justify-between">
-        <span class="text-xs font-bold text-slate-700">Equipamentos Cadastrados</span>
-        <div class="flex gap-1">
-          <button id="btnFiltroPendentes" onclick="carregarLista('nao_finalizados')" class="px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white rounded-md shadow-sm transition-all">Pendentes</button>
-          <button id="btnFiltroEntregues" onclick="carregarLista('finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all">Entregues</button>
-          <button id="btnFiltroTodos" onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all">Todos</button>
-        </div>
-      </div>
-
-      <div class="flex-1 overflow-y-auto custom-scrollbar">
-        <table class="w-full text-left text-xs border-collapse">
-          <thead class="bg-slate-100 sticky top-0 text-slate-600 font-bold border-b border-pastel-border">
-            <tr>
-              <th class="p-2.5">ID</th>
-              <th class="p-2.5">Equipamento</th>
-              <th class="p-2.5">Tombamento</th>
-              <th class="p-2.5">Status</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaCorpo" class="divide-y divide-slate-100">
-            <!-- Linhas dinâmicas via JS -->
-          </tbody>
-        </table>
-      </div>
-    </main>
-
-    <!-- PAINEL DIREITO: FICHA TÉCNICA DETALHADA -->
-    <section id="painelFicha" class="flex-1 bg-slate-50 flex flex-col overflow-y-auto p-6 custom-scrollbar">
-      <div id="fichaVazia" class="flex-1 flex flex-col items-center justify-center text-slate-400">
-        <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl mb-3">📋</div>
-        <p class="text-xs font-medium">Selecione um equipamento na lista para carregar a ficha técnica.</p>
-      </div>
-
-      <div id="fichaConteudo" class="hidden space-y-4 max-w-2xl mx-auto w-full">
-        <!-- HEADER DA FICHA -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start">
-          <div>
-            <span id="f_id" class="text-xs font-bold text-sky-600 uppercase tracking-wider">REGISTRO #0</span>
-            <h2 id="f_equipamento" class="text-lg font-bold text-slate-800 mt-1">NOME DO EQUIPAMENTO</h2>
-            <p id="f_tombamento" class="text-xs text-slate-500 font-medium">Tombamento: ---</p>
-          </div>
-          <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-            ⏳ PENDENTE
-          </span>
-        </div>
-
-        <!-- DADOS DA ENTRADA -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📥 Dados de Entrada</h3>
-          <div class="grid grid-cols-2 gap-3 text-xs">
-            <div><span class="text-slate-400 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">O.S. Coleta:</span><span id="f_os_coleta" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-700">---</span></div>
-          </div>
-          <div class="pt-2">
-            <span class="text-slate-400 font-medium block text-xs">Problema Relatado:</span>
-            <p id="f_problema" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
-          </div>
-        </div>
-
-        <!-- DADOS DA SAÍDA -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📤 Resolução & Entrega</h3>
-          <div class="grid grid-cols-2 gap-3 text-xs">
-            <div><span class="text-slate-400 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">O.S. Entrega:</span><span id="f_os_entrega" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-700">---</span></div>
-            <div><span class="text-slate-400 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-700">---</span></div>
-          </div>
-          <div class="pt-2">
-            <span class="text-slate-400 font-medium block text-xs">Serviço Realizado:</span>
-            <p id="f_resolucao" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-800">Membros da Equipe</h3>
+              <button onclick="carregarUsuariosEmpresa()" class="text-xs font-semibold text-sky-600 hover:text-sky-700">Atualizar</button>
+            </div>
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                <tr>
+                  <th class="p-3">Nome</th>
+                  <th class="p-3">E-mail</th>
+                  <th class="p-3">Papel</th>
+                  <th class="p-3">Status</th>
+                  <th class="p-3 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaUsuariosEmpresa" class="divide-y divide-slate-100"></tbody>
+            </table>
           </div>
         </div>
       </div>
     </section>
   </div>
+
+  <!-- DATALISTS DE AUTOCOMPLETAR -->
+  <datalist id="datalistTecnicos"></datalist>
+  <datalist id="datalistOrigens"></datalist>
 
   <!-- CONTAINER PARA NOTIFICAÇÕES (TOASTS) -->
   <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
@@ -330,6 +682,15 @@
 
       <div class="space-y-3">
         <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Tipo de Relatório</label>
+          <select id="rel_tipo" onchange="alternarCamposRelatorio()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none bg-white">
+            <option value="mensal">Mensal (por Mês / Ano)</option>
+            <option value="pendentes">Pendentes / Em Manutenção</option>
+            <option value="geral">Relatório Geral (Todos)</option>
+          </select>
+        </div>
+
+        <div id="grupoPeriodoRelatorio">
           <label class="block text-xs font-semibold text-slate-600 mb-1">Selecione o Mês / Ano</label>
           <div class="grid grid-cols-2 gap-2">
             <select id="rel_mes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none bg-white">
@@ -346,7 +707,7 @@
               <option value="11">Novembro</option>
               <option value="12">Dezembro</option>
             </select>
-            <input type="number" id="rel_ano" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+            <input type="number" id="rel_ano" min="2000" max="2100" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
           </div>
         </div>
 
@@ -357,7 +718,7 @@
       </div>
 
       <div class="flex gap-2 pt-2">
-        <button onclick="baixarRelatorioPDF()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+        <button id="btnBaixarPdf" onclick="baixarRelatorioPDF()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
           📥 Download PDF
         </button>
         <button onclick="fecharModalRelatorio()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
@@ -367,649 +728,29 @@
     </div>
   </div>
 
-  <!-- JAVASCRIPT DE INTERATIVIDADE E LÓGICA DE NEGÓCIO -->
-  <script>
-    const API_BASE = window.location.origin.includes('railway.app') 
-      ? '/api' 
-      : 'https://web-production-04cf6.up.railway.app/api';
-
-    let registroSelecionadoId = null;
-    let filtroAtual = 'nao_finalizados';
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const hoje = new Date();
-      document.getElementById('ent_data').valueAsDate = hoje;
-      document.getElementById('sai_data').valueAsDate = hoje;
-      document.getElementById('rel_ano').value = hoje.getFullYear();
-      document.getElementById('rel_mes').value = hoje.getMonth() + 1;
-
-      carregarLista('nao_finalizados');
-
-      document.addEventListener("click", (event) => {
-        if (!registroSelecionadoId) return;
-
-        const painelFormularios = document.getElementById("painelFormularios");
-        const painelLista = document.getElementById("painelLista");
-        const painelFicha = document.getElementById("painelFicha");
-        const modalRelatorio = document.getElementById("modalRelatorio");
-
-        const clicouNoForm = painelFormularios && painelFormularios.contains(event.target);
-        const clicouNaLista = painelLista && painelLista.contains(event.target);
-        const clicouNaFicha = painelFicha && painelFicha.contains(event.target);
-        const clicouNoModal = modalRelatorio && modalRelatorio.contains(event.target);
-
-        if (!clicouNoForm && !clicouNaLista && !clicouNaFicha && !clicouNoModal) {
-          limparFormularios();
-        }
-      });
-    });
-
-    // SISTEMA DE NOTIFICAÇÃO (TOAST)
-    function mostrarToast(mensagem, tipo = 'sucesso') {
-      const container = document.getElementById('toastContainer');
-      if (!container) return;
-
-      const toast = document.createElement('div');
-      const estilos = {
-        sucesso: 'bg-slate-900 text-emerald-400 border-emerald-500/30',
-        erro: 'bg-slate-900 text-rose-400 border-rose-500/30',
-        info: 'bg-slate-900 text-sky-400 border-sky-500/30'
-      };
-      const icones = { sucesso: '✨', erro: '🚨', info: 'ℹ️' };
-
-      toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold transform transition-all duration-300 translate-y-4 opacity-0 ${estilos[tipo] || estilos.info}`;
-      toast.innerHTML = `<span class="text-sm">${icones[tipo] || 'ℹ️'}</span><span>${mensagem}</span>`;
-
-      container.appendChild(toast);
-
-      requestAnimationFrame(() => {
-        toast.classList.remove('translate-y-4', 'opacity-0');
-      });
-
-      setTimeout(() => {
-        toast.classList.add('translate-y-4', 'opacity-0');
-        setTimeout(() => toast.remove(), 300);
-      }, 3500);
-    }
-
-    function escapeHtml(text) {
-      if (!text) return '';
-      return String(text)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-
-    function converterDataParaInput(dataStr) {
-      if (!dataStr) return new Date().toISOString().split('T')[0];
-      if (dataStr.includes('/')) {
-        const partes = dataStr.split('/');
-        if (partes.length === 3) return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
-      }
-      return dataStr;
-    }
-
-    function calcularDiasPendente(dataStr) {
-      if (!dataStr) return 0;
-      let dataColeta;
-      
-      if (dataStr.includes('/')) {
-        const partes = dataStr.split('/');
-        if (partes.length === 3) {
-          dataColeta = new Date(partes[2], partes[1] - 1, partes[0]);
-        }
-      } else if (dataStr.includes('-')) {
-        const partes = dataStr.split('-');
-        if (partes.length === 3) {
-          dataColeta = new Date(partes[0], partes[1] - 1, partes[2]);
-        }
-      } else {
-        dataColeta = new Date(dataStr);
-      }
-
-      if (!dataColeta || isNaN(dataColeta.getTime())) return 0;
-
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
-      dataColeta.setHours(0, 0, 0, 0);
-
-      const diffTime = hoje.getTime() - dataColeta.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays > 0 ? diffDays : 0;
-    }
-
-    function formatarMensagemErro(err) {
-      if (!err) return "Erro desconhecido no servidor.";
-      if (typeof err.detail === 'string') return err.detail;
-      if (Array.isArray(err.detail)) {
-        return err.detail.map(e => {
-          const campo = e.loc ? e.loc.filter(item => item !== 'body').join('.') : 'Campo';
-          return `${campo}: ${e.msg}`;
-        }).join(' | ');
-      }
-      if (typeof err.detail === 'object') return JSON.stringify(err.detail);
-      return JSON.stringify(err);
-    }
-
-    // FUNÇÕES DA ENTRADA DINÂMICA (LOTE)
-    function adicionarItemEntrada() {
-      const container = document.getElementById('listaItensEntrada');
-      const cards = container.querySelectorAll('.item-entrada-card');
-      const index = cards.length + 1;
-
-      const cardHtml = `
-        <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
-          <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-            <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #${index}</span>
-            <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold">🗑️ Remover</button>
-          </div>
-
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento</label>
-            <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Monitor Dell 24">
-          </div>
-
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento</label>
-            <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 654321">
-          </div>
-
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
-            <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
-          </div>
-        </div>
-      `;
-
-      container.insertAdjacentHTML('beforeend', cardHtml);
-      atualizarContadoresERemover();
-    }
-
-    function removerItemEntrada(btn) {
-      const card = btn.closest('.item-entrada-card');
-      if (card) {
-        card.remove();
-        atualizarContadoresERemover();
-      }
-    }
-
-    function atualizarContadoresERemover() {
-      const container = document.getElementById('listaItensEntrada');
-      const cards = container.querySelectorAll('.item-entrada-card');
-      document.getElementById('countItens').innerText = cards.length;
-
-      cards.forEach((card, i) => {
-        const label = card.querySelector('.num-item-label');
-        if (label) label.innerText = `Item #${i + 1}`;
-
-        const btnRemove = card.querySelector('.btn-remover-item');
-        if (btnRemove) {
-          if (cards.length === 1) {
-            btnRemove.classList.add('hidden');
-          } else {
-            btnRemove.classList.remove('hidden');
-          }
-        }
-      });
-    }
-
-    function alternarTab(tab) {
-      const isEntrada = tab === 'entrada';
-      document.getElementById('formEntradaContainer').classList.toggle('hidden', !isEntrada);
-      document.getElementById('formSaidaContainer').classList.toggle('hidden', isEntrada);
-
-      document.getElementById('btnTabEntrada').className = isEntrada 
-        ? "py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200" 
-        : "py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
-
-      document.getElementById('btnTabSaida').className = !isEntrada 
-        ? "py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200" 
-        : "py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
-    }
-
-    function alternarCampoCusto() {
-      const isComCusto = document.getElementById('sai_status_custo').value === "Com Custo";
-      const campo = document.getElementById('sai_valor');
-      campo.disabled = !isComCusto;
-      campo.className = isComCusto 
-        ? "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white text-slate-800"
-        : "w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all";
-    }
-
-    function atualizarBotoesFiltro(filtro) {
-      const btnPendentes = document.getElementById('btnFiltroPendentes');
-      const btnEntregues = document.getElementById('btnFiltroEntregues');
-      const btnTodos = document.getElementById('btnFiltroTodos');
-
-      const activeClass = "px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white rounded-md shadow-sm transition-all";
-      const inactiveClass = "px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all";
-
-      if (btnPendentes) btnPendentes.className = filtro === 'nao_finalizados' ? activeClass : inactiveClass;
-      if (btnEntregues) btnEntregues.className = filtro === 'finalizados' ? activeClass : inactiveClass;
-      if (btnTodos) btnTodos.className = filtro === 'todos' ? activeClass : inactiveClass;
-    }
-
-    function limparFormularios() {
-      registroSelecionadoId = null;
-      
-      // Limpar campos gerais da coleta
-      document.getElementById('ent_tec').value = '';
-      document.getElementById('ent_data').valueAsDate = new Date();
-      document.getElementById('ent_origem').value = '';
-      document.getElementById('ent_os').value = '';
-      document.getElementById('ent_loc').value = 'Bancada TI';
-
-      // Resetar lista dinâmica de equipamentos para 1 card limpo
-      const container = document.getElementById('listaItensEntrada');
-      container.innerHTML = `
-        <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
-          <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-            <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #1</span>
-            <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
-          </div>
-
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento</label>
-            <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Notebook Dell Vostro">
-          </div>
-
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento</label>
-            <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 123456">
-          </div>
-
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
-            <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
-          </div>
-        </div>
-      `;
-      atualizarContadoresERemover();
-
-      // Limpar Saída
-      document.getElementById('sai_tec').value = '';
-      document.getElementById('sai_os').value = '';
-      document.getElementById('sai_data').valueAsDate = new Date();
-      document.getElementById('sai_laudado').value = 'Não';
-      document.getElementById('sai_status_custo').value = 'Sem Custo';
-      document.getElementById('sai_valor').value = '0.00';
-      document.getElementById('sai_resolucao').value = '';
-      alternarCampoCusto();
-
-      const badge = document.getElementById('badgeStatusSelecao');
-      badge.className = "p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2";
-      badge.innerText = "⚠️ Nenhum item selecionado na lista";
-
-      document.getElementById('fichaConteudo').classList.add('hidden');
-      document.getElementById('fichaVazia').classList.remove('hidden');
-    }
-
-    async function carregarLista(filtro = filtroAtual) {
-      filtroAtual = filtro;
-      atualizarBotoesFiltro(filtro);
-
-      try {
-        const res = await fetch(`${API_BASE}/equipamentos?status=${filtro}`);
-        let dados = await res.json();
-
-        if (!Array.isArray(dados)) dados = [];
-
-        const tbody = document.getElementById('tabelaCorpo');
-        tbody.innerHTML = '';
-
-        if (dados.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400">Nenhum equipamento encontrado.</td></tr>';
-          return;
-        }
-
-        dados.forEach(item => {
-          const tr = document.createElement('tr');
-          const statusLower = (item.status || '').toLowerCase().trim();
-          const isEntregue = statusLower === 'entregue' || statusLower === 'finalizado' || (item.data_entrega && item.data_entrega.trim() !== '');
-          
-          const diasPendente = !isEntregue ? calcularDiasPendente(item.data_coleta) : 0;
-          const estaAtrasado = !isEntregue && diasPendente > 3;
-
-          if (estaAtrasado) {
-            tr.className = "bg-rose-50 hover:bg-rose-100/80 border-l-4 border-l-rose-500 cursor-pointer transition-colors border-b border-rose-100";
-          } else {
-            tr.className = "hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100";
-          }
-
-          tr.onclick = (e) => {
-            e.stopPropagation();
-            selecionarItem(item.id);
-          };
-
-          let badge = '';
-          if (isEntregue) {
-            badge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>';
-          } else if (estaAtrasado) {
-            badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 text-rose-700 border border-rose-300">🚨 ${diasPendente} dias</span>`;
-          } else {
-            badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente (${diasPendente}d)</span>`;
-          }
-
-          tr.innerHTML = `
-            <td class="p-2.5 font-bold ${estaAtrasado ? 'text-rose-700' : 'text-slate-500'}">#${item.id}</td>
-            <td class="p-2.5 font-semibold ${estaAtrasado ? 'text-rose-900' : 'text-slate-800'}">${escapeHtml(item.equipamento)}</td>
-            <td class="p-2.5 ${estaAtrasado ? 'text-rose-700' : 'text-slate-600'}">${escapeHtml(item.tombamento || '-')}</td>
-            <td class="p-2.5">${badge}</td>
-          `;
-          tbody.appendChild(tr);
-        });
-      } catch (e) {
-        console.error("Erro ao carregar lista:", e);
-        mostrarToast("Erro ao conectar com o servidor.", "erro");
-      }
-    }
-
-    async function selecionarItem(id) {
-      registroSelecionadoId = id;
-      try {
-        const res = await fetch(`${API_BASE}/equipamentos/${id}`);
-        const d = await res.json();
-
-        // Preencher dados gerais de entrada
-        document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
-        document.getElementById('ent_data').value = converterDataParaInput(d.data_coleta);
-        document.getElementById('ent_origem').value = d.origem || '';
-        document.getElementById('ent_os').value = d.os_coleta || '';
-        document.getElementById('ent_loc').value = d.localizacao || 'Bancada TI';
-
-        // Preencher o container de equipamentos com o item selecionado
-        const container = document.getElementById('listaItensEntrada');
-        container.innerHTML = `
-          <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-              <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #${d.id}</span>
-              <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
-            </div>
-
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento</label>
-              <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" value="${escapeHtml(d.equipamento || '')}">
-            </div>
-
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento</label>
-              <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" value="${escapeHtml(d.tombamento || '')}">
-            </div>
-
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
-              <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2">${escapeHtml(d.problema || '')}</textarea>
-            </div>
-          </div>
-        `;
-        atualizarContadoresERemover();
-
-        // Preencher formulário de Saída
-        document.getElementById('sai_tec').value = d.tecnico_entrega || '';
-        document.getElementById('sai_os').value = d.os_entrega || '';
-        document.getElementById('sai_data').value = converterDataParaInput(d.data_entrega);
-        document.getElementById('sai_laudado').value = d.laudado || 'Não';
-        document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
-        document.getElementById('sai_valor').value = d.valor_custo || d.valor || '0.00';
-        document.getElementById('sai_resolucao').value = d.resolucao || d.servico_realizado || '';
-        alternarCampoCusto();
-
-        // Atualizar Badge de Seleção no painel de saída
-        const statusLower = (d.status || '').toLowerCase().trim();
-        const isEntregue = statusLower === 'entregue' || statusLower === 'finalizado' || (d.data_entrega && d.data_entrega.trim() !== '');
-        
-        const badge = document.getElementById('badgeStatusSelecao');
-        if (isEntregue) {
-          badge.className = "p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2";
-          badge.innerText = `✅ Item #${d.id} selecionado (Entregue)`;
-        } else {
-          badge.className = "p-3 bg-sky-50 border border-sky-100 rounded-lg text-xs font-semibold text-sky-700 flex items-center gap-2";
-          badge.innerText = `📦 Item #${d.id} selecionado para saída`;
-        }
-
-        // Atualizar Ficha Técnica
-        document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
-        document.getElementById('f_equipamento').innerText = d.equipamento || '---';
-        document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || '---'}`;
-        
-        const fBadge = document.getElementById('f_badge_status');
-        if (isEntregue) {
-          fBadge.className = "px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200";
-          fBadge.innerText = "✅ ENTREGUE";
-        } else {
-          const dias = calcularDiasPendente(d.data_coleta);
-          if (dias > 3) {
-            fBadge.className = "px-3 py-1 text-xs font-bold rounded-full bg-rose-50 text-rose-600 border border-rose-200";
-            fBadge.innerText = `🚨 ATRASADO (${dias}d)`;
-          } else {
-            fBadge.className = "px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200";
-            fBadge.innerText = `⏳ PENDENTE (${dias}d)`;
-          }
-        }
-
-        document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || '---';
-        document.getElementById('f_data_coleta').innerText = d.data_coleta || '---';
-        document.getElementById('f_os_coleta').innerText = d.os_coleta || '---';
-        document.getElementById('f_origem').innerText = d.origem || '---';
-        document.getElementById('f_localizacao').innerText = d.localizacao || '---';
-        document.getElementById('f_problema').innerText = d.problema || 'Nenhum detalhe relatado.';
-
-        document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || '---';
-        document.getElementById('f_data_entrega').innerText = d.data_entrega || '---';
-        document.getElementById('f_os_entrega').innerText = d.os_entrega || '---';
-        document.getElementById('f_custo').innerText = d.status_custo === 'Com Custo' ? `Com Custo (R$ ${parseFloat(d.valor_custo || 0).toFixed(2)})` : (d.status_custo || '---');
-        document.getElementById('f_laudado').innerText = d.laudado || '---';
-        document.getElementById('f_resolucao').innerText = d.resolucao || d.servico_realizado || 'Pendente de atendimento.';
-
-        document.getElementById('fichaVazia').classList.add('hidden');
-        document.getElementById('fichaConteudo').classList.remove('hidden');
-      } catch (e) {
-        console.error("Erro ao carregar detalhes:", e);
-        mostrarToast("Não foi possível carregar os detalhes do registro.", "erro");
-      }
-    }
-
-    async function salvarEntrada() {
-      const tec = document.getElementById('ent_tec').value.trim();
-      const dataColeta = document.getElementById('ent_data').value;
-      const origem = document.getElementById('ent_origem').value.trim();
-      const osColeta = document.getElementById('ent_os').value.trim();
-      const localizacao = document.getElementById('ent_loc').value;
-
-      const cards = document.querySelectorAll('.item-entrada-card');
-      const itensParaSalvar = [];
-
-      cards.forEach(card => {
-        const equip = card.querySelector('.ent_equip').value.trim();
-        const tomb = card.querySelector('.ent_tomb').value.trim();
-        const prob = card.querySelector('.ent_prob').value.trim();
-
-        if (equip) {
-          itensParaSalvar.push({
-            equipamento: equip,
-            tombamento: tomb,
-            tecnico_coleta: tec,
-            data_coleta: dataColeta,
-            origem: origem,
-            os_coleta: osColeta,
-            localizacao: localizacao,
-            problema: prob
-          });
-        }
-      });
-
-      if (itensParaSalvar.length === 0) {
-        mostrarToast("Preencha o nome de pelo menos 1 equipamento para cadastrar.", "erro");
-        return;
-      }
-
-      try {
-        let cadastrados = 0;
-        let erros = 0;
-
-        const requisicoes = itensParaSalvar.map(payload => 
-          fetch(`${API_BASE}/equipamentos`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          }).then(res => {
-            if (res.ok) cadastrados++;
-            else erros++;
-          }).catch(() => erros++)
-        );
-
-        await Promise.all(requisicoes);
-
-        if (cadastrados > 0) {
-          mostrarToast(`Entrada realizada! ${cadastrados} equipamento(s) cadastrado(s) com sucesso.`, "sucesso");
-          if (erros > 0) {
-            mostrarToast(`${erros} item(ns) falharam ao salvar.`, "erro");
-          }
-          limparFormularios();
-          carregarLista();
-        } else {
-          mostrarToast("Erro ao registrar a entrada dos equipamentos.", "erro");
-        }
-      } catch (e) {
-        console.error("Erro ao salvar entrada em lote:", e);
-        mostrarToast("Falha na conexão ao tentar registrar entrada.", "erro");
-      }
-    }
-
-    async function atualizarEntradaAdmin() {
-      if (!registroSelecionadoId) {
-        mostrarToast("Selecione um equipamento na lista para atualizar.", "erro");
-        return;
-      }
-
-      const card = document.querySelector('.item-entrada-card');
-      const equip = card ? card.querySelector('.ent_equip').value.trim() : '';
-      const tomb = card ? card.querySelector('.ent_tomb').value.trim() : '';
-      const prob = card ? card.querySelector('.ent_prob').value.trim() : '';
-
-      const payload = {
-        equipamento: equip,
-        tombamento: tomb,
-        tecnico_coleta: document.getElementById('ent_tec').value.trim(),
-        data_coleta: document.getElementById('ent_data').value,
-        origem: document.getElementById('ent_origem').value.trim(),
-        os_coleta: document.getElementById('ent_os').value.trim(),
-        localizacao: document.getElementById('ent_loc').value,
-        problema: prob
-      };
-
-      if (!payload.equipamento) {
-        mostrarToast("Preencha o nome do equipamento para atualizar.", "erro");
-        return;
-      }
-
-      try {
-        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) {
-          const err = await res.json();
-          mostrarToast(formatarMensagemErro(err), "erro");
-          return;
-        }
-
-        mostrarToast(`Dados do item #${registroSelecionadoId} atualizados!`, "sucesso");
-        carregarLista();
-        selecionarItem(registroSelecionadoId);
-      } catch (e) {
-        console.error("Erro ao atualizar registro:", e);
-        mostrarToast("Falha de conexão ao tentar atualizar o registro.", "erro");
-      }
-    }
-
-    async function salvarSaida() {
-      if (!registroSelecionadoId) {
-        mostrarToast("Selecione um equipamento na lista para dar saída.", "erro");
-        return;
-      }
-
-      const payload = {
-        tecnico_entrega: document.getElementById('sai_tec').value.trim(),
-        os_entrega: document.getElementById('sai_os').value.trim(),
-        data_entrega: document.getElementById('sai_data').value,
-        laudado: document.getElementById('sai_laudado').value,
-        status_custo: document.getElementById('sai_status_custo').value,
-        valor_custo: parseFloat(document.getElementById('sai_valor').value) || 0.0,
-        resolucao: document.getElementById('sai_resolucao').value.trim()
-      };
-
-      try {
-        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}/saida`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) {
-          const err = await res.json();
-          mostrarToast(formatarMensagemErro(err), "erro");
-          return;
-        }
-
-        mostrarToast(`Saída finalizada! Item #${registroSelecionadoId} marcado como Entregue.`, "sucesso");
-        limparFormularios();
-        carregarLista();
-      } catch (e) {
-        console.error("Erro ao registrar saída:", e);
-        mostrarToast("Falha de conexão ao registrar a saída do item.", "erro");
-      }
-    }
-
-    async function excluirRegistroAdmin() {
-      if (!registroSelecionadoId) {
-        mostrarToast("Selecione um registro na lista para excluir.", "erro");
-        return;
-      }
-
-      if (!confirm(`Tem certeza que deseja excluir permanentemente o item #${registroSelecionadoId}?`)) return;
-
-      try {
-        const res = await fetch(`${API_BASE}/equipamentos/${registroSelecionadoId}`, {
-          method: 'DELETE'
-        });
-
-        if (!res.ok) {
-          mostrarToast("Não foi possível excluir o registro.", "erro");
-          return;
-        }
-
-        mostrarToast(`Registro #${registroSelecionadoId} removido do sistema.`, "info");
-        limparFormularios();
-        carregarLista();
-      } catch (e) {
-        console.error("Erro ao excluir registro:", e);
-        mostrarToast("Erro ao tentar conectar com o servidor.", "erro");
-      }
-    }
-
-    function abrirModalRelatorio() {
-      document.getElementById('modalRelatorio').classList.remove('hidden');
-    }
-
-    function fecharModalRelatorio() {
-      document.getElementById('modalRelatorio').classList.add('hidden');
-    }
-
-    function baixarRelatorioPDF() {
-      const mes = document.getElementById('rel_mes').value;
-      const ano = document.getElementById('rel_ano').value;
-      const anonimizar = document.getElementById('rel_anonimizar').checked ? 'true' : 'false';
-
-      fecharModalRelatorio();
-      mostrarToast(`Gerando PDF do mês ${mes}/${ano}...`, "info");
-      
-      window.open(`${API_BASE}/relatorio/pdf?mes=${mes}&ano=${ano}&anonimizar=${anonimizar}`, '_blank');
-    }
-  </script>
+  <!-- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO (ADMIN) -->
+  <div id="modalExcluir" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 w-96 shadow-xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="text-sm font-bold text-rose-700">🗑️ Excluir Registro</h3>
+        <button onclick="fecharModalExcluir()" class="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+      </div>
+
+      <p id="del_descricao" class="text-xs text-slate-600">
+        Deseja excluir permanentemente o registro selecionado?
+      </p>
+
+      <div class="flex gap-2 pt-2">
+        <button id="btnConfirmarExclusao" onclick="confirmarExclusaoAdmin()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+          🗑️ Confirmar Exclusão
+        </button>
+        <button onclick="fecharModalExcluir()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
 </body>
 </html>

@@ -1,10 +1,19 @@
+import base64
 from datetime import datetime
 import html
 import io
+from PIL import Image as PILImage
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import landscape, letter
+from reportlab.lib.pagesizes import A4, landscape, letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    Image as RLImage,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from models import ColetaModel
 from security import SecurityValidator
@@ -325,3 +334,642 @@ class PDFReportGenerator:
             anonimizar=anonimizar,
             ocultar_custos=ocultar_custos,
         )
+
+    @staticmethod
+    def _format_date_br(raw_val: str | None) -> str:
+        texto = str(raw_val or "").strip()
+        if not texto:
+            return "-"
+        try:
+            iso = SecurityValidator.validar_data(texto)
+            return datetime.strptime(iso, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except ValueError:
+            return texto
+
+    @staticmethod
+    def _format_moeda(raw_val) -> str:
+        try:
+            val = float(raw_val or 0.0)
+        except (TypeError, ValueError):
+            val = 0.0
+        return (
+            f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        )
+
+    @staticmethod
+    def _safe_multiline_paragraph(text: str, style: ParagraphStyle) -> Paragraph:
+        bruto = "" if text is None else str(text).strip()
+        if not bruto:
+            return Paragraph("-", style)
+        escaped = html.escape(bruto).replace("\r\n", "\n").replace("\n", "<br/>")
+        return Paragraph(escaped, style)
+
+    @staticmethod
+    def _decode_rl_image(
+        data_url: str | None, max_width: float, max_height: float
+    ) -> RLImage | None:
+        bruto = str(data_url or "").strip()
+        if not bruto:
+            return None
+        try:
+            b64_part = bruto.split(",", 1)[1].strip() if "," in bruto else bruto
+            raw_bytes = base64.b64decode(b64_part)
+            with PILImage.open(io.BytesIO(raw_bytes)) as img:
+                w, h = img.size
+                if w <= 0 or h <= 0:
+                    return None
+                png_buf = io.BytesIO()
+                img.convert("RGBA").save(png_buf, format="PNG")
+                png_buf.seek(0)
+            scale = min(max_width / float(w), max_height / float(h), 1.0)
+            return RLImage(png_buf, width=w * scale, height=h * scale)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _cor_tema_hex(tenant: dict | None) -> str:
+        cor = str((tenant or {}).get("cor_documento") or "#4C1D95").strip()
+        if not cor.startswith("#") or len(cor) != 7:
+            return "#4C1D95"
+        try:
+            colors.HexColor(cor)
+            return cor
+        except Exception:
+            return "#4C1D95"
+
+    @classmethod
+    def _construir_cabecalho_timbrado(
+        cls,
+        tenant: dict | None,
+        titulo_doc: str,
+        subtitulo_doc: str,
+        cor_hex: str,
+    ) -> list:
+        styles = getSampleStyleSheet()
+        empresa = tenant or {}
+        nome_emp = str(empresa.get("nome") or "SysFix").strip()
+        detalhes = []
+        if empresa.get("cnpj"):
+            detalhes.append(f"CNPJ: {empresa['cnpj']}")
+        if empresa.get("telefone"):
+            detalhes.append(f"Tel: {empresa['telefone']}")
+        if empresa.get("endereco"):
+            detalhes.append(str(empresa["endereco"]))
+
+        emp_style = ParagraphStyle(
+            "TimbreEmp",
+            parent=styles["Normal"],
+            fontSize=12,
+            leading=15,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor(cor_hex),
+        )
+        info_style = ParagraphStyle(
+            "TimbreInfo",
+            parent=styles["Normal"],
+            fontSize=8,
+            leading=10.5,
+            textColor=colors.HexColor("#475569"),
+        )
+        doc_title_style = ParagraphStyle(
+            "TimbreDocTitle",
+            parent=styles["Normal"],
+            fontSize=10.5,
+            leading=13,
+            alignment=2,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor(cor_hex),
+        )
+        doc_sub_style = ParagraphStyle(
+            "TimbreDocSub",
+            parent=styles["Normal"],
+            fontSize=8,
+            leading=10.5,
+            alignment=2,
+            textColor=colors.HexColor("#64748B"),
+        )
+
+        logo_img = cls._decode_rl_image(empresa.get("logo_base64"), 92, 42)
+        bloco_emp = [Paragraph(html.escape(nome_emp), emp_style)]
+        if detalhes:
+            bloco_emp.append(Paragraph(html.escape(" • ".join(detalhes)), info_style))
+
+        bloco_dir = [
+            Paragraph(html.escape(titulo_doc), doc_title_style),
+            Paragraph(html.escape(subtitulo_doc), doc_sub_style),
+        ]
+
+        if logo_img is not None:
+            row = [[logo_img, bloco_emp, bloco_dir]]
+            widths = [98, 237, 180]
+        else:
+            row = [[bloco_emp, bloco_dir]]
+            widths = [315, 200]
+
+        header_tbl = Table(row, colWidths=widths)
+        header_tbl.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor(cor_hex)),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        return [header_tbl, Spacer(1, 10)]
+
+    @classmethod
+    def comprovante_os(
+        cls,
+        record: dict,
+        tenant: dict | None = None,
+        ocultar_custos: bool = False,
+    ) -> io.BytesIO:
+        """Gera comprovante individual em PDF (A4) da Ordem de Serviço."""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=40,
+            leftMargin=40,
+            topMargin=32,
+            bottomMargin=32,
+        )
+        styles = getSampleStyleSheet()
+        cor_hex = cls._cor_tema_hex(tenant)
+        cor_clara = colors.HexColor("#F5F3FF")
+        cor_borda = colors.HexColor("#DDD6FE")
+
+        sec_style = ParagraphStyle(
+            "SecTitle",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=12,
+            fontName="Helvetica-Bold",
+            textColor=colors.whitesmoke,
+        )
+        label_style = ParagraphStyle(
+            "LabelSt",
+            parent=styles["Normal"],
+            fontSize=8,
+            leading=10,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor("#475569"),
+        )
+        val_style = ParagraphStyle(
+            "ValSt",
+            parent=styles["Normal"],
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#0F172A"),
+        )
+        footer_style = ParagraphStyle(
+            "FooterSt",
+            parent=styles["Normal"],
+            fontSize=7.5,
+            leading=10,
+            alignment=1,
+            textColor=colors.HexColor("#64748B"),
+        )
+
+        elements = cls._construir_cabecalho_timbrado(
+            tenant,
+            titulo_doc=f"COMPROVANTE DE O.S. #{record.get('id', '-')}",
+            subtitulo_doc=(
+                f"Código: {record.get('codigo_acompanhamento') or '-'} | "
+                f"Emitido em {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            ),
+            cor_hex=cor_hex,
+        )
+
+        status_txt = str(record.get("status") or "Pendente")
+        garantia_txt = (
+            f"{record.get('garantia_dias')} dia(s) (até {cls._format_date_br(record.get('garantia_ate'))})"
+            if int(record.get("garantia_dias") or 0) > 0
+            else "Sem garantia cadastrada"
+        )
+
+        dados_equip = [
+            [Paragraph("IDENTIFICAÇÃO DO EQUIPAMENTO & O.S.", sec_style), "", "", ""],
+            [
+                Paragraph("Equipamento:", label_style),
+                cls._safe_paragraph(record.get("equipamento"), val_style),
+                Paragraph("Categoria:", label_style),
+                cls._safe_paragraph(record.get("categoria") or "Geral", val_style),
+            ],
+            [
+                Paragraph("Tombamento:", label_style),
+                cls._safe_paragraph(record.get("tombamento"), val_style),
+                Paragraph("Serial / MAC:", label_style),
+                cls._safe_paragraph(record.get("serial_mac") or "-", val_style),
+            ],
+            [
+                Paragraph("Tipo de Fluxo:", label_style),
+                cls._safe_paragraph(record.get("tipo_fluxo") or "Manutenção", val_style),
+                Paragraph("Prioridade:", label_style),
+                cls._safe_paragraph(record.get("prioridade") or "Normal", val_style),
+            ],
+            [
+                Paragraph("Cliente / Origem:", label_style),
+                cls._safe_paragraph(record.get("origem"), val_style),
+                Paragraph("Status Atual:", label_style),
+                cls._safe_paragraph(status_txt, val_style),
+            ],
+            [
+                Paragraph("O.S. Coleta:", label_style),
+                cls._safe_paragraph(record.get("os_coleta"), val_style),
+                Paragraph("Data Coleta:", label_style),
+                cls._safe_paragraph(cls._format_date_br(record.get("data_coleta")), val_style),
+            ],
+            [
+                Paragraph("Téc. Coleta:", label_style),
+                cls._safe_paragraph(record.get("tecnico_coleta") or record.get("tecnico"), val_style),
+                Paragraph("Localização:", label_style),
+                cls._safe_paragraph(record.get("localizacao"), val_style),
+            ],
+        ]
+        t_equip = Table(dados_equip, colWidths=[85, 172, 85, 173])
+        t_equip.setStyle(
+            TableStyle(
+                [
+                    ("SPAN", (0, 0), (-1, 0)),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                    ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        elements.extend([t_equip, Spacer(1, 10)])
+
+        dados_atend = [
+            [Paragraph("ATENDIMENTO, RESOLUÇÃO E ENTREGA", sec_style), ""],
+            [
+                Paragraph("Defeito / Problema Relatado:", label_style),
+                cls._safe_multiline_paragraph(record.get("problema") or "Não informado.", val_style),
+            ],
+            [
+                Paragraph("Serviço / Resolução:", label_style),
+                cls._safe_multiline_paragraph(
+                    record.get("resolucao") or record.get("servico_realizado") or "Em atendimento.",
+                    val_style,
+                ),
+            ],
+            [
+                Paragraph("Entrega (O.S. / Data / Téc.):", label_style),
+                cls._safe_paragraph(
+                    f"O.S.: {record.get('os_entrega') or '-'} | Data: {cls._format_date_br(record.get('data_entrega'))} | Téc.: {record.get('tecnico_entrega') or '-'}",
+                    val_style,
+                ),
+            ],
+            [
+                Paragraph("Garantia & Laudos:", label_style),
+                cls._safe_paragraph(
+                    f"{garantia_txt} | Laudado: {record.get('laudado') or 'Não'}",
+                    val_style,
+                ),
+            ],
+        ]
+        if not ocultar_custos:
+            custo_desc = (
+                f"{record.get('status_custo') or 'Sem Custo'} — {cls._format_moeda(record.get('valor_custo'))}"
+            )
+            orc = record.get("orcamento")
+            if isinstance(orc, dict) and orc.get("valor"):
+                custo_desc += f" | Orçamento: {orc.get('status')} ({cls._format_moeda(orc.get('valor'))})"
+            dados_atend.append(
+                [Paragraph("Financeiro:", label_style), cls._safe_paragraph(custo_desc, val_style)]
+            )
+
+        t_atend = Table(dados_atend, colWidths=[140, 375])
+        t_atend.setStyle(
+            TableStyle(
+                [
+                    ("SPAN", (0, 0), (-1, 0)),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                    ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        elements.extend([t_atend, Spacer(1, 10)])
+
+        checklist = record.get("checklist") or []
+        if checklist:
+            chk_rows = [[Paragraph("CHECKLIST TÉCNICO DE BANCADA", sec_style), Paragraph("STATUS", sec_style)]]
+            for item in checklist:
+                feito = bool(item.get("concluido"))
+                chk_rows.append(
+                    [
+                        cls._safe_paragraph(item.get("item"), val_style),
+                        cls._safe_paragraph("OK / Verificado" if feito else "Pendente", val_style),
+                    ]
+                )
+            t_chk = Table(chk_rows, colWidths=[415, 100])
+            t_chk.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, cor_clara]),
+                        ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
+            elements.extend([t_chk, Spacer(1, 12)])
+
+        assinatura = record.get("assinatura_entrega")
+        img_ass = (
+            cls._decode_rl_image(assinatura.get("imagem_base64"), 165, 52)
+            if isinstance(assinatura, dict)
+            else None
+        )
+        tec_nome = record.get("tecnico_entrega") or record.get("tecnico_coleta") or "Responsável Técnico"
+        rec_nome = (
+            f"{assinatura.get('nome')} ({assinatura.get('documento') or 'Assinatura Digital'})"
+            if isinstance(assinatura, dict) and assinatura.get("nome")
+            else "Assinatura do Cliente / Recebedor"
+        )
+        ass_rows = [
+            [
+                Spacer(1, 28),
+                img_ass if img_ass is not None else Spacer(1, 28),
+            ],
+            [
+                Paragraph(f"______________________________________<br/>{html.escape(str(tec_nome))}", footer_style),
+                Paragraph(f"______________________________________<br/>{html.escape(str(rec_nome))}", footer_style),
+            ],
+        ]
+        t_ass = Table(ass_rows, colWidths=[257, 258])
+        t_ass.setStyle(
+            TableStyle(
+                [
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ]
+            )
+        )
+        elements.extend([Spacer(1, 8), t_ass])
+
+        rodape = (tenant or {}).get("rodape_documento") or (
+            f"Documento gerado eletronicamente pelo SysFix — Acompanhe pelo código {record.get('codigo_acompanhamento') or '-'}"
+        )
+        elements.extend([Spacer(1, 14), Paragraph(html.escape(rodape), footer_style)])
+
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer
+
+    @classmethod
+    def laudo_tecnico_pdf(
+        cls,
+        record: dict,
+        laudo: dict,
+        tenant: dict | None = None,
+    ) -> io.BytesIO:
+        """Gera Laudo ou Parecer Técnico formal em PDF (A4) timbrado."""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=40,
+            leftMargin=40,
+            topMargin=32,
+            bottomMargin=32,
+        )
+        styles = getSampleStyleSheet()
+        cor_hex = cls._cor_tema_hex(tenant)
+        cor_clara = colors.HexColor("#F5F3FF")
+        cor_borda = colors.HexColor("#DDD6FE")
+
+        sec_style = ParagraphStyle(
+            "LaudoSec",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=12,
+            fontName="Helvetica-Bold",
+            textColor=colors.whitesmoke,
+        )
+        label_style = ParagraphStyle(
+            "LaudoLabel",
+            parent=styles["Normal"],
+            fontSize=8,
+            leading=10,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor("#475569"),
+        )
+        body_style = ParagraphStyle(
+            "LaudoBody",
+            parent=styles["Normal"],
+            fontSize=9.2,
+            leading=13.5,
+            textColor=colors.HexColor("#0F172A"),
+        )
+        conclusao_style = ParagraphStyle(
+            "LaudoConc",
+            parent=styles["Normal"],
+            fontSize=10.5,
+            leading=14,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor(cor_hex),
+        )
+        footer_style = ParagraphStyle(
+            "LaudoFooter",
+            parent=styles["Normal"],
+            fontSize=8,
+            leading=10.5,
+            alignment=1,
+            textColor=colors.HexColor("#64748B"),
+        )
+
+        emissao_str = cls._format_date_br(laudo.get("emitido_em"))
+        if emissao_str == "-":
+            emissao_str = datetime.now().strftime("%d/%m/%Y")
+
+        elements = cls._construir_cabecalho_timbrado(
+            tenant,
+            titulo_doc=str(laudo.get("titulo") or "LAUDO TÉCNICO"),
+            subtitulo_doc=(
+                f"Laudo Nº {laudo.get('numero') or '-'} • O.S. #{record.get('id', '-')} • Emitido em {emissao_str}"
+            ),
+            cor_hex=cor_hex,
+        )
+
+        ident_rows = [
+            [Paragraph("1. IDENTIFICAÇÃO DO EQUIPAMENTO E SOLICITANTE", sec_style), "", "", ""],
+            [
+                Paragraph("Equipamento:", label_style),
+                cls._safe_paragraph(record.get("equipamento"), body_style),
+                Paragraph("Categoria:", label_style),
+                cls._safe_paragraph(record.get("categoria") or "Geral", body_style),
+            ],
+            [
+                Paragraph("Tombamento:", label_style),
+                cls._safe_paragraph(record.get("tombamento"), body_style),
+                Paragraph("Serial / MAC:", label_style),
+                cls._safe_paragraph(record.get("serial_mac") or "-", body_style),
+            ],
+            [
+                Paragraph("Cliente / Origem:", label_style),
+                cls._safe_paragraph(record.get("origem"), body_style),
+                Paragraph("O.S. Coleta:", label_style),
+                cls._safe_paragraph(
+                    f"{record.get('os_coleta') or '-'} ({cls._format_date_br(record.get('data_coleta'))})",
+                    body_style,
+                ),
+            ],
+            [
+                Paragraph("Defeito Relatado:", label_style),
+                cls._safe_multiline_paragraph(record.get("problema") or "-", body_style),
+                "",
+                "",
+            ],
+        ]
+        t_ident = Table(ident_rows, colWidths=[90, 167, 85, 173])
+        t_ident.setStyle(
+            TableStyle(
+                [
+                    ("SPAN", (0, 0), (-1, 0)),
+                    ("SPAN", (1, 4), (3, 4)),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                    ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        elements.extend([t_ident, Spacer(1, 10)])
+
+        blocos_texto = []
+        if laudo.get("diagnostico"):
+            blocos_texto.append([Paragraph("2. DIAGNÓSTICO E SINTOMAS CONSTATADOS", sec_style)])
+            blocos_texto.append([cls._safe_multiline_paragraph(laudo.get("diagnostico"), body_style)])
+        blocos_texto.append([Paragraph("3. ANÁLISE E PARECER TÉCNICO", sec_style)])
+        blocos_texto.append([cls._safe_multiline_paragraph(laudo.get("parecer"), body_style)])
+        if laudo.get("recomendacoes"):
+            blocos_texto.append([Paragraph("4. RECOMENDAÇÕES TÉCNICAS", sec_style)])
+            blocos_texto.append([cls._safe_multiline_paragraph(laudo.get("recomendacoes"), body_style)])
+
+        for idx_row, row in enumerate(blocos_texto):
+            tbl = Table([row], colWidths=[515])
+            is_header = idx_row % 2 == 0
+            tbl.setStyle(
+                TableStyle(
+                    [
+                        (
+                            "BACKGROUND",
+                            (0, 0),
+                            (-1, -1),
+                            colors.HexColor(cor_hex) if is_header else colors.white,
+                        ),
+                        ("BOX", (0, 0), (-1, -1), 0.6, cor_borda),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ]
+                )
+            )
+            elements.append(tbl)
+            if not is_header:
+                elements.append(Spacer(1, 8))
+
+        conclusao_box = Table(
+            [
+                [
+                    Paragraph("CONCLUSÃO DO LAUDO:", label_style),
+                    Paragraph(html.escape(str(laudo.get("conclusao") or "Reparado / Aprovado")), conclusao_style),
+                ]
+            ],
+            colWidths=[130, 385],
+        )
+        conclusao_box.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), cor_clara),
+                    ("BOX", (0, 0), (-1, -1), 1.2, colors.HexColor(cor_hex)),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        elements.extend([conclusao_box, Spacer(1, 10)])
+
+        checklist = record.get("checklist") or []
+        if laudo.get("incluir_checklist", True) and checklist:
+            chk_rows = [[Paragraph("CHECKLIST DE ENSAIOS / BANCADA", sec_style), Paragraph("RESULTADO", sec_style)]]
+            for item in checklist:
+                chk_rows.append(
+                    [
+                        cls._safe_paragraph(item.get("item"), body_style),
+                        cls._safe_paragraph("Aprovado / OK" if item.get("concluido") else "Não marcado", body_style),
+                    ]
+                )
+            t_chk = Table(chk_rows, colWidths=[410, 105])
+            t_chk.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, cor_clara]),
+                        ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
+            elements.extend([t_chk, Spacer(1, 14)])
+
+        tec_resp = str(laudo.get("tecnico_responsavel") or "Técnico Responsável")
+        reg_prof = str(laudo.get("registro_profissional") or "").strip()
+        linha_tec = f"{tec_resp}<br/>{reg_prof}" if reg_prof else tec_resp
+
+        assinatura = record.get("assinatura_entrega")
+        img_ass = (
+            cls._decode_rl_image(assinatura.get("imagem_base64"), 165, 50)
+            if isinstance(assinatura, dict)
+            else None
+        )
+        rec_nome = (
+            f"Ciência do Cliente: {assinatura.get('nome')}"
+            if isinstance(assinatura, dict) and assinatura.get("nome")
+            else "Ciência / Assinatura do Cliente"
+        )
+        t_ass = Table(
+            [
+                [Spacer(1, 24), img_ass if img_ass is not None else Spacer(1, 24)],
+                [
+                    Paragraph(f"______________________________________<br/>{html.escape(linha_tec).replace('&lt;br/&gt;', '<br/>')}", footer_style),
+                    Paragraph(f"______________________________________<br/>{html.escape(rec_nome)}", footer_style),
+                ],
+            ],
+            colWidths=[257, 258],
+        )
+        t_ass.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "BOTTOM")]))
+        elements.extend([Spacer(1, 10), t_ass])
+
+        rodape = (tenant or {}).get("rodape_documento") or (
+            f"Laudo Técnico {laudo.get('numero') or ''} emitido via SysFix."
+        )
+        elements.extend([Spacer(1, 14), Paragraph(html.escape(rodape), footer_style)])
+
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer

@@ -14,6 +14,14 @@ from typing import Any
 
 from config import get_data_dir, get_secret_key, get_storage_backend, get_token_ttl_hours
 from security import SecurityValidator
+from templates_laudo import (
+    CHECKLIST_PRESETS,
+    DEFAULT_LAUDO_TEMPLATES,
+    normalizar_checklist_padrao,
+    normalizar_modelos_laudo,
+    validar_cor_hex,
+    validar_imagem_base64,
+)
 
 _AUTH_LOCK = threading.RLock()
 _EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -78,6 +86,30 @@ PERMISSIONS_CATALOG = [
         "key": "importar_exportar_dados",
         "label": "Importar / Exportar Backup",
         "descricao": "Importar planilhas/JSON e exportar backups completos.",
+        "default_tecnico": False,
+    },
+    {
+        "key": "gerenciar_laudos",
+        "label": "Emitir e Anexar Laudos",
+        "descricao": "Criar, editar, imprimir e baixar pareceres e laudos técnicos nas O.S.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "compartilhar_os",
+        "label": "Comprovante, Link e Assinatura",
+        "descricao": "Gerar comprovante PDF, link público, orçamento e assinatura da O.S.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "gerenciar_operacoes_ti",
+        "label": "Operações TI & Provedores",
+        "descricao": "Acessar Estoque/Triagem, Preventivas de POPs/Servidores e Clientes.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "gerenciar_modelos",
+        "label": "Personalizar Modelos e Timbre",
+        "descricao": "Alterar logo, CNPJ, cores, checklist padrão e modelos de laudo.",
         "default_tecnico": False,
     },
 ]
@@ -204,6 +236,12 @@ def sanitizar_usuario(user: dict) -> dict:
 
 
 def sanitizar_tenant(tenant: dict) -> dict:
+    checklist = tenant.get("checklist_padrao")
+    if not isinstance(checklist, list) or not checklist:
+        checklist = list(CHECKLIST_PRESETS["padrao"]["itens"])
+    modelos = tenant.get("modelos_laudo")
+    if not isinstance(modelos, list) or not modelos:
+        modelos = [dict(tpl) for tpl in DEFAULT_LAUDO_TEMPLATES]
     return {
         "id": tenant.get("id", ""),
         "nome": tenant.get("nome", "SysFix"),
@@ -211,6 +249,14 @@ def sanitizar_tenant(tenant: dict) -> dict:
         "ativo": bool(tenant.get("ativo", True)),
         "sla_dias": int(tenant.get("sla_dias") or 3),
         "localizacoes": list(tenant.get("localizacoes") or DEFAULT_LOCATIONS),
+        "cnpj": tenant.get("cnpj", ""),
+        "telefone": tenant.get("telefone", ""),
+        "endereco": tenant.get("endereco", ""),
+        "rodape_documento": tenant.get("rodape_documento", ""),
+        "cor_documento": tenant.get("cor_documento") or "#4C1D95",
+        "logo_base64": tenant.get("logo_base64", ""),
+        "checklist_padrao": list(checklist),
+        "modelos_laudo": [dict(m) for m in modelos],
         "criado_em": tenant.get("criado_em", ""),
     }
 
@@ -495,6 +541,14 @@ class AuthService:
             "ativo": True,
             "sla_dias": 3,
             "localizacoes": list(DEFAULT_LOCATIONS),
+            "cnpj": "",
+            "telefone": "",
+            "endereco": "",
+            "rodape_documento": "",
+            "cor_documento": "#4C1D95",
+            "logo_base64": "",
+            "checklist_padrao": list(CHECKLIST_PRESETS["padrao"]["itens"]),
+            "modelos_laudo": [dict(tpl) for tpl in DEFAULT_LAUDO_TEMPLATES],
             "criado_em": _now_iso(),
         }
 
@@ -820,6 +874,53 @@ class AuthService:
             return sanitizar_tenant(tenant)
 
         updated = self.user_store.update_tenant(admin_ctx["tenant_id"], updates)
+        if not updated:
+            raise LookupError("Empresa não encontrada.")
+        return sanitizar_tenant(updated)
+
+    def update_tenant_branding_and_templates(
+        self,
+        user_ctx: dict[str, Any],
+        cnpj: str | None = None,
+        telefone: str | None = None,
+        endereco: str | None = None,
+        rodape_documento: str | None = None,
+        cor_documento: str | None = None,
+        logo_base64: str | None = None,
+        checklist_padrao: list[str] | None = None,
+        modelos_laudo: list[dict] | None = None,
+    ) -> dict[str, Any]:
+        if not (
+            usuario_tem_permissao(user_ctx, "gerenciar_modelos")
+            or usuario_tem_permissao(user_ctx, "gerenciar_equipe")
+        ):
+            raise AuthorizationError(
+                "Você não tem permissão para personalizar modelos, checklists e timbre."
+            )
+
+        updates: dict[str, Any] = {}
+        if cnpj is not None:
+            updates["cnpj"] = SecurityValidator.sanitizar_texto(cnpj)[:32]
+        if telefone is not None:
+            updates["telefone"] = SecurityValidator.sanitizar_texto(telefone)[:40]
+        if endereco is not None:
+            updates["endereco"] = SecurityValidator.sanitizar_texto(endereco)[:200]
+        if rodape_documento is not None:
+            updates["rodape_documento"] = SecurityValidator.sanitizar_texto(rodape_documento)[:260]
+        if cor_documento is not None:
+            updates["cor_documento"] = validar_cor_hex(cor_documento)
+        if logo_base64 is not None:
+            updates["logo_base64"] = validar_imagem_base64(logo_base64)
+        if checklist_padrao is not None:
+            updates["checklist_padrao"] = normalizar_checklist_padrao(checklist_padrao)
+        if modelos_laudo is not None:
+            updates["modelos_laudo"] = normalizar_modelos_laudo(modelos_laudo)
+
+        if not updates:
+            tenant = self.user_store.get_tenant(user_ctx["tenant_id"])
+            return sanitizar_tenant(tenant)
+
+        updated = self.user_store.update_tenant(user_ctx["tenant_id"], updates)
         if not updated:
             raise LookupError("Empresa não encontrada.")
         return sanitizar_tenant(updated)

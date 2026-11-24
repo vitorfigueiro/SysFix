@@ -13,6 +13,7 @@ let usuariosEmpresaCache = [];
 let uidPermissaoEmEdicao = null;
 let listaEquipamentosCache = [];
 let registroSelecionadoId = null;
+let registroSelecionadoDados = null;
 let filtroAtual = 'nao_finalizados';
 let visaoAtual = 'dashboard';
 let enviandoRequisicao = false;
@@ -202,6 +203,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       fecharModalRelatorio();
       fecharModalExcluir();
       fecharModalPermissoes();
+      if (typeof fecharModalLaudo === 'function') fecharModalLaudo();
+      if (typeof fecharModalHistorico === 'function') fecharModalHistorico();
+      if (typeof fecharModalAssinatura === 'function') fecharModalAssinatura();
+      if (typeof fecharModalOrcamento === 'function') fecharModalOrcamento();
+      if (typeof fecharModalMovEstoque === 'function') fecharModalMovEstoque();
     }
   });
 
@@ -339,9 +345,14 @@ function aplicarPermissoesNaUI() {
   const podePdf = temPermissao('exportar_pdf');
   const podeEquipe = temPermissao('gerenciar_equipe');
   const podeBackup = temPermissao('importar_exportar_dados');
+  const podeLaudos = temPermissao('gerenciar_laudos');
+  const podeCompartilhar = temPermissao('compartilhar_os');
+  const podeOpsTi = temPermissao('gerenciar_operacoes_ti');
+  const podeModelos = temPermissao('gerenciar_modelos');
 
   document.getElementById('navBtnDashboard').classList.toggle('hidden', !podeDashboard);
-  document.getElementById('navBtnEmpresa').classList.toggle('hidden', !podeEquipe && !podeBackup);
+  document.getElementById('navBtnOperacoes').classList.toggle('hidden', !podeOpsTi);
+  document.getElementById('navBtnEmpresa').classList.toggle('hidden', !podeEquipe && !podeBackup && !podeModelos);
   document.getElementById('btnExportarPdfHeader').classList.toggle('hidden', !podePdf);
 
   document.getElementById('kpiCardCustoMes').classList.toggle('hidden', !podeCustos);
@@ -371,7 +382,23 @@ function aplicarPermissoesNaUI() {
 
   document.getElementById('blocoConfigEmpresa').classList.toggle('hidden', !podeEquipe);
   document.getElementById('blocoEquipeEmpresa').classList.toggle('hidden', !podeEquipe);
+  document.getElementById('blocoModelosLaudoEmpresa').classList.toggle('hidden', !podeModelos && !podeEquipe);
   document.getElementById('blocoImportExport').classList.toggle('hidden', !podeBackup);
+
+  const toggle = (id, hide) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', hide);
+  };
+  toggle('btnNovoLaudoOs', !podeLaudos);
+  toggle('btnCardNovoLaudo', !podeLaudos);
+  toggle('btnComprovanteOs', !podeCompartilhar);
+  toggle('btnCopiarLinkOs', !podeCompartilhar);
+  toggle('btnWhatsappOs', !podeCompartilhar);
+  toggle('btnAssinarOs', !podeCompartilhar);
+  toggle('btnOrcamentoOs', !podeCompartilhar || !podeCustos);
+  toggle('btnAplicarChecklistPadrao', !podeEditar);
+  toggle('grupoCustoEstoque', !podeCustos);
+  toggle('thCustoEstoque', !podeCustos);
 }
 
 function aplicarSessaoNaUI() {
@@ -401,6 +428,10 @@ function aplicarSessaoNaUI() {
   popularOpcoesLocalizacaoEmpresa(tenant.localizacoes);
   aplicarPermissoesNaUI();
   renderizarCheckboxesPermissoesNovoMembro();
+  if (typeof carregarPresetsTI === 'function') carregarPresetsTI();
+  if (typeof sincronizarDatalistClientes === 'function' && temPermissao('gerenciar_operacoes_ti')) {
+    sincronizarDatalistClientes();
+  }
   alternarVisao(temPermissao('ver_dashboard') ? 'dashboard' : 'equipamentos');
   carregarLista('nao_finalizados');
 }
@@ -573,6 +604,7 @@ function alternarVisao(visao) {
   visaoAtual = visao;
   document.getElementById('viewDashboard').classList.toggle('hidden', visao !== 'dashboard');
   document.getElementById('viewEquipamentos').classList.toggle('hidden', visao !== 'equipamentos');
+  document.getElementById('viewOperacoes').classList.toggle('hidden', visao !== 'operacoes');
   document.getElementById('viewEmpresa').classList.toggle('hidden', visao !== 'empresa');
 
   const active = 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all';
@@ -580,13 +612,17 @@ function alternarVisao(visao) {
 
   document.getElementById('navBtnDashboard').className = visao === 'dashboard' ? active : inactive;
   document.getElementById('navBtnEquipamentos').className = visao === 'equipamentos' ? active : inactive;
+  document.getElementById('navBtnOperacoes').className = visao === 'operacoes' ? active : inactive;
   document.getElementById('navBtnEmpresa').className = visao === 'empresa' ? active : inactive;
 
   if (visao === 'dashboard') {
     carregarDashboard();
+  } else if (visao === 'operacoes' && typeof carregarTelaOperacoes === 'function') {
+    carregarTelaOperacoes();
   } else if (visao === 'empresa') {
     carregarTelaEmpresa();
   }
+  aplicarPermissoesNaUI();
 }
 
 async function carregarDashboard() {
@@ -765,33 +801,60 @@ function calcularDiasPendente(dataStr) {
   return diffDays > 0 ? diffDays : 0;
 }
 
+function criarCardHtmlEntrada(labelTitulo, dados = {}, mostrarRemover = true) {
+  const cat = dados.categoria || '';
+  const optsCat = [
+    ['', 'Geral'],
+    ['ONU / ONT (Fibra)', 'ONU / ONT (Fibra)'],
+    ['Roteador / Wi-Fi', 'Roteador / Wi-Fi'],
+    ['Switch / OLT', 'Switch / OLT'],
+    ['Nobreak / Fonte', 'Nobreak / Fonte'],
+    ['Notebook', 'Notebook'],
+    ['Desktop / PC', 'Desktop / PC'],
+    ['Impressora', 'Impressora'],
+    ['Servidor / Rack', 'Servidor / Rack'],
+    ['Câmera / DVR / NVR', 'Câmera / DVR / NVR'],
+    ['Rádio / Antena PTP', 'Rádio / Antena PTP'],
+    ['Outro', 'Outro']
+  ].map(([v, lbl]) => `<option value="${escapeHtml(v)}" ${cat === v ? 'selected' : ''}>${escapeHtml(lbl)}</option>`).join('');
+
+  return `
+    <div class="item-entrada-card bg-white dark:bg-[#1C1633] p-3 rounded-xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2 relative">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-800/70 pb-1.5">
+        <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 num-item-label">${escapeHtml(labelTitulo)}</span>
+        <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold ${mostrarRemover ? '' : 'hidden'}">🗑️ Remover</button>
+      </div>
+      <div>
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
+        <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: ONU Huawei HG8145V5 / Notebook" value="${escapeHtml(dados.equipamento || '')}">
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI/ISP</label>
+          <select class="ent_categoria w-full px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">${optsCat}</select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
+          <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456 ou S/N" value="${escapeHtml(dados.tombamento || '')}">
+        </div>
+      </div>
+      <div>
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Serial / MAC / GPON SN</label>
+        <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 48575443A1B2C3D4 ou AA:BB:CC:DD:EE:FF" value="${escapeHtml(dados.serial_mac || '')}">
+      </div>
+      <div>
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
+        <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha...">${escapeHtml(dados.problema || '')}</textarea>
+      </div>
+    </div>
+  `;
+}
+
 function adicionarItemEntrada() {
   const container = document.getElementById('listaItensEntrada');
   const cards = container.querySelectorAll('.item-entrada-card');
   const index = cards.length + 1;
-
-  const cardHtml = `
-    <div class="item-entrada-card bg-white dark:bg-[#1C1633] p-3 rounded-xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2 relative">
-      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-800/70 pb-1.5">
-        <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 num-item-label">Item #${index}</span>
-        <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold">🗑️ Remover</button>
-      </div>
-      <div>
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
-        <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: Monitor Dell 24">
-      </div>
-      <div>
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
-        <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 654321">
-      </div>
-      <div>
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
-        <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
-      </div>
-    </div>
-  `;
-
-  container.insertAdjacentHTML('beforeend', cardHtml);
+  container.insertAdjacentHTML('beforeend', criarCardHtmlEntrada(`Item #${index}`, {}, true));
   atualizarContadoresERemover();
 }
 
@@ -876,44 +939,29 @@ function definirLocalizacaoSelect(localizacao) {
 
 function limparFormularios() {
   registroSelecionadoId = null;
+  registroSelecionadoDados = null;
   const hojeISO = obterDataHojeISO();
 
   document.getElementById('ent_tec').value = '';
   document.getElementById('ent_data').value = hojeISO;
   document.getElementById('ent_origem').value = '';
   document.getElementById('ent_os').value = '';
+  document.getElementById('ent_fluxo').value = 'Manutenção';
+  document.getElementById('ent_prioridade').value = 'Normal';
   limparOpcoesLegadasLocalizacao();
   const selectLoc = document.getElementById('ent_loc');
   if (selectLoc.options.length > 0) {
     selectLoc.selectedIndex = 0;
   }
 
-  document.getElementById('listaItensEntrada').innerHTML = `
-    <div class="item-entrada-card bg-white dark:bg-[#1C1633] p-3 rounded-xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2 relative">
-      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-800/70 pb-1.5">
-        <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 num-item-label">Item #1</span>
-        <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
-      </div>
-      <div>
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
-        <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: Notebook Dell Vostro">
-      </div>
-      <div>
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
-        <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456">
-      </div>
-      <div>
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
-        <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
-      </div>
-    </div>
-  `;
+  document.getElementById('listaItensEntrada').innerHTML = criarCardHtmlEntrada('Item #1', {}, false);
   atualizarContadoresERemover();
 
   document.getElementById('sai_tec').value = '';
   document.getElementById('sai_os').value = '';
   document.getElementById('sai_data').value = hojeISO;
   document.getElementById('sai_laudado').value = 'Não';
+  document.getElementById('sai_garantia').value = '90';
   document.getElementById('sai_status_custo').value = 'Sem Custo';
   document.getElementById('sai_valor').value = '0.00';
   document.getElementById('sai_resolucao').value = '';
@@ -994,12 +1042,17 @@ function filtrarTabelaLocal() {
           item.id,
           item.equipamento,
           item.tombamento,
+          item.serial_mac,
+          item.categoria,
+          item.tipo_fluxo,
+          item.prioridade,
           item.os_coleta,
           item.os_entrega,
           item.origem,
           item.localizacao,
           item.tecnico_coleta,
-          item.tecnico_entrega
+          item.tecnico_entrega,
+          item.codigo_acompanhamento
         ].some(val => String(val || '').toLowerCase().includes(termo))
       );
 
@@ -1038,9 +1091,15 @@ function filtrarTabelaLocal() {
       badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">Pendente (${diasPendente}d)</span>`;
     }
 
+    const prioBadge = item.prioridade === 'Crítica'
+      ? '<span class="ml-1 px-1.5 py-0.5 text-[9px] font-extrabold rounded bg-rose-600 text-white">CRÍTICA</span>'
+      : (item.prioridade === 'Alta'
+        ? '<span class="ml-1 px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-500 text-white">ALTA</span>'
+        : '');
+
     tr.innerHTML = `
       <td class="p-2.5 font-bold ${estaAtrasado ? 'text-rose-700 dark:text-rose-300' : 'text-violet-600 dark:text-violet-400'}">#${item.id}</td>
-      <td class="p-2.5 font-semibold ${estaAtrasado ? 'text-rose-900 dark:text-rose-100' : 'text-slate-800 dark:text-white'}">${escapeHtml(item.equipamento)}</td>
+      <td class="p-2.5 font-semibold ${estaAtrasado ? 'text-rose-900 dark:text-rose-100' : 'text-slate-800 dark:text-white'}">${escapeHtml(item.equipamento)}${prioBadge}</td>
       <td class="p-2.5 ${estaAtrasado ? 'text-rose-700 dark:text-rose-300' : 'text-slate-600 dark:text-violet-200'}">${escapeHtml(item.tombamento || '-')}</td>
       <td class="p-2.5">${badge}</td>
     `;
@@ -1058,40 +1117,25 @@ async function selecionarItem(id) {
     }
     const d = await res.json();
     registroSelecionadoId = d.id;
+    registroSelecionadoDados = d;
     destacarLinhaSelecionada();
 
     document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
     document.getElementById('ent_data').value = converterDataParaInput(d.data_coleta);
     document.getElementById('ent_origem').value = d.origem || '';
     document.getElementById('ent_os').value = d.os_coleta || '';
+    document.getElementById('ent_fluxo').value = d.tipo_fluxo || 'Manutenção';
+    document.getElementById('ent_prioridade').value = d.prioridade || 'Normal';
     definirLocalizacaoSelect(d.localizacao);
 
-    document.getElementById('listaItensEntrada').innerHTML = `
-      <div class="item-entrada-card bg-white dark:bg-[#1C1633] p-3 rounded-xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2 relative">
-        <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-800/70 pb-1.5">
-          <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 num-item-label">Registro #${d.id}</span>
-          <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
-          <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" value="${escapeHtml(d.equipamento || '')}">
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
-          <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" value="${escapeHtml(d.tombamento || '')}">
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
-          <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2">${escapeHtml(d.problema || '')}</textarea>
-        </div>
-      </div>
-    `;
+    document.getElementById('listaItensEntrada').innerHTML = criarCardHtmlEntrada(`Registro #${d.id}`, d, false);
     atualizarContadoresERemover(`Registro #${d.id}`);
 
     document.getElementById('sai_tec').value = d.tecnico_entrega || '';
     document.getElementById('sai_os').value = d.os_entrega || '';
     document.getElementById('sai_data').value = converterDataParaInput(d.data_entrega);
     document.getElementById('sai_laudado').value = d.laudado || 'Não';
+    document.getElementById('sai_garantia').value = d.garantia_dias ?? 90;
     document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
     document.getElementById('sai_valor').value = d.valor_custo || d.valor || '0.00';
     document.getElementById('sai_resolucao').value = d.resolucao || d.servico_realizado || '';
@@ -1111,6 +1155,16 @@ async function selecionarItem(id) {
     }
 
     document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
+    document.getElementById('f_fluxo_badge').innerText = d.tipo_fluxo || 'Manutenção';
+    const prioEl = document.getElementById('f_prioridade_badge');
+    const prioVal = d.prioridade || 'Normal';
+    prioEl.innerText = prioVal;
+    prioEl.className = prioVal === 'Crítica'
+      ? 'px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-rose-600 text-white'
+      : (prioVal === 'Alta'
+        ? 'px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500 text-white'
+        : 'px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200');
+
     document.getElementById('f_equipamento').innerText = d.equipamento || '---';
     document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || '---'}`;
 
@@ -1129,11 +1183,14 @@ async function selecionarItem(id) {
       }
     }
 
+    document.getElementById('f_categoria').innerText = d.categoria || 'Geral';
+    document.getElementById('f_serial_mac').innerText = d.serial_mac || '---';
     document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || '---';
     document.getElementById('f_data_coleta').innerText = formatarDataBR(d.data_coleta);
     document.getElementById('f_os_coleta').innerText = d.os_coleta || '---';
     document.getElementById('f_origem').innerText = d.origem || '---';
     document.getElementById('f_localizacao').innerText = d.localizacao || '---';
+    document.getElementById('f_codigo').innerText = d.codigo_acompanhamento || 'Gerado ao compartilhar';
     document.getElementById('f_problema').innerText = d.problema || 'Nenhum detalhe relatado.';
 
     document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || '---';
@@ -1143,7 +1200,14 @@ async function selecionarItem(id) {
       ? `Com Custo (R$ ${formatarMoedaBR(d.valor_custo)})`
       : (d.status_custo || '---');
     document.getElementById('f_laudado').innerText = d.laudado || '---';
+    document.getElementById('f_garantia').innerText = Number(d.garantia_dias) > 0
+      ? `${d.garantia_dias}d${d.garantia_ate ? ` (até ${formatarDataBR(d.garantia_ate)})` : ''}`
+      : 'Sem garantia';
     document.getElementById('f_resolucao').innerText = d.resolucao || d.servico_realizado || 'Pendente de atendimento.';
+
+    if (typeof renderizarExtrasFicha === 'function') renderizarExtrasFicha(d);
+    if (typeof renderizarChecklistFicha === 'function') renderizarChecklistFicha(d);
+    if (typeof renderizarLaudosFicha === 'function') renderizarLaudosFicha(d);
 
     document.getElementById('fichaVazia').classList.add('hidden');
     document.getElementById('fichaConteudo').classList.remove('hidden');
@@ -1161,6 +1225,8 @@ async function salvarEntrada() {
   const origem = document.getElementById('ent_origem').value.trim();
   const osColeta = document.getElementById('ent_os').value.trim();
   const localizacao = document.getElementById('ent_loc').value;
+  const tipoFluxo = document.getElementById('ent_fluxo').value;
+  const prioridade = document.getElementById('ent_prioridade').value;
 
   const cards = document.querySelectorAll('.item-entrada-card');
   const itensParaSalvar = [];
@@ -1168,10 +1234,12 @@ async function salvarEntrada() {
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i];
     const equip = card.querySelector('.ent_equip').value.trim();
+    const categoria = card.querySelector('.ent_categoria') ? card.querySelector('.ent_categoria').value : '';
     const tomb = card.querySelector('.ent_tomb').value.trim();
+    const serialMac = card.querySelector('.ent_serial') ? card.querySelector('.ent_serial').value.trim() : '';
     const prob = card.querySelector('.ent_prob').value.trim();
 
-    if (!equip && (tomb || prob)) {
+    if (!equip && (tomb || prob || serialMac)) {
       mostrarToast(`Item #${i + 1}: preencha o nome do equipamento.`, 'erro');
       return;
     }
@@ -1179,7 +1247,11 @@ async function salvarEntrada() {
     if (equip) {
       itensParaSalvar.push({
         equipamento: equip,
+        categoria,
         tombamento: tomb,
+        serial_mac: serialMac,
+        tipo_fluxo: tipoFluxo,
+        prioridade,
         tecnico_coleta: tec,
         data_coleta: dataColeta,
         origem,
@@ -1232,12 +1304,18 @@ async function atualizarEntradaAdmin() {
 
   const card = document.querySelector('.item-entrada-card');
   const equip = card ? card.querySelector('.ent_equip').value.trim() : '';
+  const categoria = card && card.querySelector('.ent_categoria') ? card.querySelector('.ent_categoria').value : '';
   const tomb = card ? card.querySelector('.ent_tomb').value.trim() : '';
+  const serialMac = card && card.querySelector('.ent_serial') ? card.querySelector('.ent_serial').value.trim() : '';
   const prob = card ? card.querySelector('.ent_prob').value.trim() : '';
 
   const payload = {
     equipamento: equip,
+    categoria,
     tombamento: tomb,
+    serial_mac: serialMac,
+    tipo_fluxo: document.getElementById('ent_fluxo').value,
+    prioridade: document.getElementById('ent_prioridade').value,
     tecnico_coleta: document.getElementById('ent_tec').value.trim(),
     data_coleta: document.getElementById('ent_data').value,
     origem: document.getElementById('ent_origem').value.trim(),
@@ -1290,11 +1368,13 @@ async function salvarSaida() {
     ? (Number.parseFloat(document.getElementById('sai_valor').value) || 0.0)
     : 0.0;
 
+  const garantiaVal = Number.parseInt(document.getElementById('sai_garantia').value, 10);
   const payload = {
     tecnico_entrega: document.getElementById('sai_tec').value.trim(),
     os_entrega: document.getElementById('sai_os').value.trim(),
     data_entrega: document.getElementById('sai_data').value,
     laudado: document.getElementById('sai_laudado').value,
+    garantia_dias: Number.isFinite(garantiaVal) && garantiaVal >= 0 ? garantiaVal : 0,
     status_custo: statusCusto,
     valor_custo: valorNumerico,
     resolucao: document.getElementById('sai_resolucao').value.trim()
@@ -1441,6 +1521,9 @@ async function carregarTelaEmpresa() {
     renderizarCheckboxesPermissoesNovoMembro();
     await carregarUsuariosEmpresa();
   }
+  if ((temPermissao('gerenciar_modelos') || temPermissao('gerenciar_equipe')) && typeof carregarBrandingEModelosNaUI === 'function') {
+    carregarBrandingEModelosNaUI();
+  }
 }
 
 function obterCatalogoPermissoes() {
@@ -1454,7 +1537,11 @@ function obterCatalogoPermissoes() {
     { key: 'excluir_registros', label: 'Excluir Registros', descricao: 'Remover itens do banco', default_tecnico: false },
     { key: 'exportar_pdf', label: 'Exportar Relatórios PDF', descricao: 'Gerar PDF da empresa', default_tecnico: true },
     { key: 'gerenciar_equipe', label: 'Gerenciar Equipe e Empresa', descricao: 'Configurações e usuários', default_tecnico: false },
-    { key: 'importar_exportar_dados', label: 'Importar / Exportar Backup', descricao: 'Planilhas e JSON', default_tecnico: false }
+    { key: 'importar_exportar_dados', label: 'Importar / Exportar Backup', descricao: 'Planilhas e JSON', default_tecnico: false },
+    { key: 'gerenciar_laudos', label: 'Emitir e Anexar Laudos', descricao: 'Criar, editar e imprimir laudos técnicos', default_tecnico: true },
+    { key: 'compartilhar_os', label: 'Comprovante, Link e Assinatura', descricao: 'PDF da O.S., link público, orçamento e assinatura', default_tecnico: true },
+    { key: 'gerenciar_operacoes_ti', label: 'Operações TI & Provedores', descricao: 'Estoque, Preventivas POPs e Clientes', default_tecnico: true },
+    { key: 'gerenciar_modelos', label: 'Personalizar Modelos e Timbre', descricao: 'Logo, CNPJ, checklist padrão e modelos de laudo', default_tecnico: false }
   ];
 }
 

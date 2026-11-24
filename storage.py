@@ -127,6 +127,16 @@ class JsonStore:
                     return dict(row)
         return None
 
+    def find_by_tracking_code(self, codigo: str) -> tuple[str, dict] | None:
+        alvo = str(codigo or "").strip().upper()
+        if not alvo:
+            return None
+        with _STORE_LOCK:
+            for row in self._read_unlocked()["coletas"]:
+                if str(row.get("codigo_acompanhamento") or "").strip().upper() == alvo:
+                    return (row.get("tenant_id") or "default"), dict(row)
+        return None
+
     def has_legacy_default_records(self) -> bool:
         with _STORE_LOCK:
             return any(

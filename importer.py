@@ -83,12 +83,30 @@ _FIELD_ALIASES = {
     "data_entrega": "data_entrega",
     "data_saida": "data_entrega",
     "dt_entrega": "data_entrega",
+    "categoria": "categoria",
+    "tipo_equipamento": "categoria",
+    "serial_mac": "serial_mac",
+    "mac": "serial_mac",
+    "mac_address": "serial_mac",
+    "gpon": "serial_mac",
+    "gpon_sn": "serial_mac",
+    "sn": "serial_mac",
+    "tipo_fluxo": "tipo_fluxo",
+    "fluxo": "tipo_fluxo",
+    "prioridade": "prioridade",
+    "urgencia": "prioridade",
+    "garantia_dias": "garantia_dias",
+    "garantia": "garantia_dias",
 }
 
 EXPORT_COLUMNS = [
     "id",
     "equipamento",
+    "categoria",
     "tombamento",
+    "serial_mac",
+    "tipo_fluxo",
+    "prioridade",
     "tecnico_coleta",
     "data_coleta",
     "origem",
@@ -103,6 +121,7 @@ EXPORT_COLUMNS = [
     "laudado",
     "os_entrega",
     "data_entrega",
+    "garantia_dias",
 ]
 
 
@@ -390,10 +409,20 @@ def normalizar_registros_importacao(
         laudado_raw = _clean_text(mapped.get("laudado")).lower()
         laudado = "Sim" if laudado_raw in {"sim", "s", "true", "1", "yes"} else "Não"
 
+        garantia_raw = _clean_text(mapped.get("garantia_dias"))
+        try:
+            garantia_dias = max(0, int(float(garantia_raw))) if garantia_raw else 0
+        except ValueError:
+            garantia_dias = 0
+
         record: dict[str, Any] = {
             "tenant_id": tenant_id,
             "equipamento": equipamento,
+            "categoria": _clean_text(mapped.get("categoria")),
             "tombamento": _clean_text(mapped.get("tombamento")) or "S/N",
+            "serial_mac": _clean_text(mapped.get("serial_mac")),
+            "tipo_fluxo": _clean_text(mapped.get("tipo_fluxo")) or "Manutenção",
+            "prioridade": _clean_text(mapped.get("prioridade")) or "Normal",
             "tecnico_coleta": _clean_text(mapped.get("tecnico_coleta")) or "Não informado",
             "data_coleta": data_coleta,
             "origem": _clean_text(mapped.get("origem")) or "Não informado",
@@ -408,6 +437,7 @@ def normalizar_registros_importacao(
             "laudado": laudado,
             "os_entrega": _clean_text(mapped.get("os_entrega")),
             "data_entrega": data_entrega,
+            "garantia_dias": garantia_dias,
             "criado_em": agora,
             "criado_por": autor,
             "atualizado_em": agora,

@@ -13,6 +13,7 @@ from fastapi import HTTPException
 import app as app_module
 import auth as auth_module
 import models
+import ops_modules
 from auth import AuthService, LocalTenantUserStore, OnboardingRequiredError
 from firebase_backend import (
     FirebaseAuthProvider,
@@ -20,9 +21,12 @@ from firebase_backend import (
     FirestoreTenantUserStore,
 )
 from models import ColetaModel
+from ops_modules import LocalOpsStore, OpsModulesService, FirestoreOpsStore
+from PIL import Image as PILImage
 from reports import PDFReportGenerator
 from security import SecurityValidator
 from storage import JsonStore
+from starlette.requests import Request
 
 
 # ==============================================================================
@@ -1111,6 +1115,343 @@ class GranularPermissionsTests(unittest.TestCase):
         )
         self.assertEqual(pdf_resp.media_type, "application/pdf")
         self.assertTrue(pdf_resp.body.startswith(b"%PDF-"))
+
+
+class ITAndISPAndLaudosTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
+        self.original_backend = os.environ.get("SYSFIX_BACKEND")
+        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
+
+        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
+        os.environ["SYSFIX_BACKEND"] = "local"
+        os.environ["SYSFIX_SECRET_KEY"] = "it-isp-test-secret-2026"
+
+        self.original_store = models._store
+        self.original_get_auth_service = app_module._get_auth_service
+        self.original_get_ops_service = app_module._get_ops_service
+
+        models._store = JsonStore(Path(self.temp_dir.name) / "coletas.json")
+        models._store.ensure()
+
+        self.user_store = LocalTenantUserStore(Path(self.temp_dir.name) / "auth_db.json")
+        self.user_store.ensure()
+        self.ops_store = LocalOpsStore(Path(self.temp_dir.name) / "ops_db.json")
+        self.ops_store.ensure()
+
+        app_module._get_auth_service = lambda: AuthService(
+            user_store=self.user_store, backend_override="local"
+        )
+        app_module._get_ops_service = lambda: OpsModulesService(store=self.ops_store)
+
+    def tearDown(self):
+        models._store = self.original_store
+        app_module._get_auth_service = self.original_get_auth_service
+        app_module._get_ops_service = self.original_get_ops_service
+        for key, old in (
+            ("SYSFIX_DATA_DIR", self.original_data_dir),
+            ("SYSFIX_BACKEND", self.original_backend),
+            ("SYSFIX_SECRET_KEY", self.original_secret),
+        ):
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        self.temp_dir.cleanup()
+
+    @staticmethod
+    def _sample_png_data_url() -> str:
+        buf = io.BytesIO()
+        img = PILImage.new("RGBA", (32, 16), (124, 58, 237, 255))
+        img.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+    @staticmethod
+    def _dummy_request() -> Request:
+        return Request(
+            {
+                "type": "http",
+                "scheme": "https",
+                "server": ("sysfix-saas.onrender.com", 443),
+                "headers": [],
+                "path": "/",
+            }
+        )
+
+    def test_it_isp_fields_history_checklist_laudos_public_link_and_ops(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="FibraNet Provedor",
+                nome_usuario="Vitor Admin",
+                email="vitor@fibranet.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        # 1. Personalizar timbre (logo PNG), cor, checklist e importar modelo pronto
+        logo_b64 = self._sample_png_data_url()
+        modelo_txt = (
+            "# LAUDO DE TESTE OPTICO FTTH\n"
+            "ONU {{equipamento}} com serial {{serial_mac}} testada na {{empresa}}."
+        ).encode("utf-8")
+        mod_imp = app_module.importar_arquivo_modelo_laudo(
+            app_module.ImportarModeloLaudoSchema(
+                filename="modelo_fibra.txt",
+                conteudo_base64=base64.b64encode(modelo_txt).decode("ascii"),
+            ),
+            _current_user=admin,
+        )
+        self.assertEqual(mod_imp["modelo"]["titulo"], "LAUDO DE TESTE OPTICO FTTH")
+
+        upd_brand = app_module.atualizar_modelos_e_branding_empresa(
+            app_module.BrandingTemplatesSchema(
+                cnpj="12.345.678/0001-99",
+                telefone="(69) 99999-0000",
+                cor_documento="#6D28D9",
+                logo_base64=logo_b64,
+                checklist_padrao=["Medição sinal RX/TX", "Teste Wi-Fi 5GHz"],
+                modelos_laudo=[mod_imp["modelo"]],
+            ),
+            current_user=admin,
+        )
+        self.assertTrue(upd_brand["tenant"]["logo_base64"].startswith("data:image/png;base64,"))
+        self.assertEqual(len(upd_brand["tenant"]["checklist_padrao"]), 2)
+
+        # Recarrega admin para refletir tenant atualizado
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        # 2. Cria duas passagens do mesmo equipamento (mesmo Serial/MAC) -> testar reincidência
+        os1 = app_module.criar_entrada(
+            app_module.EntradaSchema(
+                equipamento="ONU Huawei HG8145V5",
+                categoria="ONU / ONT (Fibra)",
+                tombamento="PAT-500",
+                serial_mac="48575443AABBCCDD",
+                tipo_fluxo="Comodato (Cliente)",
+                prioridade="Crítica",
+                tecnico_coleta="Vitor Admin",
+                data_coleta="2026-10-01",
+                origem="POP Centro",
+                os_coleta="OS-101",
+                localizacao="Bancada TI",
+                problema="LOS vermelho intermitente",
+            ),
+            current_user=admin,
+        )
+        app_module.registrar_saida(
+            os1["id"],
+            app_module.SaidaSchema(
+                tecnico_entrega="Vitor Admin",
+                data_entrega="2026-10-02",
+                os_entrega="OS-102",
+                status_custo="Com Custo",
+                valor_custo=80.0,
+                resolucao="Troca de fonte 12V",
+                laudado="Não",
+                garantia_dias=90,
+            ),
+            current_user=admin,
+        )
+
+        os2 = app_module.criar_entrada(
+            app_module.EntradaSchema(
+                equipamento="ONU Huawei HG8145V5",
+                categoria="ONU / ONT (Fibra)",
+                tombamento="PAT-500",
+                serial_mac="48575443AABBCCDD",
+                tipo_fluxo="Comodato (Cliente)",
+                prioridade="Alta",
+                tecnico_coleta="Vitor Admin",
+                data_coleta="2026-10-20",
+                origem="POP Centro",
+                os_coleta="OS-205",
+                localizacao="Bancada TI",
+                problema="Porta LAN 1 sem link",
+            ),
+            current_user=admin,
+        )
+
+        hist = app_module.obter_historico_equipamento(os2["id"], current_user=admin)
+        self.assertTrue(hist["reincidente"])
+        self.assertEqual(hist["total_passagens"], 2)
+        self.assertEqual(hist["custo_acumulado"], 80.0)
+
+        # 3. Checklist + Laudo anexado + PDF do Laudo + Comprovante com assinatura
+        chk_res = app_module.atualizar_checklist_equipamento(
+            os2["id"],
+            app_module.ChecklistSchema(
+                checklist=[
+                    {"item": "Medição sinal RX/TX", "concluido": True},
+                    {"item": "Teste Wi-Fi 5GHz", "concluido": True},
+                ]
+            ),
+            current_user=admin,
+        )
+        self.assertEqual(len(chk_res["registro"]["checklist"]), 2)
+
+        laudo_res = app_module.criar_laudo_equipamento(
+            os2["id"],
+            app_module.LaudoSchema(
+                titulo="LAUDO TÉCNICO DE BANCADA",
+                conclusao="Condenado / Inviável",
+                diagnostico="Curto interno na controladora Ethernet.",
+                parecer="Equipamento condenado após falha na porta LAN.",
+                recomendacoes="Substituir ONU em comodato.",
+                tecnico_responsavel="Vitor Admin",
+                registro_profissional="CRT-00123",
+                incluir_checklist=True,
+                visivel_cliente=True,
+            ),
+            current_user=admin,
+        )
+        laudo_id = laudo_res["laudo"]["id"]
+        self.assertEqual(laudo_res["registro"]["laudado"], "Sim")
+
+        pdf_laudo = app_module.baixar_laudo_pdf(os2["id"], laudo_id, current_user=admin)
+        self.assertEqual(pdf_laudo.media_type, "application/pdf")
+        self.assertTrue(pdf_laudo.body.startswith(b"%PDF-"))
+
+        ass_res = app_module.registrar_assinatura_os(
+            os2["id"],
+            app_module.AssinaturaSchema(
+                nome="Cliente Recebedor",
+                documento="123.456.789-00",
+                imagem_base64=logo_b64,
+            ),
+            current_user=admin,
+        )
+        self.assertEqual(ass_res["registro"]["assinatura_entrega"]["nome"], "Cliente Recebedor")
+
+        comp_pdf = app_module.baixar_comprovante_os_pdf(os2["id"], current_user=admin)
+        self.assertTrue(comp_pdf.body.startswith(b"%PDF-"))
+
+        # 4. Link Público + Orçamento + Aprovação pública sem expor custos internos
+        app_module.enviar_orcamento_os(
+            os2["id"],
+            app_module.OrcamentoSchema(descricao="Troca de ONU nova", valor=150.0),
+            current_user=admin,
+        )
+        link = app_module.gerar_link_publico_os(
+            os2["id"], request=self._dummy_request(), current_user=admin
+        )
+        codigo = link["codigo"]
+        pub = app_module.consultar_acompanhamento_publico(codigo)
+        self.assertEqual(pub["ordem"]["orcamento"]["status"], "Aguardando Aprovação")
+        self.assertNotIn("valor_custo", pub["ordem"])
+
+        resp_orc = app_module.responder_orcamento_publico_api(
+            codigo,
+            app_module.OrcamentoRespostaPublicaSchema(
+                decisao="aprovar", cliente_nome="João Cliente", observacao="Pode trocar"
+            ),
+        )
+        self.assertEqual(resp_orc["dados"]["ordem"]["orcamento"]["status"], "Aprovado")
+
+        pub_pdf = app_module.baixar_laudo_publico_pdf(codigo, laudo_id)
+        self.assertTrue(pub_pdf.body.startswith(b"%PDF-"))
+
+        # 5. Operações TI & ISP: Estoque vinculado à O.S., Preventiva POP e Cliente/POP
+        est = app_module.criar_item_estoque_ops(
+            app_module.EstoqueItemSchema(
+                nome="Fonte 12V 1.5A",
+                codigo="FNT-12",
+                categoria="Peça / Insumo",
+                quantidade=5,
+                estoque_minimo=2,
+                custo_unitario=25.0,
+            ),
+            current_user=admin,
+        )
+        mov = app_module.movimentar_estoque_ops(
+            est["item"]["id"],
+            app_module.EstoqueMovimentoSchema(
+                tipo="saida", quantidade=2, os_id=os2["id"], observacao="Aplicada na O.S."
+            ),
+            current_user=admin,
+        )
+        self.assertEqual(mov["item"]["quantidade"], 3)
+
+        prv = app_module.criar_preventiva_ops(
+            app_module.PreventivaSchema(
+                titulo="Nobreak POP Centro",
+                local_pop="POP Centro",
+                periodicidade_dias=30,
+                proxima_execucao="2026-10-01",
+            ),
+            current_user=admin,
+        )
+        self.assertEqual(prv["item"]["status_preventiva"], "Vencida")
+        concl = app_module.concluir_preventiva_ops(
+            prv["item"]["id"],
+            app_module.PreventivaConcluirSchema(observacao="Baterias OK", data_execucao="2026-11-24"),
+            current_user=admin,
+        )
+        self.assertEqual(concl["item"]["proxima_execucao"], "2026-12-24")
+
+        cli = app_module.criar_cliente_ops(
+            app_module.ClientePopSchema(nome="POP Norte", tipo="POP / Torre ISP", telefone="6999999999"),
+            current_user=admin,
+        )
+        self.assertEqual(len(app_module.listar_clientes_ops(current_user=admin)), 1)
+        self.assertEqual(cli["item"]["nome"], "POP Norte")
+
+        # 6. Permissões granulares bloqueando técnico sem gerenciar_laudos / gerenciar_modelos / gerenciar_operacoes_ti / ver_custos
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Tec Limitado",
+                email="limitado@fibranet.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes={
+                    "ver_custos": False,
+                    "gerenciar_laudos": False,
+                    "compartilhar_os": False,
+                    "gerenciar_operacoes_ti": True,
+                    "gerenciar_modelos": False,
+                },
+            ),
+            current_user=admin,
+        )
+        tok_lim = app_module.login_usuario(
+            app_module.LoginSchema(email="limitado@fibranet.com", senha="secret123")
+        )["token"]
+        tec_lim = app_module.get_current_user(f"Bearer {tok_lim}")
+
+        with self.assertRaises(HTTPException) as c1:
+            app_module.require_permission("gerenciar_laudos")(tec_lim)
+        self.assertEqual(c1.exception.status_code, 403)
+
+        with self.assertRaises(HTTPException) as c2:
+            app_module.require_any_permission("gerenciar_modelos", "gerenciar_equipe")(tec_lim)
+        self.assertEqual(c2.exception.status_code, 403)
+
+        est_tec = app_module.listar_estoque_ops(current_user=tec_lim)
+        self.assertNotIn("custo_unitario", est_tec[0])
+
+    def test_firestore_tracking_code_and_ops_mock(self):
+        fake_db = FakeFirestoreDB()
+        c_store = FirestoreColetaStore(db=fake_db)
+        ops_store = FirestoreOpsStore(db=fake_db)
+
+        ids = c_store.create_records(
+            [{"equipamento": "MikroTik RB4011", "codigo_acompanhamento": "SF-TESTE123"}],
+            tenant_id="emp_isp",
+        )
+        self.assertEqual(ids, [1])
+        found = c_store.find_by_tracking_code("sf-teste123")
+        self.assertIsNotNone(found)
+        self.assertEqual(found[0], "emp_isp")
+        self.assertEqual(found[1]["equipamento"], "MikroTik RB4011")
+
+        c_store.delete_record(1, tenant_id="emp_isp")
+        self.assertIsNone(c_store.find_by_tracking_code("SF-TESTE123"))
+
+        ops_svc = OpsModulesService(store=ops_store)
+        created_cli = ops_svc.criar_cliente("emp_isp", {"nome": "POP Sul", "tipo": "POP / Torre ISP"})
+        self.assertEqual(len(ops_svc.listar_clientes("emp_isp")), 1)
+        self.assertTrue(ops_svc.excluir_cliente("emp_isp", created_cli["id"]))
 
 
 if __name__ == "__main__":

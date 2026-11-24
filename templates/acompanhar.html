@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acompanhamento de O.S. — SysFix</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('sysfix_theme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if ((saved || (prefersDark ? 'dark' : 'light')) === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <link rel="stylesheet" href="/static/theme.css">
+</head>
+<body class="min-h-screen bg-[#F6F4FC] dark:bg-[#0B0816] text-[#1C1635] dark:text-[#F4F1FF] py-8 px-4">
+  <div class="max-w-3xl mx-auto space-y-5">
+    <div id="loadingBox" class="bg-white dark:bg-[#141024] p-8 rounded-2xl border border-violet-200 dark:border-violet-900 text-center text-sm font-semibold">
+      Carregando acompanhamento da Ordem de Serviço...
+    </div>
+
+    <div id="erroBox" class="hidden bg-white dark:bg-[#141024] p-8 rounded-2xl border border-rose-200 dark:border-rose-900 text-center space-y-2">
+      <div class="text-3xl">🔎</div>
+      <h1 class="text-base font-extrabold text-rose-600 dark:text-rose-400">Ordem de Serviço não encontrada</h1>
+      <p id="erroTexto" class="text-xs text-slate-500 dark:text-violet-300">Verifique se o código de acompanhamento está correto.</p>
+    </div>
+
+    <div id="conteudoOS" class="hidden space-y-5">
+      <header class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200 dark:border-violet-900 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <img id="empLogo" src="/static/favicon.svg" alt="Logo" class="h-11 max-w-[120px] object-contain rounded-xl">
+          <div>
+            <h1 id="empNome" class="text-base font-extrabold text-slate-900 dark:text-white">Empresa</h1>
+            <p id="empContato" class="text-xs text-slate-500 dark:text-violet-300/80"></p>
+          </div>
+        </div>
+        <div class="text-right">
+          <span id="osCodigo" class="text-[11px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider block">CÓDIGO</span>
+          <span id="osStatusBadge" class="inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
+            Status
+          </span>
+        </div>
+      </header>
+
+      <section class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200 dark:border-violet-900 shadow-sm space-y-4">
+        <div class="flex flex-wrap justify-between items-start gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
+          <div>
+            <span id="osNumero" class="text-xs font-bold text-violet-600 dark:text-violet-400">O.S. #0</span>
+            <h2 id="osEquipamento" class="text-lg font-extrabold text-slate-900 dark:text-white">Equipamento</h2>
+            <p id="osIdentificacao" class="text-xs text-slate-500 dark:text-violet-300/80"></p>
+          </div>
+          <span id="osFluxoBadge" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-violet-100 dark:bg-violet-900/70 text-violet-700 dark:text-violet-200">Manutenção</span>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-3 text-xs">
+          <div><span class="text-slate-400 dark:text-violet-300/70 block">Solicitante / Setor:</span><b id="osOrigem">---</b></div>
+          <div><span class="text-slate-400 dark:text-violet-300/70 block">Local Atual:</span><b id="osLocal">---</b></div>
+          <div><span class="text-slate-400 dark:text-violet-300/70 block">Data de Entrada:</span><b id="osDataEntrada">---</b></div>
+          <div><span class="text-slate-400 dark:text-violet-300/70 block">Previsão / Entrega:</span><b id="osDataEntrega">---</b></div>
+          <div class="sm:col-span-2" id="osGarantiaBox"></div>
+        </div>
+
+        <div class="space-y-2 text-xs">
+          <div>
+            <span class="text-slate-400 dark:text-violet-300/70 font-semibold block mb-1">Problema Relatado:</span>
+            <p id="osProblema" class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-100 dark:border-violet-800/70"></p>
+          </div>
+          <div>
+            <span class="text-slate-400 dark:text-violet-300/70 font-semibold block mb-1">Parecer / Resolução:</span>
+            <p id="osResolucao" class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-100 dark:border-violet-800/70"></p>
+          </div>
+        </div>
+      </section>
+
+      <section id="boxOrcamento" class="hidden bg-white dark:bg-[#141024] p-5 rounded-2xl border-2 border-violet-400 dark:border-violet-600 shadow-md space-y-3">
+        <div class="flex flex-wrap justify-between items-center gap-2">
+          <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">💵 Orçamento para Aprovação</h3>
+          <span id="orcStatusBadge" class="px-2.5 py-1 rounded-full text-xs font-bold"></span>
+        </div>
+        <p id="orcDescricao" class="text-xs text-slate-600 dark:text-violet-200"></p>
+        <div id="orcValor" class="text-2xl font-extrabold text-violet-700 dark:text-violet-300"></div>
+
+        <div id="orcFormResposta" class="hidden pt-2 border-t border-violet-100 dark:border-violet-900/60 space-y-3">
+          <div class="grid sm:grid-cols-2 gap-2">
+            <input type="text" id="orcNomeCliente" placeholder="Seu nome completo *" class="px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            <input type="text" id="orcObsCliente" placeholder="Observação (opcional)" class="px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+          </div>
+          <div class="flex gap-2">
+            <button onclick="responderOrcamento('aprovar')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all">
+              ✅ Aprovar Orçamento
+            </button>
+            <button onclick="responderOrcamento('recusar')" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all">
+              ❌ Recusar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="boxLaudos" class="hidden bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200 dark:border-violet-900 shadow-sm space-y-3">
+        <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider">📄 Laudos e Pareceres Técnicos</h3>
+        <div id="listaLaudosPublicos" class="space-y-2"></div>
+      </section>
+
+      <section id="boxChecklist" class="hidden bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200 dark:border-violet-900 shadow-sm space-y-3">
+        <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider">☑️ Checklist Técnico de Bancada</h3>
+        <ul id="listaChecklistPublico" class="grid sm:grid-cols-2 gap-2 text-xs"></ul>
+      </section>
+
+      <section class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200 dark:border-violet-900 shadow-sm space-y-3">
+        <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider">🕘 Linha do Tempo do Atendimento</h3>
+        <div id="listaEventosPublicos" class="space-y-2 text-xs"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const codigo = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() || '');
+
+    function escapeHtml(text) {
+      return String(text ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    function fmtData(d) {
+      if (!d) return '---';
+      const s = String(d).trim();
+      if (s.includes('/')) return s;
+      const p = s.slice(0, 10).split('-');
+      return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s;
+    }
+
+    function fmtMoeda(v) {
+      const n = Number.parseFloat(v) || 0;
+      return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function renderizar(data) {
+      const emp = data.empresa || {};
+      const os = data.ordem || {};
+      document.getElementById('loadingBox').classList.add('hidden');
+      document.getElementById('erroBox').classList.add('hidden');
+      document.getElementById('conteudoOS').classList.remove('hidden');
+
+      document.getElementById('empNome').textContent = emp.nome || 'SysFix';
+      document.getElementById('empContato').textContent = [emp.telefone, emp.endereco].filter(Boolean).join(' • ');
+      if (emp.logo_base64) {
+        document.getElementById('empLogo').src = emp.logo_base64;
+      }
+
+      document.getElementById('osCodigo').textContent = `CÓDIGO ${os.codigo_acompanhamento || codigo}`;
+      document.getElementById('osNumero').textContent = `O.S. #${os.id}`;
+      document.getElementById('osEquipamento').textContent = os.equipamento || 'Equipamento';
+      document.getElementById('osIdentificacao').textContent =
+        [os.categoria, `Tombamento: ${os.tombamento || '-'}`, os.serial_mac ? `Serial/MAC: ${os.serial_mac}` : ''].filter(Boolean).join(' • ');
+      document.getElementById('osFluxoBadge').textContent = os.tipo_fluxo || 'Manutenção';
+
+      const entregue = String(os.status || '').toLowerCase().includes('entregue');
+      const statusBadge = document.getElementById('osStatusBadge');
+      statusBadge.textContent = entregue ? '✅ Entregue / Finalizado' : '⏳ Em Atendimento';
+      statusBadge.className = entregue
+        ? 'inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700'
+        : 'inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700';
+
+      document.getElementById('osOrigem').textContent = os.origem || '---';
+      document.getElementById('osLocal').textContent = os.localizacao || '---';
+      document.getElementById('osDataEntrada').textContent = fmtData(os.data_coleta);
+      document.getElementById('osDataEntrega').textContent = os.data_entrega ? fmtData(os.data_entrega) : 'Em bancada';
+      document.getElementById('osProblema').textContent = os.problema || 'Não informado.';
+      document.getElementById('osResolucao').textContent = os.resolucao || 'Aguardando conclusão técnica.';
+
+      const garBox = document.getElementById('osGarantiaBox');
+      if (Number(os.garantia_dias) > 0) {
+        garBox.innerHTML = `<span class="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-semibold">🛡️ Garantia: ${os.garantia_dias} dias ${os.garantia_ate ? `(até ${fmtData(os.garantia_ate)})` : ''}</span>`;
+      } else {
+        garBox.innerHTML = '';
+      }
+
+      const orc = os.orcamento;
+      const boxOrc = document.getElementById('boxOrcamento');
+      if (orc && orc.valor) {
+        boxOrc.classList.remove('hidden');
+        document.getElementById('orcDescricao').textContent = orc.descricao || '';
+        document.getElementById('orcValor').textContent = fmtMoeda(orc.valor);
+        const badge = document.getElementById('orcStatusBadge');
+        badge.textContent = orc.status;
+        const pendente = orc.status === 'Aguardando Aprovação';
+        badge.className = orc.status === 'Aprovado'
+          ? 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800'
+          : (orc.status === 'Recusado'
+            ? 'px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800'
+            : 'px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800');
+        document.getElementById('orcFormResposta').classList.toggle('hidden', !pendente);
+      } else {
+        boxOrc.classList.add('hidden');
+      }
+
+      const laudos = os.laudos || [];
+      const boxLaudos = document.getElementById('boxLaudos');
+      if (laudos.length > 0) {
+        boxLaudos.classList.remove('hidden');
+        document.getElementById('listaLaudosPublicos').innerHTML = laudos.map(l => `
+          <div class="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800">
+            <div class="text-xs">
+              <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(l.numero)} — ${escapeHtml(l.titulo)}</div>
+              <div class="text-[11px] text-slate-500 dark:text-violet-300/80">Conclusão: <b>${escapeHtml(l.conclusao)}</b> • Técnico: ${escapeHtml(l.tecnico_responsavel)}</div>
+            </div>
+            <a href="/api/public/acompanhar/${encodeURIComponent(codigo)}/laudos/${encodeURIComponent(l.id)}/pdf" target="_blank" class="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold">
+              📥 Baixar Laudo PDF
+            </a>
+          </div>
+        `).join('');
+      } else {
+        boxLaudos.classList.add('hidden');
+      }
+
+      const chk = os.checklist || [];
+      const boxChk = document.getElementById('boxChecklist');
+      if (chk.length > 0) {
+        boxChk.classList.remove('hidden');
+        document.getElementById('listaChecklistPublico').innerHTML = chk.map(c => `
+          <li class="p-2 rounded-lg bg-violet-50/70 dark:bg-[#1C1633] border border-violet-100 dark:border-violet-800/70 flex items-center gap-2">
+            <span>${c.concluido ? '✅' : '⬜'}</span>
+            <span>${escapeHtml(c.item)}</span>
+          </li>
+        `).join('');
+      } else {
+        boxChk.classList.add('hidden');
+      }
+
+      const eventos = (os.eventos || []).slice().reverse();
+      document.getElementById('listaEventosPublicos').innerHTML = eventos.length === 0
+        ? '<p class="text-slate-400">Sem movimentações registradas.</p>'
+        : eventos.map(ev => `
+          <div class="p-2.5 rounded-xl bg-violet-50/50 dark:bg-[#1C1633] border border-violet-100 dark:border-violet-800/60 flex justify-between gap-2">
+            <div>
+              <div class="font-semibold text-slate-800 dark:text-white">${escapeHtml(ev.descricao)}</div>
+              <div class="text-[10px] text-slate-500 dark:text-violet-300/70">Por ${escapeHtml(ev.autor || 'Equipe Técnica')}</div>
+            </div>
+            <span class="text-[10px] text-slate-400 shrink-0">${fmtData(ev.data_hora)}</span>
+          </div>
+        `).join('');
+    }
+
+    async function carregar() {
+      try {
+        const res = await fetch(`/api/public/acompanhar/${encodeURIComponent(codigo)}`);
+        if (!res.ok) {
+          document.getElementById('loadingBox').classList.add('hidden');
+          document.getElementById('erroBox').classList.remove('hidden');
+          return;
+        }
+        renderizar(await res.json());
+      } catch (e) {
+        document.getElementById('loadingBox').classList.add('hidden');
+        document.getElementById('erroBox').classList.remove('hidden');
+      }
+    }
+
+    async function responderOrcamento(decisao) {
+      const nome = document.getElementById('orcNomeCliente').value.trim();
+      const observacao = document.getElementById('orcObsCliente').value.trim();
+      if (!nome) {
+        alert('Por favor, informe seu nome para confirmar.');
+        return;
+      }
+      const res = await fetch(`/api/public/acompanhar/${encodeURIComponent(codigo)}/orcamento`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decisao, cliente_nome: nome, observacao })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || 'Não foi possível registrar sua resposta.');
+        return;
+      }
+      const data = await res.json();
+      renderizar(data.dados);
+    }
+
+    carregar();
+  </script>
+</body>
+</html>

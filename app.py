@@ -19,7 +19,7 @@ from auth import (
 )
 from config import get_cors_origins, get_public_client_config, get_storage_backend
 from database import init_db
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -33,8 +33,20 @@ from importer import (
 )
 from mensagens import obter_mensagem_erro
 from models import ColetaModel
+from ops_modules import OpsModulesService
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
 from reports import PDFReportGenerator
+from templates_laudo import (
+    CATEGORIAS_EQUIPAMENTO,
+    CHECKLIST_PRESETS,
+    CONCLUSOES_LAUDO,
+    DEFAULT_LAUDO_TEMPLATES,
+    LAUDO_VARIABLES_HELP,
+    MAX_TEMPLATE_UPLOAD_BYTES,
+    PRIORIDADES,
+    TIPOS_FLUXO,
+    parse_uploaded_laudo_template,
+)
 import uvicorn
 
 logger = logging.getLogger("sysfix")
@@ -70,6 +82,26 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 def _get_auth_service() -> AuthService:
     return AuthService()
+
+
+def _get_ops_service() -> OpsModulesService:
+    return OpsModulesService()
+
+
+def require_any_permission(*perm_keys: str):
+    """Permite acesso se o usuário possuir pelo menos uma das permissões listadas."""
+
+    def _dependency(
+        current_user: dict[str, Any] = Depends(get_current_user),
+    ) -> dict[str, Any]:
+        if any(usuario_tem_permissao(current_user, key) for key in perm_keys):
+            return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não possui permissão para acessar ou executar este recurso.",
+        )
+
+    return _dependency
 
 
 def _extract_bearer_token(authorization: Optional[str]) -> str:
@@ -144,6 +176,10 @@ def _filtrar_registro_por_permissao(
         dados.pop("status_custo", None)
         dados.pop("valor_custo", None)
         dados.pop("valor", None)
+        if isinstance(dados.get("orcamento"), dict):
+            orc = dict(dados["orcamento"])
+            orc.pop("valor", None)
+            dados["orcamento"] = orc
     return dados
 
 
@@ -256,6 +292,97 @@ class ImportarDadosSchema(BaseModel):
     simular: bool = False
 
 
+class BrandingTemplatesSchema(BaseModel):
+    cnpj: Optional[str] = None
+    telefone: Optional[str] = None
+    endereco: Optional[str] = None
+    rodape_documento: Optional[str] = None
+    cor_documento: Optional[str] = None
+    logo_base64: Optional[str] = None
+    checklist_padrao: Optional[List[str]] = None
+    modelos_laudo: Optional[List[dict]] = None
+
+
+class ImportarModeloLaudoSchema(BaseModel):
+    filename: str
+    conteudo_base64: str
+
+
+class ChecklistSchema(BaseModel):
+    checklist: List[dict]
+
+
+class LaudoSchema(BaseModel):
+    titulo: str
+    conclusao: Optional[str] = "Reparado / Aprovado"
+    diagnostico: Optional[str] = ""
+    parecer: str
+    recomendacoes: Optional[str] = ""
+    tecnico_responsavel: Optional[str] = ""
+    registro_profissional: Optional[str] = ""
+    incluir_checklist: bool = True
+    visivel_cliente: bool = True
+    modelo_nome: Optional[str] = ""
+
+
+class OrcamentoSchema(BaseModel):
+    descricao: str
+    valor: Union[float, int, str]
+
+
+class OrcamentoRespostaPublicaSchema(BaseModel):
+    decisao: str
+    cliente_nome: str
+    observacao: Optional[str] = ""
+
+
+class AssinaturaSchema(BaseModel):
+    nome: str
+    documento: Optional[str] = ""
+    imagem_base64: str
+
+
+class EstoqueItemSchema(BaseModel):
+    nome: Optional[str] = None
+    codigo: Optional[str] = None
+    categoria: Optional[str] = None
+    quantidade: Optional[int] = 0
+    estoque_minimo: Optional[int] = 0
+    custo_unitario: Optional[Union[float, int, str]] = 0.0
+    localizacao: Optional[str] = None
+
+
+class EstoqueMovimentoSchema(BaseModel):
+    tipo: str
+    quantidade: int
+    os_id: Optional[int] = None
+    observacao: Optional[str] = ""
+
+
+class PreventivaSchema(BaseModel):
+    titulo: Optional[str] = None
+    local_pop: Optional[str] = None
+    periodicidade_dias: Optional[int] = 30
+    proxima_execucao: Optional[Union[str, date]] = None
+    ultima_execucao: Optional[Union[str, date]] = None
+    responsavel: Optional[str] = None
+    checklist_resumo: Optional[str] = None
+
+
+class PreventivaConcluirSchema(BaseModel):
+    observacao: Optional[str] = ""
+    data_execucao: Optional[Union[str, date]] = None
+
+
+class ClientePopSchema(BaseModel):
+    nome: Optional[str] = None
+    tipo: Optional[str] = None
+    contato: Optional[str] = None
+    telefone: Optional[str] = None
+    endereco: Optional[str] = None
+    observacoes: Optional[str] = None
+
+
 class EntradaSchema(BaseModel):
     equipamento: Optional[str] = ""
     tombamento: Optional[str] = ""
@@ -266,6 +393,12 @@ class EntradaSchema(BaseModel):
     os_coleta: Optional[str] = ""
     localizacao: Optional[str] = ""
     problema: Optional[str] = ""
+    categoria: Optional[str] = ""
+    serial_mac: Optional[str] = ""
+    tipo_fluxo: Optional[str] = ""
+    prioridade: Optional[str] = ""
+    garantia_dias: Optional[int] = 0
+    checklist: Optional[List[Any]] = None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -292,6 +425,7 @@ class SaidaSchema(BaseModel):
     valor: Optional[Union[float, int, str]] = None
     resolucao: Optional[str] = ""
     laudado: Optional[str] = "Não"
+    garantia_dias: Optional[int] = None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -323,6 +457,16 @@ def read_index():
         return FileResponse(str(index_path))
     raise HTTPException(
         status_code=404, detail="Arquivo index.html não encontrado no servidor."
+    )
+
+
+@app.get("/acompanhar/{codigo}", response_class=FileResponse)
+def read_acompanhar_page(codigo: str):
+    page_path = BASE_DIR / "templates" / "acompanhar.html"
+    if page_path.exists():
+        return FileResponse(str(page_path))
+    raise HTTPException(
+        status_code=404, detail="Página de acompanhamento não encontrada."
     )
 
 
@@ -475,12 +619,17 @@ def listar_equipamentos(
                         "id",
                         "equipamento",
                         "tombamento",
+                        "serial_mac",
+                        "categoria",
+                        "tipo_fluxo",
+                        "prioridade",
                         "os_coleta",
                         "os_entrega",
                         "origem",
                         "localizacao",
                         "tecnico_coleta",
                         "tecnico_entrega",
+                        "codigo_acompanhamento",
                     )
                 )
             ]
@@ -537,6 +686,7 @@ def criar_entrada(
                 tenant_id=tenant_id,
                 actor=actor,
                 allowed_locations=allowed_locations,
+                default_checklist=current_user["tenant"].get("checklist_padrao"),
             )
 
             return {
@@ -545,6 +695,11 @@ def criar_entrada(
                 "mensagem": f"{len(ids_criados)} entrada(s) registrada(s) com sucesso.",
             }
 
+        checklist_inicial = (
+            payload.checklist
+            if payload.checklist is not None
+            else current_user["tenant"].get("checklist_padrao")
+        )
         novo_id = ColetaModel.registrar_entrada(
             equipamento=payload.equipamento,
             tombamento=payload.tombamento,
@@ -557,6 +712,12 @@ def criar_entrada(
             tenant_id=tenant_id,
             actor=actor,
             allowed_locations=allowed_locations,
+            categoria=payload.categoria or "",
+            serial_mac=payload.serial_mac or "",
+            tipo_fluxo=payload.tipo_fluxo or "",
+            prioridade=payload.prioridade or "",
+            garantia_dias=payload.garantia_dias or 0,
+            checklist=checklist_inicial,
         )
         return {
             "sucesso": True,
@@ -621,6 +782,7 @@ def registrar_saida(
             laudado=payload.laudado,
             tenant_id=current_user["tenant_id"],
             actor=current_user.get("nome") or current_user.get("email") or "",
+            garantia_dias=payload.garantia_dias,
         )
         if not atualizado:
             raise HTTPException(
@@ -683,6 +845,7 @@ def atualizar_equipamento_unificado(
                 laudado=saida_data.laudado,
                 tenant_id=tenant_id,
                 actor=actor,
+                garantia_dias=saida_data.garantia_dias,
             )
             if not atualizado:
                 raise HTTPException(
@@ -712,6 +875,11 @@ def atualizar_equipamento_unificado(
             tenant_id=tenant_id,
             actor=actor,
             allowed_locations=allowed_locations,
+            categoria=entrada_data.categoria if "categoria" in payload else None,
+            serial_mac=entrada_data.serial_mac if "serial_mac" in payload else None,
+            tipo_fluxo=entrada_data.tipo_fluxo if "tipo_fluxo" in payload else None,
+            prioridade=entrada_data.prioridade if "prioridade" in payload else None,
+            garantia_dias=entrada_data.garantia_dias if "garantia_dias" in payload else None,
         )
         if not atualizado:
             raise HTTPException(
@@ -1058,6 +1226,751 @@ def gerar_relatorio_pdf(
         raise HTTPException(
             status_code=500, detail="Erro ao gerar relatório PDF."
         )
+
+
+# ==============================================================================
+# ROTAS DE TI / PROVEDORES, CHECKLIST, LAUDOS, MODELOS, HISTÓRICO E COMPROVANTE
+# ==============================================================================
+
+
+@app.get("/api/empresa/presets-ti")
+def obter_presets_ti(current_user: dict[str, Any] = Depends(get_current_user)):
+    return {
+        "categorias": CATEGORIAS_EQUIPAMENTO,
+        "tipos_fluxo": TIPOS_FLUXO,
+        "prioridades": PRIORIDADES,
+        "conclusoes_laudo": CONCLUSOES_LAUDO,
+        "checklist_presets": CHECKLIST_PRESETS,
+        "modelos_laudo_padrao": DEFAULT_LAUDO_TEMPLATES,
+        "variaveis_laudo": LAUDO_VARIABLES_HELP,
+    }
+
+
+@app.put("/api/empresa/modelos")
+def atualizar_modelos_e_branding_empresa(
+    payload: BrandingTemplatesSchema,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_modelos", "gerenciar_equipe")
+    ),
+):
+    try:
+        tenant = _get_auth_service().update_tenant_branding_and_templates(
+            user_ctx=current_user,
+            cnpj=payload.cnpj,
+            telefone=payload.telefone,
+            endereco=payload.endereco,
+            rodape_documento=payload.rodape_documento,
+            cor_documento=payload.cor_documento,
+            logo_base64=payload.logo_base64,
+            checklist_padrao=payload.checklist_padrao,
+            modelos_laudo=payload.modelos_laudo,
+        )
+        return {"sucesso": True, "tenant": tenant}
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao atualizar modelos e timbre da empresa")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/laudos/importar-modelo")
+def importar_arquivo_modelo_laudo(
+    payload: ImportarModeloLaudoSchema,
+    _current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_modelos", "gerenciar_laudos", "gerenciar_equipe")
+    ),
+):
+    try:
+        raw_b64 = (payload.conteudo_base64 or "").strip()
+        if "," in raw_b64 and raw_b64.startswith("data:"):
+            raw_b64 = raw_b64.split(",", 1)[1]
+        try:
+            raw_bytes = base64.b64decode(raw_b64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("Conteúdo do modelo em base64 inválido.") from exc
+        if len(raw_bytes) > MAX_TEMPLATE_UPLOAD_BYTES:
+            raise ValueError("O arquivo de modelo excede 512 KB.")
+        modelo = parse_uploaded_laudo_template(payload.filename, raw_bytes)
+        return {"sucesso": True, "modelo": modelo}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao importar arquivo de modelo de laudo")
+        raise HTTPException(status_code=500, detail="Erro ao processar modelo enviado.")
+
+
+@app.get("/api/equipamentos/{registro_id}/historico")
+def obter_historico_equipamento(
+    registro_id: int,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    try:
+        hist = ColetaModel.obter_historico_ativo(
+            registro_id, tenant_id=current_user["tenant_id"]
+        )
+        if not hist:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        pode_custos = usuario_tem_permissao(current_user, "ver_custos")
+        resp = {
+            "total_passagens": hist["total_passagens"],
+            "reincidente": hist["reincidente"],
+            "registros": [
+                _filtrar_registro_por_permissao(r, current_user) for r in hist["registros"]
+            ],
+            "timeline_atual": hist["timeline_atual"],
+        }
+        if pode_custos:
+            resp["custo_acumulado"] = hist["custo_acumulado"]
+        return resp
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro ao buscar histórico do equipamento %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.put("/api/equipamentos/{registro_id}/checklist")
+def atualizar_checklist_equipamento(
+    registro_id: int,
+    payload: ChecklistSchema,
+    current_user: dict[str, Any] = Depends(require_permission("editar_entrada")),
+):
+    try:
+        atualizado = ColetaModel.atualizar_checklist(
+            registro_id=registro_id,
+            checklist=payload.checklist,
+            tenant_id=current_user["tenant_id"],
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not atualizado:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        return {
+            "sucesso": True,
+            "registro": _filtrar_registro_por_permissao(atualizado, current_user),
+        }
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao atualizar checklist do registro %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/equipamentos/{registro_id}/link-publico")
+def gerar_link_publico_os(
+    registro_id: int,
+    request: Request,
+    current_user: dict[str, Any] = Depends(require_permission("compartilhar_os")),
+):
+    try:
+        codigo = ColetaModel.garantir_codigo_acompanhamento(
+            registro_id, tenant_id=current_user["tenant_id"]
+        )
+        if not codigo:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        base = str(request.base_url).rstrip("/")
+        return {
+            "sucesso": True,
+            "codigo": codigo,
+            "url": f"{base}/acompanhar/{codigo}",
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro ao gerar link público da O.S. %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/equipamentos/{registro_id}/comprovante/pdf")
+def baixar_comprovante_os_pdf(
+    registro_id: int,
+    current_user: dict[str, Any] = Depends(require_permission("compartilhar_os")),
+):
+    try:
+        reg = ColetaModel.buscar_por_id(
+            registro_id, tenant_id=current_user["tenant_id"]
+        )
+        if not reg:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        ocultar_custos = not usuario_tem_permissao(current_user, "ver_custos")
+        pdf_buf = PDFReportGenerator.comprovante_os(
+            reg, tenant=current_user["tenant"], ocultar_custos=ocultar_custos
+        )
+        return Response(
+            content=pdf_buf.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="Comprovante_OS_{registro_id}.pdf"'
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro ao gerar comprovante PDF da O.S. %s", registro_id)
+        raise HTTPException(status_code=500, detail="Erro ao gerar comprovante PDF.")
+
+
+@app.put("/api/equipamentos/{registro_id}/assinatura")
+def registrar_assinatura_os(
+    registro_id: int,
+    payload: AssinaturaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("compartilhar_os")),
+):
+    try:
+        atualizado = ColetaModel.salvar_assinatura(
+            registro_id=registro_id,
+            nome=payload.nome,
+            documento=payload.documento or "",
+            imagem_base64=payload.imagem_base64,
+            tenant_id=current_user["tenant_id"],
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not atualizado:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        return {
+            "sucesso": True,
+            "mensagem": "Assinatura registrada na O.S.!",
+            "registro": _filtrar_registro_por_permissao(atualizado, current_user),
+        }
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao registrar assinatura da O.S. %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.put("/api/equipamentos/{registro_id}/orcamento")
+def enviar_orcamento_os(
+    registro_id: int,
+    payload: OrcamentoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("compartilhar_os")),
+):
+    if not usuario_tem_permissao(current_user, "ver_custos"):
+        raise HTTPException(
+            status_code=403,
+            detail="É necessário ter permissão de custos para enviar orçamentos.",
+        )
+    try:
+        atualizado = ColetaModel.salvar_orcamento(
+            registro_id=registro_id,
+            descricao=payload.descricao,
+            valor=payload.valor,
+            tenant_id=current_user["tenant_id"],
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not atualizado:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        return {
+            "sucesso": True,
+            "mensagem": "Orçamento registrado e pronto para aprovação pelo link público.",
+            "registro": _filtrar_registro_por_permissao(atualizado, current_user),
+        }
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao enviar orçamento da O.S. %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/equipamentos/{registro_id}/laudos")
+def criar_laudo_equipamento(
+    registro_id: int,
+    payload: LaudoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_laudos")),
+):
+    try:
+        res = ColetaModel.salvar_laudo(
+            registro_id=registro_id,
+            dados_laudo=payload.model_dump(),
+            tenant_id=current_user["tenant_id"],
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not res:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        reg_atualizado, laudo = res
+        return {
+            "sucesso": True,
+            "mensagem": f"Laudo {laudo['numero']} anexado ao equipamento!",
+            "laudo": laudo,
+            "registro": _filtrar_registro_por_permissao(reg_atualizado, current_user),
+        }
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao criar laudo da O.S. %s", registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.put("/api/equipamentos/{registro_id}/laudos/{laudo_id}")
+def atualizar_laudo_equipamento(
+    registro_id: int,
+    laudo_id: str,
+    payload: LaudoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_laudos")),
+):
+    try:
+        res = ColetaModel.salvar_laudo(
+            registro_id=registro_id,
+            dados_laudo=payload.model_dump(),
+            tenant_id=current_user["tenant_id"],
+            actor=current_user.get("nome") or current_user.get("email") or "",
+            laudo_id=laudo_id,
+        )
+        if not res:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        reg_atualizado, laudo = res
+        return {
+            "sucesso": True,
+            "mensagem": f"Laudo {laudo['numero']} atualizado!",
+            "laudo": laudo,
+            "registro": _filtrar_registro_por_permissao(reg_atualizado, current_user),
+        }
+    except HTTPException:
+        raise
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao atualizar laudo %s da O.S. %s", laudo_id, registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.delete("/api/equipamentos/{registro_id}/laudos/{laudo_id}")
+def remover_laudo_equipamento(
+    registro_id: int,
+    laudo_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_laudos")),
+):
+    try:
+        reg_atualizado = ColetaModel.excluir_laudo(
+            registro_id=registro_id,
+            laudo_id=laudo_id,
+            tenant_id=current_user["tenant_id"],
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not reg_atualizado:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        return {
+            "sucesso": True,
+            "mensagem": "Laudo removido do equipamento.",
+            "registro": _filtrar_registro_por_permissao(reg_atualizado, current_user),
+        }
+    except HTTPException:
+        raise
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except Exception:
+        logger.exception("Erro ao remover laudo %s da O.S. %s", laudo_id, registro_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/equipamentos/{registro_id}/laudos/{laudo_id}/pdf")
+def baixar_laudo_pdf(
+    registro_id: int,
+    laudo_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_laudos")),
+):
+    try:
+        reg = ColetaModel.buscar_por_id(
+            registro_id, tenant_id=current_user["tenant_id"]
+        )
+        if not reg:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        laudo = next(
+            (item for item in (reg.get("laudos") or []) if item.get("id") == laudo_id),
+            None,
+        )
+        if not laudo:
+            raise HTTPException(status_code=404, detail="Laudo técnico não encontrado.")
+        pdf_buf = PDFReportGenerator.laudo_tecnico_pdf(
+            reg, laudo, tenant=current_user["tenant"]
+        )
+        numero = str(laudo.get("numero") or laudo_id).replace("/", "-")
+        return Response(
+            content=pdf_buf.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="Laudo_{numero}.pdf"'
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro ao gerar PDF do laudo %s", laudo_id)
+        raise HTTPException(status_code=500, detail="Erro ao gerar PDF do laudo.")
+
+
+# ==============================================================================
+# ROTAS PÚBLICAS DE ACOMPANHAMENTO DO CLIENTE (SEM LOGIN E SEM CUSTOS INTERNOS)
+# ==============================================================================
+
+
+def _montar_visao_publica(tenant_id: str, reg: dict) -> dict:
+    tenant_raw = _get_auth_service().user_store.get_tenant(tenant_id) or {}
+    tenant = sanitizar_tenant(tenant_raw)
+    laudos_publicos = [
+        {
+            "id": l.get("id"),
+            "numero": l.get("numero"),
+            "titulo": l.get("titulo"),
+            "conclusao": l.get("conclusao"),
+            "tecnico_responsavel": l.get("tecnico_responsavel"),
+            "emitido_em": l.get("emitido_em"),
+        }
+        for l in (reg.get("laudos") or [])
+        if l.get("visivel_cliente", True)
+    ]
+    eventos_publicos = [
+        ev for ev in (reg.get("historico_eventos") or []) if ev.get("publico", True)
+    ]
+    orc = reg.get("orcamento")
+    orc_publico = (
+        {
+            "status": orc.get("status"),
+            "descricao": orc.get("descricao"),
+            "valor": orc.get("valor"),
+            "enviado_em": orc.get("enviado_em"),
+            "respondido_em": orc.get("respondido_em"),
+            "respondido_por": orc.get("respondido_por"),
+        }
+        if isinstance(orc, dict) and orc.get("valor")
+        else None
+    )
+    ass = reg.get("assinatura_entrega")
+    ass_publica = (
+        {
+            "nome": ass.get("nome"),
+            "assinado_em": ass.get("assinado_em"),
+        }
+        if isinstance(ass, dict) and ass.get("nome")
+        else None
+    )
+    return {
+        "empresa": {
+            "nome": tenant.get("nome", "SysFix"),
+            "telefone": tenant.get("telefone", ""),
+            "endereco": tenant.get("endereco", ""),
+            "cor_documento": tenant.get("cor_documento", "#4C1D95"),
+            "logo_base64": tenant.get("logo_base64", ""),
+        },
+        "ordem": {
+            "id": reg.get("id"),
+            "codigo_acompanhamento": reg.get("codigo_acompanhamento"),
+            "equipamento": reg.get("equipamento"),
+            "categoria": reg.get("categoria") or "",
+            "tombamento": reg.get("tombamento"),
+            "serial_mac": reg.get("serial_mac") or "",
+            "tipo_fluxo": reg.get("tipo_fluxo") or "Manutenção",
+            "prioridade": reg.get("prioridade") or "Normal",
+            "origem": reg.get("origem"),
+            "localizacao": reg.get("localizacao"),
+            "status": reg.get("status"),
+            "data_coleta": reg.get("data_coleta"),
+            "data_entrega": reg.get("data_entrega"),
+            "os_coleta": reg.get("os_coleta"),
+            "os_entrega": reg.get("os_entrega"),
+            "problema": reg.get("problema"),
+            "resolucao": reg.get("resolucao"),
+            "garantia_dias": reg.get("garantia_dias") or 0,
+            "garantia_ate": reg.get("garantia_ate") or "",
+            "checklist": list(reg.get("checklist") or []),
+            "laudos": laudos_publicos,
+            "eventos": eventos_publicos,
+            "orcamento": orc_publico,
+            "assinatura": ass_publica,
+        },
+    }
+
+
+@app.get("/api/public/acompanhar/{codigo}")
+def consultar_acompanhamento_publico(codigo: str):
+    encontrado = ColetaModel.buscar_por_codigo_publico(codigo)
+    if not encontrado:
+        raise HTTPException(
+            status_code=404, detail="Ordem de Serviço não encontrada para este código."
+        )
+    tenant_id, reg = encontrado
+    return _montar_visao_publica(tenant_id, reg)
+
+
+@app.post("/api/public/acompanhar/{codigo}/orcamento")
+def responder_orcamento_publico_api(
+    codigo: str, payload: OrcamentoRespostaPublicaSchema
+):
+    try:
+        res = ColetaModel.responder_orcamento_publico(
+            codigo=codigo,
+            decisao=payload.decisao,
+            cliente_nome=payload.cliente_nome,
+            observacao=payload.observacao or "",
+        )
+        if not res:
+            raise HTTPException(
+                status_code=404, detail="Ordem de Serviço não encontrada."
+            )
+        tenant_id, reg_atualizado = res
+        return {
+            "sucesso": True,
+            "dados": _montar_visao_publica(tenant_id, reg_atualizado),
+        }
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao responder orçamento público %s", codigo)
+        raise HTTPException(status_code=500, detail="Erro ao registrar resposta.")
+
+
+@app.get("/api/public/acompanhar/{codigo}/laudos/{laudo_id}/pdf")
+def baixar_laudo_publico_pdf(codigo: str, laudo_id: str):
+    encontrado = ColetaModel.buscar_por_codigo_publico(codigo)
+    if not encontrado:
+        raise HTTPException(status_code=404, detail="O.S. não encontrada.")
+    tenant_id, reg = encontrado
+    laudo = next(
+        (
+            item
+            for item in (reg.get("laudos") or [])
+            if item.get("id") == laudo_id and item.get("visivel_cliente", True)
+        ),
+        None,
+    )
+    if not laudo:
+        raise HTTPException(status_code=404, detail="Laudo não disponível para o cliente.")
+    tenant_raw = _get_auth_service().user_store.get_tenant(tenant_id) or {}
+    pdf_buf = PDFReportGenerator.laudo_tecnico_pdf(
+        reg, laudo, tenant=sanitizar_tenant(tenant_raw)
+    )
+    numero = str(laudo.get("numero") or laudo_id).replace("/", "-")
+    return Response(
+        content=pdf_buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="Laudo_{numero}.pdf"'},
+    )
+
+
+# ==============================================================================
+# OPERAÇÕES TI & PROVEDORES: ESTOQUE, PREVENTIVAS E CLIENTES/POPS
+# ==============================================================================
+
+
+def _filtrar_item_estoque(item: dict, current_user: dict[str, Any]) -> dict:
+    dados = dict(item)
+    if not usuario_tem_permissao(current_user, "ver_custos"):
+        dados.pop("custo_unitario", None)
+    return dados
+
+
+@app.get("/api/ops/estoque")
+def listar_estoque_ops(
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    itens = _get_ops_service().listar_estoque(current_user["tenant_id"])
+    return [_filtrar_item_estoque(i, current_user) for i in itens]
+
+
+@app.post("/api/ops/estoque")
+def criar_item_estoque_ops(
+    payload: EstoqueItemSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    try:
+        dados = payload.model_dump()
+        if not usuario_tem_permissao(current_user, "ver_custos"):
+            dados["custo_unitario"] = 0.0
+        item = _get_ops_service().criar_item_estoque(
+            current_user["tenant_id"],
+            dados,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "item": _filtrar_item_estoque(item, current_user)}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao criar item de estoque")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.patch("/api/ops/estoque/{item_id}")
+def atualizar_item_estoque_ops(
+    item_id: str,
+    payload: EstoqueItemSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    try:
+        dados = payload.model_dump(exclude_unset=True)
+        if not usuario_tem_permissao(current_user, "ver_custos"):
+            dados.pop("custo_unitario", None)
+        item = _get_ops_service().atualizar_item_estoque(
+            current_user["tenant_id"],
+            item_id,
+            dados,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not item:
+            raise HTTPException(status_code=404, detail="Item de estoque não encontrado.")
+        return {"sucesso": True, "item": _filtrar_item_estoque(item, current_user)}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao atualizar item de estoque")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/ops/estoque/{item_id}/movimentar")
+def movimentar_estoque_ops(
+    item_id: str,
+    payload: EstoqueMovimentoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    try:
+        item = _get_ops_service().movimentar_estoque(
+            tenant_id=current_user["tenant_id"],
+            item_id=item_id,
+            tipo=payload.tipo,
+            quantidade=payload.quantidade,
+            os_id=payload.os_id,
+            observacao=payload.observacao or "",
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not item:
+            raise HTTPException(status_code=404, detail="Item de estoque não encontrado.")
+        return {"sucesso": True, "item": _filtrar_item_estoque(item, current_user)}
+    except HTTPException:
+        raise
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao movimentar estoque")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.delete("/api/ops/estoque/{item_id}")
+def excluir_item_estoque_ops(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    if not _get_ops_service().excluir_item_estoque(current_user["tenant_id"], item_id):
+        raise HTTPException(status_code=404, detail="Item de estoque não encontrado.")
+    return {"sucesso": True}
+
+
+@app.get("/api/ops/preventivas")
+def listar_preventivas_ops(
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    return _get_ops_service().listar_preventivas(current_user["tenant_id"])
+
+
+@app.post("/api/ops/preventivas")
+def criar_preventiva_ops(
+    payload: PreventivaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    try:
+        item = _get_ops_service().criar_preventiva(
+            current_user["tenant_id"],
+            payload.model_dump(),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "item": item}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao criar preventiva")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/ops/preventivas/{item_id}/concluir")
+def concluir_preventiva_ops(
+    item_id: str,
+    payload: PreventivaConcluirSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    try:
+        data_exec = (
+            payload.data_execucao.strftime("%Y-%m-%d")
+            if isinstance(payload.data_execucao, date)
+            else payload.data_execucao
+        )
+        item = _get_ops_service().concluir_preventiva(
+            current_user["tenant_id"],
+            item_id,
+            observacao=payload.observacao or "",
+            data_execucao=data_exec,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not item:
+            raise HTTPException(status_code=404, detail="Agenda preventiva não encontrada.")
+        return {"sucesso": True, "item": item}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao concluir preventiva")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.delete("/api/ops/preventivas/{item_id}")
+def excluir_preventiva_ops(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    if not _get_ops_service().excluir_preventiva(current_user["tenant_id"], item_id):
+        raise HTTPException(status_code=404, detail="Agenda preventiva não encontrada.")
+    return {"sucesso": True}
+
+
+@app.get("/api/ops/clientes")
+def listar_clientes_ops(
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    return _get_ops_service().listar_clientes(current_user["tenant_id"])
+
+
+@app.post("/api/ops/clientes")
+def criar_cliente_ops(
+    payload: ClientePopSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    try:
+        item = _get_ops_service().criar_cliente(
+            current_user["tenant_id"], payload.model_dump()
+        )
+        return {"sucesso": True, "item": item}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao criar cliente/POP")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.delete("/api/ops/clientes/{item_id}")
+def excluir_cliente_ops(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_operacoes_ti")),
+):
+    if not _get_ops_service().excluir_cliente(current_user["tenant_id"], item_id):
+        raise HTTPException(status_code=404, detail="Cliente/POP não encontrado.")
+    return {"sucesso": True}
 
 
 if __name__ == "__main__":

@@ -99,6 +99,26 @@ class FirestoreColetaStore:
     def _coletas_ref(self, tenant_id: str):
         return self._tenant_ref(tenant_id).collection("coletas")
 
+    def _tracking_ref(self, codigo: str):
+        return self.db.collection("tracking_codes").document(str(codigo).strip().upper())
+
+    def find_by_tracking_code(self, codigo: str) -> tuple[str, dict] | None:
+        alvo = str(codigo or "").strip().upper()
+        if not alvo:
+            return None
+        snap = self._tracking_ref(alvo).get()
+        if not snap.exists:
+            return None
+        meta = dict(snap.to_dict() or {})
+        tenant_id = meta.get("tenant_id")
+        record_id = meta.get("record_id")
+        if not tenant_id or record_id is None:
+            return None
+        record = self.get(int(record_id), tenant_id=tenant_id)
+        if not record:
+            return None
+        return tenant_id, record
+
     def all(self, tenant_id: str = "default") -> list[dict]:
         docs = self._coletas_ref(tenant_id).stream()
         rows: list[dict] = []
@@ -135,14 +155,24 @@ class FirestoreColetaStore:
                 next_id = 1
 
             ids: list[int] = []
+            tracking_entries: list[tuple[str, int]] = []
             for item in records:
                 record = dict(item)
                 record["id"] = next_id
                 record["tenant_id"] = tenant_id
                 doc_ref = coletas_ref.document(str(next_id))
                 transaction.set(doc_ref, record)
+                codigo = str(record.get("codigo_acompanhamento") or "").strip().upper()
+                if codigo:
+                    tracking_entries.append((codigo, next_id))
                 ids.append(next_id)
                 next_id += 1
+
+            for codigo, rec_id in tracking_entries:
+                transaction.set(
+                    self._tracking_ref(codigo),
+                    {"tenant_id": tenant_id, "record_id": rec_id},
+                )
 
             if tenant_snap.exists:
                 transaction.update(tenant_ref, {"next_coleta_id": next_id})
@@ -166,6 +196,15 @@ class FirestoreColetaStore:
         payload = dict(updates)
         payload["tenant_id"] = tenant_id
         doc_ref.update(payload)
+        codigo = str(
+            payload.get("codigo_acompanhamento")
+            or (snap.to_dict() or {}).get("codigo_acompanhamento")
+            or ""
+        ).strip().upper()
+        if codigo and "codigo_acompanhamento" in payload:
+            self._tracking_ref(codigo).set(
+                {"tenant_id": tenant_id, "record_id": int(record_id)}
+            )
         return True
 
     def delete_record(self, record_id: int, tenant_id: str = "default") -> bool:
@@ -173,7 +212,11 @@ class FirestoreColetaStore:
         snap = doc_ref.get()
         if not snap.exists:
             return False
+        existing = snap.to_dict() or {}
+        codigo = str(existing.get("codigo_acompanhamento") or "").strip().upper()
         doc_ref.delete()
+        if codigo:
+            self._tracking_ref(codigo).delete()
         return True
 
     def import_records(
@@ -215,7 +258,14 @@ class FirestoreColetaStore:
         for item in sorted(imported, key=lambda row: row["id"]):
             batch.set(coletas_ref.document(str(item["id"])), item)
             ops += 1
-            if ops >= 400:
+            codigo = str(item.get("codigo_acompanhamento") or "").strip().upper()
+            if codigo:
+                batch.set(
+                    self._tracking_ref(codigo),
+                    {"tenant_id": tenant_id, "record_id": item["id"]},
+                )
+                ops += 1
+            if ops >= 380:
                 batch.commit()
                 batch = self.db.batch()
                 ops = 0

@@ -214,6 +214,9 @@
           <button id="navBtnEquipamentos" onclick="alternarVisao('equipamentos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all">
             🖥️ Equipamentos
           </button>
+          <button id="navBtnOperacoes" onclick="alternarVisao('operacoes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
+            🧰 Operações TI
+          </button>
           <button id="navBtnEmpresa" onclick="alternarVisao('empresa')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
             🏢 Equipe &amp; Empresa
           </button>
@@ -432,6 +435,28 @@
                 <option value="Aguardando Peça">Aguardando Peça</option>
               </select>
             </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tipo de Fluxo</label>
+                <select id="ent_fluxo" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="Manutenção">Manutenção</option>
+                  <option value="Comodato (Cliente)">Comodato (Cliente)</option>
+                  <option value="RMA / Garantia">RMA / Garantia</option>
+                  <option value="Recondicionamento / Triagem">Recondicionamento / Triagem</option>
+                  <option value="Preventiva">Preventiva</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Prioridade / SLA</label>
+                <select id="ent_prioridade" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="Normal">Normal</option>
+                  <option value="Baixa">Baixa</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Crítica">Crítica</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <div class="space-y-3">
@@ -451,12 +476,36 @@
 
                 <div>
                   <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
-                  <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: Notebook Dell Vostro">
+                  <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: ONU Huawei HG8145V5 / Notebook">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI/ISP</label>
+                    <select class="ent_categoria w-full px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
+                      <option value="">Geral</option>
+                      <option value="ONU / ONT (Fibra)">ONU / ONT (Fibra)</option>
+                      <option value="Roteador / Wi-Fi">Roteador / Wi-Fi</option>
+                      <option value="Switch / OLT">Switch / OLT</option>
+                      <option value="Nobreak / Fonte">Nobreak / Fonte</option>
+                      <option value="Notebook">Notebook</option>
+                      <option value="Desktop / PC">Desktop / PC</option>
+                      <option value="Impressora">Impressora</option>
+                      <option value="Servidor / Rack">Servidor / Rack</option>
+                      <option value="Câmera / DVR / NVR">Câmera / DVR / NVR</option>
+                      <option value="Rádio / Antena PTP">Rádio / Antena PTP</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
+                    <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456 ou S/N">
+                  </div>
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
-                  <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456">
+                  <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Serial / MAC / GPON SN</label>
+                  <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 48575443A1B2C3D4 ou AA:BB:CC:DD:EE:FF">
                 </div>
 
                 <div>
@@ -523,6 +572,11 @@
           </div>
 
           <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Garantia do Serviço (dias)</label>
+            <input type="number" min="0" max="3650" id="sai_garantia" value="90" placeholder="Ex: 90 (0 = sem garantia)" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
+          </div>
+
+          <div>
             <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Serviço / Resolução</label>
             <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all resize-none"></textarea>
           </div>
@@ -578,26 +632,60 @@
           <p class="text-xs font-medium">Selecione um equipamento na lista para carregar a ficha técnica.</p>
         </div>
 
-        <div id="fichaConteudo" class="hidden space-y-4 max-w-2xl mx-auto w-full">
-          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm flex justify-between items-start">
-            <div>
-              <span id="f_id" class="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider">REGISTRO #0</span>
-              <h2 id="f_equipamento" class="text-lg font-extrabold text-slate-900 dark:text-white mt-1">NOME DO EQUIPAMENTO</h2>
-              <p id="f_tombamento" class="text-xs text-slate-500 dark:text-violet-300/80 font-medium">Tombamento: ---</p>
+        <div id="fichaConteudo" class="hidden space-y-4 max-w-3xl mx-auto w-full">
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+            <div class="flex flex-wrap justify-between items-start gap-2">
+              <div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span id="f_id" class="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider">REGISTRO #0</span>
+                  <span id="f_fluxo_badge" class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-200">Manutenção</span>
+                  <span id="f_prioridade_badge" class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">Normal</span>
+                </div>
+                <h2 id="f_equipamento" class="text-lg font-extrabold text-slate-900 dark:text-white mt-1">NOME DO EQUIPAMENTO</h2>
+                <p id="f_tombamento" class="text-xs text-slate-500 dark:text-violet-300/80 font-medium">Tombamento: ---</p>
+              </div>
+              <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
+                ⏳ PENDENTE
+              </span>
             </div>
-            <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
-              ⏳ PENDENTE
-            </span>
+
+            <!-- Barra de ações rápidas da O.S. -->
+            <div id="fichaBarraAcoes" class="pt-3 border-t border-violet-100 dark:border-violet-900/60 flex flex-wrap gap-1.5">
+              <button id="btnNovoLaudoOs" type="button" onclick="abrirModalLaudo()" class="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold transition-all">
+                📋 Emitir Laudo
+              </button>
+              <button id="btnComprovanteOs" type="button" onclick="baixarComprovanteOsPdf()" class="px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 text-[11px] font-bold transition-all">
+                📄 Comprovante PDF
+              </button>
+              <button id="btnHistoricoAtivo" type="button" onclick="abrirHistoricoAtivoModal()" class="px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 text-[11px] font-bold transition-all">
+                🕘 Histórico / Reincidência
+              </button>
+              <button id="btnCopiarLinkOs" type="button" onclick="copiarLinkPublicoOs()" class="px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 text-[11px] font-bold transition-all">
+                🔗 Link Cliente
+              </button>
+              <button id="btnWhatsappOs" type="button" onclick="enviarWhatsappOs()" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold transition-all">
+                💬 WhatsApp
+              </button>
+              <button id="btnAssinarOs" type="button" onclick="abrirModalAssinatura()" class="px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 text-[11px] font-bold transition-all">
+                ✍️ Assinatura
+              </button>
+              <button id="btnOrcamentoOs" type="button" onclick="abrirModalOrcamento()" class="px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold transition-all">
+                💵 Orçamento
+              </button>
+            </div>
           </div>
 
           <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
             <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider border-b border-violet-100 dark:border-violet-900/60 pb-2">📥 Dados de Entrada</h3>
-            <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Categoria:</span><span id="f_categoria" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Serial / MAC:</span><span id="f_serial_mac" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">O.S. Coleta:</span><span id="f_os_coleta" class="font-semibold text-slate-800 dark:text-white">---</span></div>
-              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-800 dark:text-white">---</span></div>
-              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Origem / Cliente:</span><span id="f_origem" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Cód. Acompanhamento:</span><span id="f_codigo" class="font-semibold text-violet-600 dark:text-violet-400">---</span></div>
             </div>
             <div class="pt-2">
               <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Problema Relatado:</span>
@@ -607,21 +695,237 @@
 
           <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
             <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider border-b border-violet-100 dark:border-violet-900/60 pb-2">📤 Resolução &amp; Entrega</h3>
-            <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">O.S. Entrega:</span><span id="f_os_entrega" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div id="fichaBlocoCusto"><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Garantia:</span><span id="f_garantia" class="font-semibold text-slate-800 dark:text-white">---</span></div>
             </div>
+            <div id="f_extra_resumo" class="flex flex-wrap gap-2 text-[11px]"></div>
             <div class="pt-2">
               <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Serviço Realizado:</span>
               <p id="f_resolucao" class="text-xs bg-violet-50/70 dark:bg-[#1C1633] p-2.5 rounded-xl border border-violet-100 dark:border-violet-800/70 text-slate-700 dark:text-violet-100 mt-1 font-medium">---</p>
             </div>
           </div>
+
+          <!-- Checklist Técnico de Bancada -->
+          <div id="fichaCardChecklist" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-2">
+              <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider">☑️ Checklist Técnico de Bancada</h3>
+              <button id="btnAplicarChecklistPadrao" type="button" onclick="aplicarChecklistPadraoNaOs()" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-700 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+                + Carregar Checklist Padrão
+              </button>
+            </div>
+            <div id="fichaChecklistItens" class="grid sm:grid-cols-2 gap-2 text-xs"></div>
+          </div>
+
+          <!-- Laudos & Pareceres Anexados ao Equipamento -->
+          <div id="fichaCardLaudos" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-2">
+              <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider">📄 Laudos &amp; Pareceres Técnicos Anexados</h3>
+              <button id="btnCardNovoLaudo" type="button" onclick="abrirModalLaudo()" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-violet-600 hover:bg-violet-700 text-white">
+                + Novo Laudo / Parecer
+              </button>
+            </div>
+            <div id="fichaListaLaudos" class="space-y-2 text-xs"></div>
+          </div>
         </div>
       </section>
     </div>
+
+    <!-- ==================================================================== -->
+    <!-- VISÃO 2B: OPERAÇÕES TI & PROVEDORES (ESTOQUE, PREVENTIVAS, CLIENTES) -->
+    <!-- ==================================================================== -->
+    <section id="viewOperacoes" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
+      <div class="max-w-7xl mx-auto space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🧰 Operações TI &amp; Provedores (ISP)</h2>
+            <p class="text-xs text-slate-500 dark:text-violet-300/80">Controle de peças/equipamentos prontos, preventivas de POPs/servidores e base de clientes.</p>
+          </div>
+          <div class="flex gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-900">
+            <button id="btnOpsTabEstoque" onclick="alternarOpsTab('estoque')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">📦 Estoque &amp; Triagem</button>
+            <button id="btnOpsTabPreventivas" onclick="alternarOpsTab('preventivas')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🗓️ Preventivas POPs</button>
+            <button id="btnOpsTabClientes" onclick="alternarOpsTab('clientes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📡 Clientes &amp; POPs</button>
+          </div>
+        </div>
+
+        <!-- SUB-ABA ESTOQUE -->
+        <div id="opsTabEstoque" class="grid lg:grid-cols-3 gap-5">
+          <form onsubmit="criarItemEstoque(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">➕ Cadastrar Item de Estoque</h3>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome da Peça / Equipamento *</label>
+              <input type="text" id="est_nome" required placeholder="Ex: Fonte 12V 1.5A / ONU Pronta / SSD 240GB" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Código / SKU</label>
+                <input type="text" id="est_codigo" placeholder="SKU-001" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria</label>
+                <select id="est_categoria" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="Peça / Insumo">Peça / Insumo</option>
+                  <option value="Equipamento Pronto (Comodato)">Equipamento Pronto (Comodato)</option>
+                  <option value="Fibra / Conectores">Fibra / Conectores</option>
+                  <option value="Hardware TI">Hardware TI</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Qtd Inicial</label>
+                <input type="number" id="est_qtd" min="0" value="1" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Estoque Mínimo</label>
+                <input type="number" id="est_min" min="0" value="2" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div id="grupoCustoEstoque">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Custo Unit. (R$)</label>
+                <input type="number" id="est_custo" min="0" step="0.01" value="0.00" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Local / Prateleira</label>
+                <input type="text" id="est_loc" value="Almoxarifado" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              💾 Salvar no Estoque
+            </button>
+          </form>
+
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Saldo de Peças &amp; Equipamentos</h3>
+              <button onclick="carregarEstoqueOps()" class="text-xs font-semibold text-violet-600 dark:text-violet-400">Atualizar</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold border-b border-violet-200 dark:border-violet-900">
+                  <tr>
+                    <th class="p-3">Item</th>
+                    <th class="p-3">Categoria</th>
+                    <th class="p-3">Saldo</th>
+                    <th id="thCustoEstoque" class="p-3">Custo</th>
+                    <th class="p-3 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaEstoqueOps" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-ABA PREVENTIVAS -->
+        <div id="opsTabPreventivas" class="grid lg:grid-cols-3 gap-5 hidden">
+          <form onsubmit="criarPreventivaOps(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">🗓️ Nova Agenda Preventiva</h3>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento / Tarefa *</label>
+              <input type="text" id="prv_titulo" required placeholder="Ex: Revisão Nobreaks e Baterias POP Norte" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">POP / Servidor / Cliente</label>
+                <input type="text" id="prv_local" list="datalistOrigens" placeholder="POP Centro" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">A cada (dias)</label>
+                <input type="number" id="prv_dias" min="1" max="1095" value="30" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Próxima Execução *</label>
+                <input type="date" id="prv_proxima" required class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Responsável</label>
+                <input type="text" id="prv_resp" list="datalistTecnicos" placeholder="Técnico" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Roteiro de Verificação</label>
+              <textarea id="prv_checklist" rows="2" placeholder="Limpeza de filtros, medição de tensão, backup..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              ➕ Agendar Preventiva
+            </button>
+          </form>
+
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Cronograma de Preventivas</h3>
+              <button onclick="carregarPreventivasOps()" class="text-xs font-semibold text-violet-600 dark:text-violet-400">Atualizar</button>
+            </div>
+            <div id="listaPreventivasOps" class="p-4 space-y-2.5 text-xs"></div>
+          </div>
+        </div>
+
+        <!-- SUB-ABA CLIENTES & POPS -->
+        <div id="opsTabClientes" class="grid lg:grid-cols-3 gap-5 hidden">
+          <form onsubmit="criarClienteOps(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">📡 Novo Cliente, Setor ou POP</h3>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome *</label>
+              <input type="text" id="cli_nome" required placeholder="Ex: POP Centro / Cliente João" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tipo</label>
+                <select id="cli_tipo" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="Cliente / Empresa">Cliente / Empresa</option>
+                  <option value="POP / Torre ISP">POP / Torre ISP</option>
+                  <option value="Setor Interno">Setor Interno</option>
+                  <option value="Assinante FTTH">Assinante FTTH</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Telefone / WhatsApp</label>
+                <input type="text" id="cli_tel" placeholder="(00) 99999-9999" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Contato / Responsável</label>
+              <input type="text" id="cli_contato" placeholder="Nome do contato" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Endereço / Coordenadas</label>
+              <input type="text" id="cli_end" placeholder="Rua, número, bairro..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              💾 Salvar Cliente / POP
+            </button>
+          </form>
+
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Clientes, Setores e POPs Cadastrados</h3>
+              <button onclick="carregarClientesOps()" class="text-xs font-semibold text-violet-600 dark:text-violet-400">Atualizar</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold border-b border-violet-200 dark:border-violet-900">
+                  <tr>
+                    <th class="p-3">Nome</th>
+                    <th class="p-3">Tipo</th>
+                    <th class="p-3">Contato / Telefone</th>
+                    <th class="p-3 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaClientesOps" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- ==================================================================== -->
     <!-- VISÃO 3: GESTÃO DE EQUIPE & EMPRESA (ADMIN)                          -->
@@ -705,6 +1009,120 @@
               </thead>
               <tbody id="tabelaUsuariosEmpresa" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Personalização de Timbre, Checklists e Modelos de Laudo -->
+        <div id="blocoModelosLaudoEmpresa" class="lg:col-span-3 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">🎨 Personalização de Laudos, Timbre &amp; Checklist</h2>
+              <p class="text-xs text-slate-500 dark:text-violet-300/80">Configure a identidade visual dos PDFs (logo, CNPJ, cor e rodapé), o checklist padrão da bancada e seus modelos prontos de laudo técnico.</p>
+            </div>
+            <button type="button" onclick="salvarBrandingEModelos()" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              💾 Salvar Personalizações
+            </button>
+          </div>
+
+          <div class="grid md:grid-cols-4 gap-3 text-xs">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">CNPJ / CPF</label>
+              <input type="text" id="brand_cnpj" placeholder="00.000.000/0001-00" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Telefone / Suporte</label>
+              <input type="text" id="brand_tel" placeholder="(00) 99999-9999" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Endereço da Empresa</label>
+              <input type="text" id="brand_end" placeholder="Rua Exemplo, 100 - Centro" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Cor do Cabeçalho PDF</label>
+              <div class="flex items-center gap-2">
+                <input type="color" id="brand_cor" value="#4C1D95" class="h-9 w-12 rounded-lg border border-violet-200 dark:border-violet-800 cursor-pointer">
+                <span id="brand_cor_label" class="text-xs font-mono text-slate-600 dark:text-violet-200">#4C1D95</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-xs">
+            <div class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-800 dark:text-white">🖼️ Logo da Empresa nos PDFs (PNG/JPG até 300 KB)</span>
+                <button type="button" onclick="limparLogoEmpresa()" class="text-[11px] font-semibold text-rose-600 hover:underline">Remover Logo</button>
+              </div>
+              <div class="flex items-center gap-3">
+                <img id="brand_logo_preview" src="/static/favicon.svg" alt="Preview Logo" class="h-12 max-w-[140px] object-contain rounded-lg bg-white p-1 border border-violet-200">
+                <input type="file" id="brand_logo_file" accept="image/png,image/jpeg,image/webp" onchange="selecionarLogoEmpresa(event)" class="text-xs flex-1">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Rodapé Personalizado (PDFs e Laudos)</label>
+                <input type="text" id="brand_rodape" placeholder="Ex: Garantia válida mediante apresentação deste documento." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-800 dark:text-white">☑️ Checklist Padrão da Bancada (1 item por linha)</span>
+                <div class="flex gap-1">
+                  <button type="button" onclick="aplicarPresetChecklist('isp')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-violet-600 text-white">Provedor ISP</button>
+                  <button type="button" onclick="aplicarPresetChecklist('ti')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-indigo-600 text-white">Assistência TI</button>
+                  <button type="button" onclick="aplicarPresetChecklist('padrao')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-slate-600 text-white">Misto</button>
+                </div>
+              </div>
+              <textarea id="brand_checklist" rows="4" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+            </div>
+          </div>
+
+          <!-- Editor e Upload de Modelos de Laudo -->
+          <div class="grid lg:grid-cols-3 gap-4 text-xs">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-800 dark:text-white">📑 Modelos de Laudo da Empresa</span>
+                <button type="button" onclick="novoModeloLaudoEmpresa()" class="px-2.5 py-1 rounded-lg bg-violet-600 text-white text-[11px] font-bold">+ Novo</button>
+              </div>
+              <div id="listaModelosEmpresa" class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1"></div>
+              <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-dashed border-violet-300 dark:border-violet-700 space-y-1.5">
+                <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200">📤 Enviar Modelo Pronto (.txt, .md, .html, .json)</label>
+                <input type="file" id="inpImportarModeloEmpresa" accept=".txt,.md,.html,.htm,.json" onchange="importarModeloParaEmpresa(event)" class="w-full text-[11px]">
+              </div>
+            </div>
+
+            <div class="lg:col-span-2 p-4 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2.5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span id="lblEditandoModelo" class="font-bold text-slate-900 dark:text-white">Editor de Modelo de Laudo</span>
+                <div class="flex gap-1.5">
+                  <button type="button" onclick="aplicarEdicaoModeloNaLista()" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold">✓ Aplicar Modelo</button>
+                  <button type="button" onclick="excluirModeloAtualEmpresa()" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 text-[11px] font-bold border border-rose-200 dark:border-rose-800">Remover</button>
+                </div>
+              </div>
+              <div class="grid sm:grid-cols-3 gap-2">
+                <input type="text" id="tpl_nome" placeholder="Nome curto do modelo *" class="px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
+                <input type="text" id="tpl_titulo" placeholder="Título impresso no PDF *" class="px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
+                <select id="tpl_conclusao" class="px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="Reparado / Aprovado">Reparado / Aprovado</option>
+                  <option value="Aguardando Aprovação de Orçamento">Aguardando Aprovação de Orçamento</option>
+                  <option value="Aguardando Peça / RMA">Aguardando Peça / RMA</option>
+                  <option value="Condenado / Inviável">Condenado / Inviável</option>
+                  <option value="Sem Defeito Constatado">Sem Defeito Constatado</option>
+                  <option value="Troca em Garantia / Comodato">Troca em Garantia / Comodato</option>
+                </select>
+              </div>
+              <div class="flex flex-wrap gap-1 items-center text-[10px]">
+                <span class="font-bold text-slate-500 dark:text-violet-300">Inserir variável:</span>
+                <button type="button" onclick="inserirVariavelModelo('{{equipamento}}')" class="px-1.5 py-0.5 rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">{{equipamento}}</button>
+                <button type="button" onclick="inserirVariavelModelo('{{tombamento}}')" class="px-1.5 py-0.5 rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">{{tombamento}}</button>
+                <button type="button" onclick="inserirVariavelModelo('{{serial_mac}}')" class="px-1.5 py-0.5 rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">{{serial_mac}}</button>
+                <button type="button" onclick="inserirVariavelModelo('{{origem}}')" class="px-1.5 py-0.5 rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">{{origem}}</button>
+                <button type="button" onclick="inserirVariavelModelo('{{problema}}')" class="px-1.5 py-0.5 rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">{{problema}}</button>
+                <button type="button" onclick="inserirVariavelModelo('{{resolucao}}')" class="px-1.5 py-0.5 rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">{{resolucao}}</button>
+                <button type="button" onclick="inserirVariavelModelo('{{garantia_ate}}')" class="px-1.5 py-0.5 rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">{{garantia_ate}}</button>
+              </div>
+              <textarea id="tpl_diagnostico" rows="2" placeholder="Diagnóstico padrão (opcional)" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none"></textarea>
+              <textarea id="tpl_corpo" rows="4" placeholder="Texto principal do parecer técnico..." class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none"></textarea>
+              <textarea id="tpl_recomendacoes" rows="2" placeholder="Recomendações finais (opcional)" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none"></textarea>
+            </div>
           </div>
         </div>
 
@@ -889,6 +1307,174 @@
     </div>
   </div>
 
+  <!-- MODAL: EMITIR / EDITAR LAUDO OU PARECER TÉCNICO -->
+  <div id="modalLaudo" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-2xl max-h-[92vh] overflow-y-auto custom-scrollbar shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-3">
+        <div>
+          <h3 id="modalLaudoHeader" class="text-sm font-extrabold text-slate-900 dark:text-white">📋 Emitir Laudo / Parecer Técnico</h3>
+          <p id="modalLaudoSub" class="text-[11px] text-slate-500 dark:text-violet-300/80">O documento ficará anexado à O.S. e pronto para impressão ou envio em PDF.</p>
+        </div>
+        <button onclick="fecharModalLaudo()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-3 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 text-xs">
+        <div>
+          <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200 mb-1">Aplicar Modelo Salvo da Empresa</label>
+          <div class="flex gap-1.5">
+            <select id="ld_modelo_select" class="flex-1 px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none"></select>
+            <button type="button" onclick="aplicarModeloSelecionadoNoLaudo()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold rounded-lg">Preencher</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200 mb-1">Ou Enviar Modelo Pronto (.txt, .md, .html, .json)</label>
+          <input type="file" id="ld_upload_modelo" accept=".txt,.md,.html,.htm,.json" onchange="importarModeloDiretoNoLaudo(event)" class="w-full text-[11px]">
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-3 text-xs">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Título do Documento *</label>
+          <input type="text" id="ld_titulo" required placeholder="LAUDO TÉCNICO" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Conclusão / Parecer Final *</label>
+          <select id="ld_conclusao" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+            <option value="Reparado / Aprovado">Reparado / Aprovado</option>
+            <option value="Aguardando Aprovação de Orçamento">Aguardando Aprovação de Orçamento</option>
+            <option value="Aguardando Peça / RMA">Aguardando Peça / RMA</option>
+            <option value="Condenado / Inviável">Condenado / Inviável</option>
+            <option value="Sem Defeito Constatado">Sem Defeito Constatado</option>
+            <option value="Troca em Garantia / Comodato">Troca em Garantia / Comodato</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="text-xs">
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Diagnóstico &amp; Sintomas Constatados</label>
+        <textarea id="ld_diagnostico" rows="2" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+      </div>
+
+      <div class="text-xs">
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Análise e Parecer Técnico *</label>
+        <textarea id="ld_parecer" rows="5" required placeholder="Descreva testes, medições e conclusão detalhada..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+      </div>
+
+      <div class="text-xs">
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Recomendações Técnicas</label>
+        <textarea id="ld_recomendacoes" rows="2" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-3 text-xs">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Técnico Responsável</label>
+          <input type="text" id="ld_tecnico" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Registro Profissional (CRT / CREA / Cargo)</label>
+          <input type="text" id="ld_reg_prof" placeholder="Ex: CRT-BR 00000 / Analista TI" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-4 text-xs pt-1">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="ld_inc_checklist" checked class="rounded border-violet-300 text-violet-600">
+          <span>Incluir checklist técnico no PDF do laudo</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="ld_visivel_cliente" checked class="rounded border-violet-300 text-violet-600">
+          <span>Disponibilizar laudo no link público do cliente</span>
+        </label>
+      </div>
+
+      <div class="flex flex-wrap gap-2 pt-2">
+        <button id="btnSalvarLaudo" type="button" onclick="salvarLaudoModal(false)" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl">
+          💾 Anexar Laudo à O.S.
+        </button>
+        <button id="btnSalvarImprimirLaudo" type="button" onclick="salvarLaudoModal(true)" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl">
+          🖨️ Salvar e Abrir PDF para Imprimir
+        </button>
+        <button type="button" onclick="fecharModalLaudo()" class="py-2.5 px-4 bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl border border-violet-200 dark:border-violet-800">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: HISTÓRICO DO ATIVO & LINHA DO TEMPO -->
+  <div id="modalHistoricoAtivo" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-2xl max-h-[88vh] overflow-y-auto custom-scrollbar shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-3">
+        <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🕘 Histórico Completo do Equipamento &amp; Timeline</h3>
+        <button onclick="fecharModalHistorico()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
+      </div>
+      <div id="conteudoHistoricoAtivo" class="space-y-4 text-xs"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: ASSINATURA DIGITAL NA TELA -->
+  <div id="modalAssinatura" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-md shadow-2xl space-y-3">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-2">
+        <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">✍️ Assinatura Digital da O.S.</h3>
+        <button onclick="fecharModalAssinatura()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
+      </div>
+      <input type="text" id="ass_nome" placeholder="Nome completo de quem está assinando *" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+      <input type="text" id="ass_doc" placeholder="CPF / RG / Matrícula (opcional)" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+      <div class="space-y-1">
+        <div class="flex justify-between items-center text-[11px] text-slate-500 dark:text-violet-300">
+          <span>Assine no quadro abaixo (mouse ou dedo):</span>
+          <button type="button" onclick="limparCanvasAssinatura()" class="text-rose-600 font-semibold hover:underline">Limpar traço</button>
+        </div>
+        <canvas id="canvasAssinatura" width="380" height="150" class="w-full h-36 bg-white rounded-xl border-2 border-dashed border-violet-300 touch-none cursor-crosshair"></canvas>
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button type="button" onclick="salvarAssinaturaOs()" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl">💾 Salvar Assinatura</button>
+        <button type="button" onclick="fecharModalAssinatura()" class="px-4 py-2.5 bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ORÇAMENTO PARA CLIENTE -->
+  <div id="modalOrcamento" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-96 shadow-2xl space-y-3">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-2">
+        <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">💵 Enviar Orçamento ao Cliente</h3>
+        <button onclick="fecharModalOrcamento()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
+      </div>
+      <textarea id="orc_desc_input" rows="3" placeholder="Ex: Troca de fonte ATX + limpeza preventiva + SSD 240GB" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+      <input type="number" id="orc_valor_input" min="0.01" step="0.01" placeholder="Valor total (R$)" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+      <div class="flex gap-2">
+        <button type="button" onclick="salvarOrcamentoOs()" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl">💾 Salvar Orçamento</button>
+        <button type="button" onclick="fecharModalOrcamento()" class="px-4 py-2.5 bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: MOVIMENTAR ESTOQUE -->
+  <div id="modalMovEstoque" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-96 shadow-2xl space-y-3">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-2">
+        <h3 id="movEstTitulo" class="text-sm font-extrabold text-slate-900 dark:text-white">📦 Movimentar Estoque</h3>
+        <button onclick="fecharModalMovEstoque()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <select id="mov_est_tipo" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+          <option value="saida">Saída / Uso</option>
+          <option value="entrada">Entrada / Reposição</option>
+        </select>
+        <input type="number" id="mov_est_qtd" min="1" value="1" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+      </div>
+      <input type="number" id="mov_est_os_id" min="1" placeholder="Vincular à O.S. # (opcional)" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+      <input type="text" id="mov_est_obs" placeholder="Observação (opcional)" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+      <div class="flex gap-2">
+        <button type="button" onclick="confirmarMovimentoEstoque()" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl">Confirmar</button>
+        <button type="button" onclick="fecharModalMovEstoque()" class="px-4 py-2.5 bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/app.js"></script>
+  <script src="/static/laudos_ops.js"></script>
 </body>
 </html>

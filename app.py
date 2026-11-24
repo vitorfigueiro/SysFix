@@ -82,6 +82,15 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+@app.middleware("http")
+async def add_static_revalidation_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path or ""
+    if path.startswith("/static/") and (path.endswith(".js") or path.endswith(".css")):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
+
 def _get_auth_service() -> AuthService:
     return AuthService()
 
@@ -455,11 +464,17 @@ class SaidaSchema(BaseModel):
 # ==============================================================================
 
 
+_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+}
+
+
 @app.get("/", response_class=FileResponse)
 def read_index():
     index_path = BASE_DIR / "templates" / "index.html"
     if index_path.exists():
-        return FileResponse(str(index_path))
+        return FileResponse(str(index_path), headers=_NO_CACHE_HEADERS)
     raise HTTPException(
         status_code=404, detail="Arquivo index.html não encontrado no servidor."
     )
@@ -469,7 +484,7 @@ def read_index():
 def read_acompanhar_page(codigo: str):
     page_path = BASE_DIR / "templates" / "acompanhar.html"
     if page_path.exists():
-        return FileResponse(str(page_path))
+        return FileResponse(str(page_path), headers=_NO_CACHE_HEADERS)
     raise HTTPException(
         status_code=404, detail="Página de acompanhamento não encontrada."
     )

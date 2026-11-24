@@ -6,6 +6,8 @@ let clientConfig = { auth_mode: 'local', storage_backend: 'local', firebase_web:
 let firebaseClient = null;
 let firebaseAuth = null;
 let firebaseSdk = null;
+let firebaseInitPromise = null;
+let carregandoSessaoPromise = null;
 
 let sessaoAtual = null;
 let permissionsCatalog = [];
@@ -156,25 +158,26 @@ async function extrairErroResposta(res, fallbackMsg) {
   }
 }
 
-async function obterTokenAtivo() {
+async function obterTokenAtivo(forcarRefresh = false) {
   if (clientConfig.auth_mode === 'firebase' && firebaseAuth && firebaseAuth.currentUser) {
-    return await firebaseAuth.currentUser.getIdToken();
+    return await firebaseAuth.currentUser.getIdToken(Boolean(forcarRefresh));
   }
   return localStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
 async function apiFetch(path, options = {}) {
-  const token = await obterTokenAtivo();
-  const headers = new Headers(options.headers || {});
+  const { forceRefreshToken = false, ...fetchOptions } = options;
+  const token = await obterTokenAtivo(forceRefreshToken);
+  const headers = new Headers(fetchOptions.headers || {});
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+  if (fetchOptions.body && !(fetchOptions.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers
   });
 
@@ -249,27 +252,40 @@ async function inicializarSistema() {
 }
 
 async function inicializarFirebaseSdk() {
-  try {
-    const [appMod, authMod] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js')
-    ]);
-    firebaseSdk = { ...appMod, ...authMod };
-    firebaseClient = appMod.initializeApp(clientConfig.firebase_web);
-    firebaseAuth = authMod.getAuth(firebaseClient);
+  if (firebaseSdk && firebaseAuth) return true;
+  if (firebaseInitPromise) return await firebaseInitPromise;
 
-    authMod.onAuthStateChanged(firebaseAuth, async (user) => {
-      if (user) {
-        await carregarSessao();
-      } else {
-        exibirTelaAuth();
-      }
-    });
-  } catch (e) {
-    console.error('Erro ao carregar Firebase SDK:', e);
-    mostrarToast('Falha ao carregar SDK do Firebase. Verifique a conexão com a internet.', 'erro');
-    exibirTelaAuth();
+  firebaseInitPromise = (async () => {
+    try {
+      const [appMod, authMod] = await Promise.all([
+        import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js')
+      ]);
+      firebaseSdk = { ...appMod, ...authMod };
+      firebaseClient = appMod.initializeApp(clientConfig.firebase_web);
+      firebaseAuth = authMod.getAuth(firebaseClient);
+
+      authMod.onAuthStateChanged(firebaseAuth, async (user) => {
+        if (user) {
+          await carregarSessao(false);
+        } else {
+          exibirTelaAuth();
+        }
+      });
+      return true;
+    } catch (e) {
+      console.error('Erro ao carregar Firebase SDK:', e);
+      mostrarToast('Falha ao carregar SDK do Firebase. Verifique a conexão com a internet.', 'erro');
+      exibirTelaAuth();
+      return false;
+    }
+  })();
+
+  const ok = await firebaseInitPromise;
+  if (!ok) {
+    firebaseInitPromise = null;
   }
+  return ok;
 }
 
 function exibirTelaAuth() {
@@ -292,9 +308,37 @@ function alternarAuthTab(tab) {
   document.getElementById('btnAuthTabRegister').className = !isLogin ? active : inactive;
 }
 
-async function carregarSessao() {
-  try {
-    const res = await apiFetch('/auth/me');
+async function carregarSessao(exibirErro = false) {
+  if (carregandoSessaoPromise) {
+    return await carregandoSessaoPromise;
+  }
+
+  carregandoSessaoPromise = (async () => {
+    let res = null;
+    for (let tentativa = 0; tentativa < 2; tentativa++) {
+      try {
+        res = await apiFetch('/auth/me', {
+          forceRefreshToken: Boolean(exibirErro || tentativa > 0)
+        });
+        if (res.status < 502) break;
+      } catch (netErr) {
+        console.warn(`Tentativa ${tentativa + 1} de /auth/me falhou:`, netErr);
+        if (tentativa === 1) {
+          if (exibirErro) {
+            mostrarToast('Servidor iniciando ou indisponível no momento. Tente novamente em instantes.', 'erro');
+          }
+          exibirTelaAuth();
+          return false;
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
+    if (!res) {
+      exibirTelaAuth();
+      return false;
+    }
+
     if (res.status === 409) {
       const data = await res.json();
       const detail = data.detail || {};
@@ -308,16 +352,20 @@ async function carregarSessao() {
         if (detail.nome) {
           document.getElementById('onb_nome').value = detail.nome;
         }
-        return;
+        return false;
       }
     }
 
     if (!res.ok) {
-      if (clientConfig.auth_mode !== 'firebase') {
+      const msgErro = await extrairErroResposta(res, 'Não foi possível validar sua sessão.');
+      if (clientConfig.auth_mode !== 'firebase' && res.status === 401) {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
       }
+      if (exibirErro || res.status === 403 || res.status >= 500) {
+        mostrarToast(msgErro, 'erro');
+      }
       exibirTelaAuth();
-      return;
+      return false;
     }
 
     sessaoAtual = await res.json();
@@ -330,10 +378,21 @@ async function carregarSessao() {
     rolePresets = sessaoAtual.role_presets && typeof sessaoAtual.role_presets === 'object'
       ? sessaoAtual.role_presets
       : {};
-    aplicarSessaoNaUI();
-  } catch (e) {
-    console.error('Erro ao validar sessão:', e);
-    exibirTelaAuth();
+
+    try {
+      aplicarSessaoNaUI();
+    } catch (uiErr) {
+      console.error('Erro ao renderizar interface após login:', uiErr);
+      mostrarToast('Login validado, mas houve falha ao atualizar a tela. Recarregue a página (Ctrl+F5).', 'erro');
+      return false;
+    }
+    return true;
+  })();
+
+  try {
+    return await carregandoSessaoPromise;
+  } finally {
+    carregandoSessaoPromise = null;
   }
 }
 
@@ -394,31 +453,36 @@ function aplicarPermissoesNaUI() {
   const podeEstoque = temAcessoSetorEstoque();
   const podeGerirEstoque = temPermissao('gerenciar_estoque');
 
-  document.getElementById('navBtnDashboard').classList.toggle('hidden', !podeDashboard);
-  document.getElementById('navBtnEquipamentos').classList.toggle('hidden', !podeTI);
-  document.getElementById('navBtnProvedor').classList.toggle('hidden', !podeProvedor);
-  document.getElementById('navBtnEstoque').classList.toggle('hidden', !podeEstoque);
-  document.getElementById('navBtnEmpresa').classList.toggle('hidden', !podeEquipe && !podeBackup && !podeModelos);
-  document.getElementById('btnExportarPdfHeader').classList.toggle('hidden', !podePdf);
+  const setHidden = (id, hide) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', Boolean(hide));
+  };
 
-  document.getElementById('kpiCardCustoMes').classList.toggle('hidden', !podeCustos);
-  document.getElementById('dashBlocoProporcaoCusto').classList.toggle('hidden', !podeCustos);
+  setHidden('navBtnDashboard', !podeDashboard);
+  setHidden('navBtnEquipamentos', !podeTI);
+  setHidden('navBtnProvedor', !podeProvedor);
+  setHidden('navBtnEstoque', !podeEstoque);
+  setHidden('navBtnEmpresa', !podeEquipe && !podeBackup && !podeModelos);
+  setHidden('btnExportarPdfHeader', !podePdf);
 
-  document.getElementById('btnAdicionarItemEntrada').classList.toggle('hidden', !podeEntrar);
-  document.getElementById('btnSalvarEntrada').classList.toggle('hidden', !podeEntrar);
-  document.getElementById('btnAtualizarEntrada').classList.toggle('hidden', !podeEditar);
-  document.getElementById('grupoCustoSaida').classList.toggle('hidden', !podeCustos);
-  document.getElementById('fichaBlocoCusto').classList.toggle('hidden', !podeCustos);
-  document.getElementById('btnExcluirItem').classList.toggle('hidden', !podeExcluir);
+  setHidden('kpiCardCustoMes', !podeCustos);
+  setHidden('dashBlocoProporcaoCusto', !podeCustos);
+
+  setHidden('btnAdicionarItemEntrada', !podeEntrar);
+  setHidden('btnSalvarEntrada', !podeEntrar);
+  setHidden('btnAtualizarEntrada', !podeEditar);
+  setHidden('grupoCustoSaida', !podeCustos);
+  setHidden('fichaBlocoCusto', !podeCustos);
+  setHidden('btnExcluirItem', !podeExcluir);
 
   const mostraAbaEntrada = podeEntrar || podeEditar;
   const mostraAbaSaida = podeSaida;
-  document.getElementById('btnTabEntrada').classList.toggle('hidden', !mostraAbaEntrada);
-  document.getElementById('btnTabSaida').classList.toggle('hidden', !mostraAbaSaida);
-  document.getElementById('barraTabsFormulario').classList.toggle('hidden', !(mostraAbaEntrada && mostraAbaSaida));
+  setHidden('btnTabEntrada', !mostraAbaEntrada);
+  setHidden('btnTabSaida', !mostraAbaSaida);
+  setHidden('barraTabsFormulario', !(mostraAbaEntrada && mostraAbaSaida));
 
   const temAlgumaAcaoPainel = mostraAbaEntrada || mostraAbaSaida || podeExcluir;
-  document.getElementById('painelFormularios').classList.toggle('hidden', !temAlgumaAcaoPainel);
+  setHidden('painelFormularios', !temAlgumaAcaoPainel);
 
   if (!mostraAbaEntrada && mostraAbaSaida) {
     alternarTab('saida');
@@ -426,43 +490,39 @@ function aplicarPermissoesNaUI() {
     alternarTab('entrada');
   }
 
-  document.getElementById('blocoConfigEmpresa').classList.toggle('hidden', !podeEquipe);
-  document.getElementById('blocoEquipeEmpresa').classList.toggle('hidden', !podeEquipe);
-  document.getElementById('blocoModelosLaudoEmpresa').classList.toggle('hidden', !podeModelos && !podeEquipe);
-  document.getElementById('blocoImportExport').classList.toggle('hidden', !podeBackup);
+  setHidden('blocoConfigEmpresa', !podeEquipe);
+  setHidden('blocoEquipeEmpresa', !podeEquipe);
+  setHidden('blocoModelosLaudoEmpresa', !podeModelos && !podeEquipe);
+  setHidden('blocoImportExport', !podeBackup);
 
-  const toggle = (id, hide) => {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('hidden', hide);
-  };
-  toggle('blocoEntradaProvedor', !podeVerProvedorCampos);
-  toggle('fichaBlocoProvedor', !podeVerProvedorCampos);
+  setHidden('blocoEntradaProvedor', !podeVerProvedorCampos);
+  setHidden('fichaBlocoProvedor', !podeVerProvedorCampos);
   document.querySelectorAll('.bloco-serial-provedor').forEach(el => {
     el.classList.toggle('hidden', !podeVerProvedorCampos);
   });
 
-  toggle('btnNovoLaudoOs', !podeLaudos);
-  toggle('btnCardNovoLaudo', !podeLaudos);
-  toggle('btnComprovanteOs', !podeCompartilhar);
-  toggle('btnCopiarLinkOs', !podeCompartilhar);
-  toggle('btnWhatsappOs', !podeCompartilhar);
-  toggle('btnAssinarOs', !podeCompartilhar);
-  toggle('btnOrcamentoOs', !podeCompartilhar || !podeCustos);
-  toggle('btnAplicarChecklistPadrao', !podeEditar);
+  setHidden('btnNovoLaudoOs', !podeLaudos);
+  setHidden('btnCardNovoLaudo', !podeLaudos);
+  setHidden('btnComprovanteOs', !podeCompartilhar);
+  setHidden('btnCopiarLinkOs', !podeCompartilhar);
+  setHidden('btnWhatsappOs', !podeCompartilhar);
+  setHidden('btnAssinarOs', !podeCompartilhar);
+  setHidden('btnOrcamentoOs', !podeCompartilhar || !podeCustos);
+  setHidden('btnAplicarChecklistPadrao', !podeEditar);
 
-  toggle('btnProvTabCpes', !podeVerProvedorCampos);
-  toggle('btnProvTabPreventivas', !podePrev);
-  toggle('btnProvTabClientes', !podeClientes);
+  setHidden('btnProvTabCpes', !podeVerProvedorCampos);
+  setHidden('btnProvTabPreventivas', !podePrev);
+  setHidden('btnProvTabClientes', !podeClientes);
 
-  toggle('formCriarEstoque', !podeGerirEstoque);
+  setHidden('formCriarEstoque', !podeGerirEstoque);
   const cardListaEst = document.getElementById('cardListaEstoque');
   if (cardListaEst) {
     cardListaEst.classList.toggle('lg:col-span-2', podeGerirEstoque);
     cardListaEst.classList.toggle('lg:col-span-3', !podeGerirEstoque);
   }
-  toggle('kpiEstValorCard', !podeCustos);
-  toggle('grupoCustoEstoque', !podeCustos);
-  toggle('thCustoEstoque', !podeCustos);
+  setHidden('kpiEstValorCard', !podeCustos);
+  setHidden('grupoCustoEstoque', !podeCustos);
+  setHidden('thCustoEstoque', !podeCustos);
 }
 
 function aplicarSessaoNaUI() {
@@ -532,9 +592,17 @@ async function enviarLogin(event) {
   btn.disabled = true;
 
   try {
-    if (clientConfig.auth_mode === 'firebase' && firebaseSdk && firebaseAuth) {
+    if (clientConfig.auth_mode === 'firebase') {
+      const sdkOk = await inicializarFirebaseSdk();
+      if (!sdkOk || !firebaseSdk || !firebaseAuth) {
+        mostrarToast('Serviço de autenticação Firebase ainda não carregou. Recarregue a página.', 'erro');
+        return;
+      }
       await firebaseSdk.signInWithEmailAndPassword(firebaseAuth, email, senha);
-      mostrarToast('Login realizado com sucesso!', 'sucesso');
+      const sessaoOk = await carregarSessao(true);
+      if (sessaoOk) {
+        mostrarToast('Login realizado com sucesso!', 'sucesso');
+      }
       return;
     }
 
@@ -553,7 +621,16 @@ async function enviarLogin(event) {
     mostrarToast(`Bem-vindo(a), ${data.user.nome}!`, 'sucesso');
     aplicarSessaoNaUI();
   } catch (e) {
-    mostrarToast(e.message || 'Falha ao entrar no sistema.', 'erro');
+    const code = String(e?.code || '');
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+      mostrarToast('E-mail ou senha incorretos.', 'erro');
+    } else if (code === 'auth/too-many-requests') {
+      mostrarToast('Muitas tentativas seguidas. Aguarde alguns instantes e tente novamente.', 'erro');
+    } else if (code === 'auth/network-request-failed') {
+      mostrarToast('Falha de conexão com o Firebase. Verifique sua internet.', 'erro');
+    } else {
+      mostrarToast(e.message || 'Falha ao entrar no sistema.', 'erro');
+    }
   } finally {
     btn.disabled = false;
   }
@@ -569,10 +646,15 @@ async function enviarCadastroEmpresa(event) {
   btn.disabled = true;
 
   try {
-    if (clientConfig.auth_mode === 'firebase' && firebaseSdk && firebaseAuth) {
+    if (clientConfig.auth_mode === 'firebase') {
+      const sdkOk = await inicializarFirebaseSdk();
+      if (!sdkOk || !firebaseSdk || !firebaseAuth) {
+        mostrarToast('Serviço de autenticação Firebase não carregou. Recarregue a página.', 'erro');
+        return;
+      }
       const cred = await firebaseSdk.createUserWithEmailAndPassword(firebaseAuth, email, senha);
       await firebaseSdk.updateProfile(cred.user, { displayName: nomeUsuario });
-      const idToken = await cred.user.getIdToken();
+      const idToken = await cred.user.getIdToken(true);
       const res = await fetch(`${API_BASE}/auth/onboarding`, {
         method: 'POST',
         headers: {
@@ -585,9 +667,8 @@ async function enviarCadastroEmpresa(event) {
         mostrarToast(await extrairErroResposta(res, 'Não foi possível criar a empresa.'), 'erro');
         return;
       }
-      sessaoAtual = await res.json();
+      await carregarSessao(true);
       mostrarToast('Empresa cadastrada no Firebase com sucesso!', 'sucesso');
-      aplicarSessaoNaUI();
       return;
     }
 
@@ -675,20 +756,28 @@ async function sairSistema(notificar = true) {
 
 function alternarVisao(visao) {
   visaoAtual = visao;
-  document.getElementById('viewDashboard').classList.toggle('hidden', visao !== 'dashboard');
-  document.getElementById('viewEquipamentos').classList.toggle('hidden', visao !== 'equipamentos');
-  document.getElementById('viewProvedor').classList.toggle('hidden', visao !== 'provedor');
-  document.getElementById('viewEstoque').classList.toggle('hidden', visao !== 'estoque');
-  document.getElementById('viewEmpresa').classList.toggle('hidden', visao !== 'empresa');
+  const toggleView = (id, show) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', !show);
+  };
+  toggleView('viewDashboard', visao === 'dashboard');
+  toggleView('viewEquipamentos', visao === 'equipamentos');
+  toggleView('viewProvedor', visao === 'provedor');
+  toggleView('viewEstoque', visao === 'estoque');
+  toggleView('viewEmpresa', visao === 'empresa');
 
   const active = 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all';
   const inactive = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all';
 
-  document.getElementById('navBtnDashboard').className = visao === 'dashboard' ? active : inactive;
-  document.getElementById('navBtnEquipamentos').className = visao === 'equipamentos' ? active : inactive;
-  document.getElementById('navBtnProvedor').className = visao === 'provedor' ? active : inactive;
-  document.getElementById('navBtnEstoque').className = visao === 'estoque' ? active : inactive;
-  document.getElementById('navBtnEmpresa').className = visao === 'empresa' ? active : inactive;
+  const setBtnClass = (id, isAct) => {
+    const el = document.getElementById(id);
+    if (el) el.className = isAct ? active : inactive;
+  };
+  setBtnClass('navBtnDashboard', visao === 'dashboard');
+  setBtnClass('navBtnEquipamentos', visao === 'equipamentos');
+  setBtnClass('navBtnProvedor', visao === 'provedor');
+  setBtnClass('navBtnEstoque', visao === 'estoque');
+  setBtnClass('navBtnEmpresa', visao === 'empresa');
 
   if (visao === 'dashboard') {
     carregarDashboard();

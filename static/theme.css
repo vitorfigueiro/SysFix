@@ -1,0 +1,75 @@
+:root {
+  color-scheme: light;
+  --sys-bg: #f6f4fc;
+  --sys-surface: #ffffff;
+  --sys-surface-muted: #f2eefb;
+  --sys-border: #e4ddf5;
+  --sys-text: #1c1635;
+  --sys-text-muted: #665e85;
+  --sys-accent: #7c3aed;
+  --sys-accent-hover: #6d28d9;
+  --sys-scroll-track: #efeafd;
+  --sys-scroll-thumb: #c8bbf0;
+}
+
+html.dark {
+  color-scheme: dark;
+  --sys-bg: #0b0816;
+  --sys-surface: #141024;
+  --sys-surface-muted: #1c1633;
+  --sys-border: #2e254d;
+  --sys-text: #f4f1ff;
+  --sys-text-muted: #a99fcb;
+  --sys-accent: #8b5cf6;
+  --sys-accent-hover: #7c3aed;
+  --sys-scroll-track: #141024;
+  --sys-scroll-thumb: #3a2f63;
+}
+
+body {
+  background-color: var(--sys-bg);
+  color: var(--sys-text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.brand-gradient {
+  background: linear-gradient(135deg, #7c3aed 0%, #9333ea 52%, #4f46e5 100%);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--sys-scroll-track);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--sys-scroll-thumb);
+  border-radius: 9999px;
+}
+
+html.dark input:not([type="checkbox"]):not([type="file"]),
+html.dark select,
+html.dark textarea {
+  background-color: #1a1430;
+  color: #f4f1ff;
+  border-color: #322854;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #7c72a3;
+}
+
+html.dark input:disabled {
+  background-color: #120e21;
+  color: #6b628f;
+}
+
+html.dark option {
+  background-color: #141024;
+  color: #f4f1ff;
+}

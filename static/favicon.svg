@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="sysfixBg" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A855F7"/>
+      <stop offset="50%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#4C1D95"/>
+    </linearGradient>
+    <linearGradient id="sysfixSpark" x1="38" y1="14" x2="52" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#sysfixBg)"/>
+  <rect x="3" y="3" width="58" height="58" rx="15" stroke="#FFFFFF" stroke-opacity="0.24" stroke-width="2"/>
+  <!-- Anel de engrenagem estilizada + núcleo técnico -->
+  <path d="M32 14L35.4 17.6L40.3 16.5L41.8 21.3L46.7 22.4L46.1 27.4L49.8 30.8L47.3 35.1L49.2 39.7L45.1 42.6L44.7 47.6L39.7 48.3L37.4 52.8L32.5 51.4L28.4 54.4L24.7 51L19.8 52L18.3 47.2L13.4 46.1L14 41.1L10.3 37.7L12.8 33.4L10.9 28.8L15 25.9L15.4 20.9L20.4 20.2L22.7 15.7L27.6 17.1L32 14Z" fill="#FFFFFF" fill-opacity="0.16"/>
+  <!-- Chave inglesa / S estilizado -->
+  <path d="M39.5 18.5C36.6 18.5 34.2 20.8 34.2 23.8C34.2 24.4 34.3 25 34.5 25.5L22.2 37.8C21.6 37.6 21 37.5 20.4 37.5C17.4 37.5 15 39.9 15 42.9C15 43.9 15.3 44.8 15.8 45.6L19.4 42L22 44.6L18.4 48.2C19.2 48.7 20.1 49 21.1 49C24.1 49 26.5 46.6 26.5 43.6C26.5 43 26.4 42.4 26.2 41.9L38.5 29.6C39.1 29.8 39.7 29.9 40.3 29.9C43.3 29.9 45.7 27.5 45.7 24.5C45.7 23.5 45.4 22.6 44.9 21.8L41.3 25.4L38.7 22.8L42.3 19.2C41.5 18.7 40.5 18.5 39.5 18.5Z" fill="#FFFFFF"/>
+  <!-- Detalhe de brilho -->
+  <path d="M47 13L48.3 16.7L52 18L48.3 19.3L47 23L45.7 19.3L42 18L45.7 16.7L47 13Z" fill="url(#sysfixSpark)"/>
+</svg>

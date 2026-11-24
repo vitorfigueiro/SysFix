@@ -271,6 +271,17 @@ def read_index():
     )
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def read_favicon():
+    ico_path = STATIC_DIR / "favicon.ico"
+    if ico_path.exists():
+        return FileResponse(str(ico_path), media_type="image/x-icon")
+    svg_path = STATIC_DIR / "favicon.svg"
+    if svg_path.exists():
+        return FileResponse(str(svg_path), media_type="image/svg+xml")
+    raise HTTPException(status_code=404, detail="Favicon não encontrado.")
+
+
 @app.get("/api/config")
 def obter_configuracao_cliente():
     return get_public_client_config()

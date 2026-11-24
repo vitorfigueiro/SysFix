@@ -4,167 +4,182 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SysFix SaaS - Gestão Inteligente de Equipamentos</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="alternate icon" href="/static/favicon.ico">
+  <meta name="theme-color" content="#7C3AED">
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('sysfix_theme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = saved || (prefersDark ? 'dark' : 'light');
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
           colors: {
-            pastel: {
-              bg: '#F8FAFC',
-              card: '#FFFFFF',
-              sidebar: '#F1F5F9',
-              primary: '#64748B',
-              accent: '#38BDF8',
-              accentBg: '#F0F9FF',
-              success: '#34D399',
-              successBg: '#ECFDF5',
-              warning: '#FBBF24',
-              warningBg: '#FFFBEB',
-              danger: '#F87171',
-              dangerBg: '#FEF2F2',
-              textDark: '#1E293B',
-              textMuted: '#64748B',
-              border: '#E2E8F0',
+            brand: {
+              50: '#F5F3FF',
+              100: '#EDE9FE',
+              200: '#DDD6FE',
+              300: '#C4B5FD',
+              400: '#A78BFA',
+              500: '#8B5CF6',
+              600: '#7C3AED',
+              700: '#6D28D9',
+              800: '#5B21B6',
+              900: '#4C1D95',
             }
           }
         }
       }
     }
   </script>
-  <style>
-    body { background-color: #F8FAFC; color: #1E293B; font-family: 'Plus Jakarta Sans', sans-serif; }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #F1F5F9; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
-  </style>
+  <link rel="stylesheet" href="/static/theme.css">
 </head>
-<body class="h-screen flex flex-col overflow-hidden relative">
+<body class="h-screen flex flex-col overflow-hidden relative bg-[#F6F4FC] dark:bg-[#0B0816] text-[#1C1635] dark:text-[#F4F1FF]">
 
   <!-- ====================================================================== -->
   <!-- TELA DE AUTENTICAÇÃO (LOGIN / CADASTRO DE EMPRESA / ONBOARDING)       -->
   <!-- ====================================================================== -->
-  <div id="telaAuth" class="flex-1 overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-sky-950 flex items-center justify-center p-4">
-    <div class="w-full max-w-4xl grid md:grid-cols-2 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200/60">
+  <div id="telaAuth" class="flex-1 overflow-y-auto bg-gradient-to-br from-[#F3EEFF] via-[#FAF8FF] to-[#E9DFFF] dark:from-[#090612] dark:via-[#160D2B] dark:to-[#24114A] flex items-center justify-center p-4 relative">
+    <button id="btnTemaAuth" type="button" onclick="alternarTema()" class="fixed top-4 right-4 z-20 px-3 py-2 rounded-xl bg-white/90 dark:bg-[#1C1633]/90 backdrop-blur border border-violet-200 dark:border-violet-800/70 text-xs font-bold text-violet-900 dark:text-violet-100 shadow-md hover:scale-[1.02] transition-all flex items-center gap-1.5">
+      🌙 Modo Escuro
+    </button>
+
+    <div class="w-full max-w-4xl grid md:grid-cols-2 bg-white dark:bg-[#141024] rounded-3xl shadow-2xl overflow-hidden border border-violet-200/80 dark:border-violet-900/70">
       <!-- Lado esquerdo: Apresentação comercial -->
-      <div class="bg-slate-900 text-white p-8 flex flex-col justify-between space-y-6">
-        <div class="space-y-4">
+      <div class="brand-gradient text-white p-8 flex flex-col justify-between space-y-6 relative overflow-hidden">
+        <div class="absolute -right-12 -top-12 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
+        <div class="absolute -left-10 -bottom-12 w-40 h-40 rounded-full bg-fuchsia-300/15 blur-xl pointer-events-none"></div>
+
+        <div class="space-y-4 relative z-10">
           <div class="flex items-center gap-3">
-            <div class="w-11 h-11 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-2xl">
-              ⚙️
-            </div>
+            <img src="/static/favicon.svg" alt="Logo SysFix" class="w-11 h-11 rounded-xl shadow-lg ring-2 ring-white/25">
             <div>
-              <h1 class="text-xl font-extrabold tracking-tight">SysFix <span class="text-sky-400">SaaS</span></h1>
-              <p class="text-xs text-slate-400">Controle de O.S., Manutenções e SLA</p>
+              <h1 class="text-xl font-extrabold tracking-tight">SysFix <span class="text-amber-200">SaaS</span></h1>
+              <p class="text-xs text-violet-100/90">Controle de O.S., Manutenções e SLA</p>
             </div>
           </div>
 
-          <h2 class="text-2xl font-bold leading-snug pt-2">
+          <h2 class="text-2xl font-extrabold leading-snug pt-2">
             Gerencie coletas, entregas e custos da sua assistência em um só lugar.
           </h2>
-          <p class="text-xs text-slate-300 leading-relaxed">
+          <p class="text-xs text-violet-100/90 leading-relaxed">
             Cada empresa possui ambiente isolado, painel de indicadores em tempo real, relatórios PDF com opção LGPD e controle de equipe por perfil.
           </p>
 
-          <ul class="space-y-2.5 pt-2 text-xs text-slate-200">
-            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Dashboard executivo com SLA, custos e produtividade</li>
-            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Entrada em lote atômica e ficha técnica completa</li>
-            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Integração nativa com Firebase Auth &amp; Cloud Firestore</li>
-            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Relatórios em PDF prontos para auditoria e clientes</li>
+          <ul class="space-y-2 pt-2 text-xs text-white/95">
+            <li class="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
+              <span class="text-amber-300 font-bold">✓</span> Dashboard executivo com SLA, custos e produtividade
+            </li>
+            <li class="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
+              <span class="text-amber-300 font-bold">✓</span> Entrada em lote atômica e ficha técnica completa
+            </li>
+            <li class="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
+              <span class="text-amber-300 font-bold">✓</span> Importação JSON, CSV e Excel + Backup automático
+            </li>
+            <li class="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
+              <span class="text-amber-300 font-bold">✓</span> Firebase Auth &amp; Cloud Firestore multi-empresa
+            </li>
           </ul>
         </div>
 
-        <div class="pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-          <span>SysFix v2.0</span>
-          <span id="badgeModoAuth" class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-sky-300 font-semibold">
+        <div class="pt-4 border-t border-white/15 flex items-center justify-between text-[11px] text-violet-100 relative z-10">
+          <span class="font-semibold">SysFix v2.0</span>
+          <span id="badgeModoAuth" class="px-2.5 py-1 rounded-full bg-black/25 border border-white/20 text-white font-semibold">
             Carregando modo...
           </span>
         </div>
       </div>
 
       <!-- Lado direito: Formulários de Login e Cadastro -->
-      <div class="p-8 flex flex-col justify-center bg-white">
-        <!-- Card principal Login / Registro -->
+      <div class="p-8 flex flex-col justify-center bg-white dark:bg-[#141024]">
         <div id="cardLoginRegistro" class="space-y-5">
-          <div class="grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
-            <button id="btnAuthTabLogin" onclick="alternarAuthTab('login')" class="py-2 text-xs font-bold rounded-lg bg-white text-slate-800 shadow-sm transition-all">
+          <div class="grid grid-cols-2 p-1 bg-violet-50 dark:bg-[#1C1633] rounded-xl border border-violet-200/80 dark:border-violet-900/70">
+            <button id="btnAuthTabLogin" onclick="alternarAuthTab('login')" class="py-2 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all">
               Entrar
             </button>
-            <button id="btnAuthTabRegister" onclick="alternarAuthTab('register')" class="py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-800 transition-all">
+            <button id="btnAuthTabRegister" onclick="alternarAuthTab('register')" class="py-2 text-xs font-bold rounded-lg text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-white transition-all">
               Criar Empresa
             </button>
           </div>
 
-          <!-- Formulário Entrar -->
           <form id="formLogin" onsubmit="enviarLogin(event)" class="space-y-3.5">
             <div>
-              <label for="login_email" class="block text-xs font-semibold text-slate-600 mb-1">E-mail *</label>
-              <input type="email" id="login_email" required autocomplete="email" placeholder="voce@empresa.com" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+              <label for="login_email" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">E-mail *</label>
+              <input type="email" id="login_email" required autocomplete="email" placeholder="voce@empresa.com" class="w-full px-3.5 py-2.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
               <div class="flex justify-between items-center mb-1">
-                <label for="login_senha" class="block text-xs font-semibold text-slate-600">Senha *</label>
-                <button type="button" id="btnEsqueciSenha" onclick="recuperarSenhaFirebase()" class="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hidden">
+                <label for="login_senha" class="block text-xs font-semibold text-slate-700 dark:text-violet-200">Senha *</label>
+                <button type="button" id="btnEsqueciSenha" onclick="recuperarSenhaFirebase()" class="text-[11px] font-semibold text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 hidden">
                   Esqueci minha senha
                 </button>
               </div>
-              <input type="password" id="login_senha" required autocomplete="current-password" placeholder="••••••" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+              <input type="password" id="login_senha" required autocomplete="current-password" placeholder="••••••" class="w-full px-3.5 py-2.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
-            <button id="btnEntrar" type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+            <button id="btnEntrar" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
               Entrar no Sistema
             </button>
           </form>
 
-          <!-- Formulário Criar Empresa -->
           <form id="formRegister" onsubmit="enviarCadastroEmpresa(event)" class="space-y-3 hidden">
             <div>
-              <label for="reg_empresa" class="block text-xs font-semibold text-slate-600 mb-1">Nome da Empresa *</label>
-              <input type="text" id="reg_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+              <label for="reg_empresa" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Nome da Empresa *</label>
+              <input type="text" id="reg_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
-              <label for="reg_nome" class="block text-xs font-semibold text-slate-600 mb-1">Seu Nome *</label>
-              <input type="text" id="reg_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+              <label for="reg_nome" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Seu Nome *</label>
+              <input type="text" id="reg_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
-              <label for="reg_email" class="block text-xs font-semibold text-slate-600 mb-1">E-mail Corporativo *</label>
-              <input type="email" id="reg_email" required autocomplete="email" placeholder="carlos@empresa.com" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+              <label for="reg_email" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">E-mail Corporativo *</label>
+              <input type="email" id="reg_email" required autocomplete="email" placeholder="carlos@empresa.com" class="w-full px-3.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
-              <label for="reg_senha" class="block text-xs font-semibold text-slate-600 mb-1">Senha (mínimo 6 caracteres) *</label>
-              <input type="password" id="reg_senha" required minlength="6" autocomplete="new-password" placeholder="••••••" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+              <label for="reg_senha" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Senha (mínimo 6 caracteres) *</label>
+              <input type="password" id="reg_senha" required minlength="6" autocomplete="new-password" placeholder="••••••" class="w-full px-3.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
-            <button id="btnCadastrarEmpresa" type="submit" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+            <button id="btnCadastrarEmpresa" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
               Criar Conta e Empresa
             </button>
           </form>
         </div>
 
-        <!-- Card Onboarding (usuário Firebase já autenticado sem empresa) -->
         <form id="cardOnboarding" onsubmit="concluirOnboardingFirebase(event)" class="space-y-4 hidden">
           <div>
-            <span class="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
+            <span class="px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-bold">
               Último passo
             </span>
-            <h3 class="text-base font-bold text-slate-800 mt-2">Configure sua Empresa</h3>
-            <p id="onboardEmailInfo" class="text-xs text-slate-500 mt-1">Informe o nome da empresa para criar seu ambiente isolado.</p>
+            <h3 class="text-base font-bold text-slate-800 dark:text-white mt-2">Configure sua Empresa</h3>
+            <p id="onboardEmailInfo" class="text-xs text-slate-500 dark:text-violet-300 mt-1">Informe o nome da empresa para criar seu ambiente isolado.</p>
           </div>
           <div>
-            <label for="onb_empresa" class="block text-xs font-semibold text-slate-600 mb-1">Nome da Empresa *</label>
-            <input type="text" id="onb_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+            <label for="onb_empresa" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Nome da Empresa *</label>
+            <input type="text" id="onb_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3.5 py-2.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none">
           </div>
           <div>
-            <label for="onb_nome" class="block text-xs font-semibold text-slate-600 mb-1">Seu Nome *</label>
-            <input type="text" id="onb_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+            <label for="onb_nome" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Seu Nome *</label>
+            <input type="text" id="onb_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3.5 py-2.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none">
           </div>
           <div class="flex gap-2">
-            <button id="btnConcluirOnboarding" type="submit" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-all">
+            <button id="btnConcluirOnboarding" type="submit" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all">
               Concluir Cadastro
             </button>
-            <button type="button" onclick="sairSistema()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">
+            <button type="button" onclick="sairSistema()" class="px-4 py-2.5 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl">
               Sair
             </button>
           </div>
@@ -179,45 +194,50 @@
   <div id="appShell" class="flex-1 flex flex-col overflow-hidden hidden">
 
     <!-- BARRA DE NAVEGAÇÃO SUPERIOR -->
-    <header class="bg-white border-b border-pastel-border px-5 py-2.5 flex flex-wrap justify-between items-center gap-3 shadow-sm z-10">
+    <header class="bg-white/95 dark:bg-[#141024]/95 backdrop-blur border-b border-violet-200/80 dark:border-violet-900/70 px-5 py-2.5 flex flex-wrap justify-between items-center gap-3 shadow-sm z-10">
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-white font-bold text-base shadow-sm">
-            ⚙️
-          </div>
+          <img src="/static/favicon.svg" alt="SysFix" class="w-9 h-9 rounded-xl shadow-sm">
           <div>
             <div class="flex items-center gap-2">
-              <h1 id="headerEmpresaNome" class="text-sm font-bold text-slate-800 tracking-tight">SysFix</h1>
-              <span id="headerPlanoBadge" class="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-sky-50 text-sky-700 border border-sky-200">PRO</span>
+              <h1 id="headerEmpresaNome" class="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight">SysFix</h1>
+              <span id="headerPlanoBadge" class="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-violet-100 dark:bg-violet-900/70 text-violet-700 dark:text-violet-200 border border-violet-200 dark:border-violet-700">PRO</span>
             </div>
-            <p class="text-[11px] text-slate-500 font-medium">Gestão de Equipamentos &amp; O.S.</p>
+            <p class="text-[11px] text-slate-500 dark:text-violet-300/80 font-medium">Gestão de Equipamentos &amp; O.S.</p>
           </div>
         </div>
 
-        <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-          <button id="navBtnDashboard" onclick="alternarVisao('dashboard')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-white text-slate-800 shadow-sm transition-all">
+        <nav class="flex items-center gap-1 bg-violet-50/90 dark:bg-[#1C1633] p-1 rounded-xl border border-violet-200/80 dark:border-violet-900/70">
+          <button id="navBtnDashboard" onclick="alternarVisao('dashboard')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all">
             📊 Dashboard
           </button>
-          <button id="navBtnEquipamentos" onclick="alternarVisao('equipamentos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">
+          <button id="navBtnEquipamentos" onclick="alternarVisao('equipamentos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all">
             🖥️ Equipamentos
           </button>
-          <button id="navBtnEmpresa" onclick="alternarVisao('empresa')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all hidden">
+          <button id="navBtnEmpresa" onclick="alternarVisao('empresa')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
             🏢 Equipe &amp; Empresa
           </button>
         </nav>
       </div>
 
-      <div class="flex items-center gap-2.5">
-        <button onclick="abrirModalRelatorio()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 border border-slate-200">
+      <div class="flex items-center gap-2">
+        <button id="btnTemaHeader" type="button" onclick="alternarTema()" title="Alternar tema Claro/Escuro" class="px-3 py-2 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl transition-all border border-violet-200/80 dark:border-violet-800">
+          🌙 Escuro
+        </button>
+
+        <button onclick="abrirModalRelatorio()" class="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm shadow-violet-600/20">
           📄 Exportar PDF
         </button>
 
-        <div class="flex items-center gap-2 pl-2 border-l border-slate-200">
-          <div class="text-right leading-tight">
-            <div id="headerUsuarioNome" class="text-xs font-bold text-slate-800">Usuário</div>
-            <div id="headerUsuarioRole" class="text-[10px] font-semibold text-slate-500 uppercase">Técnico</div>
+        <div class="flex items-center gap-2.5 pl-2.5 border-l border-violet-200 dark:border-violet-900">
+          <div id="headerUsuarioAvatar" class="w-8 h-8 rounded-full brand-gradient text-white text-xs font-extrabold flex items-center justify-center shadow-sm">
+            US
           </div>
-          <button onclick="sairSistema()" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg border border-rose-200 transition-all">
+          <div class="text-right leading-tight hidden sm:block">
+            <div id="headerUsuarioNome" class="text-xs font-bold text-slate-900 dark:text-white">Usuário</div>
+            <div id="headerUsuarioRole" class="text-[10px] font-semibold text-violet-600 dark:text-violet-300 uppercase">Técnico</div>
+          </div>
+          <button onclick="sairSistema()" class="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 text-xs font-semibold rounded-xl border border-rose-200 dark:border-rose-800/70 transition-all">
             Sair
           </button>
         </div>
@@ -227,15 +247,15 @@
     <!-- ==================================================================== -->
     <!-- VISÃO 1: DASHBOARD EXECUTIVO                                         -->
     <!-- ==================================================================== -->
-    <section id="viewDashboard" class="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
+    <section id="viewDashboard" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar">
       <div class="max-w-7xl mx-auto space-y-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-extrabold text-slate-800">Dashboard Operacional</h2>
-            <p id="dashSubtitulo" class="text-xs text-slate-500">Visão geral de atendimentos, SLA e custos.</p>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">Dashboard Operacional</h2>
+            <p id="dashSubtitulo" class="text-xs text-slate-500 dark:text-violet-300/80">Visão geral de atendimentos, SLA e custos.</p>
           </div>
           <div class="flex items-center gap-2">
-            <select id="dash_mes" class="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white outline-none">
+            <select id="dash_mes" class="px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
               <option value="1">Janeiro</option>
               <option value="2">Fevereiro</option>
               <option value="3">Março</option>
@@ -249,8 +269,8 @@
               <option value="11">Novembro</option>
               <option value="12">Dezembro</option>
             </select>
-            <input type="number" id="dash_ano" min="2000" max="2100" class="w-24 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white outline-none">
-            <button onclick="carregarDashboard()" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-all">
+            <input type="number" id="dash_ano" min="2000" max="2100" class="w-24 px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+            <button onclick="carregarDashboard()" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-violet-600/20">
               Atualizar
             </button>
           </div>
@@ -258,83 +278,101 @@
 
         <!-- KPI CARDS -->
         <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span class="text-[11px] font-bold text-slate-400 uppercase">Pendentes</span>
-            <div id="kpi_pendentes" class="text-2xl font-extrabold text-amber-600 mt-1">0</div>
-            <p class="text-[11px] text-slate-500 mt-1">Em atendimento</p>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-400 dark:text-violet-300/70 uppercase">Pendentes</span>
+              <span class="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/60 flex items-center justify-center text-xs">⏳</span>
+            </div>
+            <div id="kpi_pendentes" class="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1.5">0</div>
+            <p class="text-[11px] text-slate-500 dark:text-violet-300/70 mt-1">Em atendimento</p>
           </div>
-          <div class="bg-white p-4 rounded-xl border border-rose-200 shadow-sm">
-            <span class="text-[11px] font-bold text-rose-500 uppercase">Atrasados (&gt; SLA)</span>
-            <div id="kpi_atrasados" class="text-2xl font-extrabold text-rose-600 mt-1">0</div>
-            <p id="kpi_sla_label" class="text-[11px] text-slate-500 mt-1">Acima de 3 dias</p>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-rose-200 dark:border-rose-900/70 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-rose-500 dark:text-rose-400 uppercase">Atrasados</span>
+              <span class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/60 flex items-center justify-center text-xs">🚨</span>
+            </div>
+            <div id="kpi_atrasados" class="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1.5">0</div>
+            <p id="kpi_sla_label" class="text-[11px] text-slate-500 dark:text-violet-300/70 mt-1">Acima de 3 dias</p>
           </div>
-          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span class="text-[11px] font-bold text-slate-400 uppercase">Entregues</span>
-            <div id="kpi_entregues" class="text-2xl font-extrabold text-emerald-600 mt-1">0</div>
-            <p id="kpi_total_geral" class="text-[11px] text-slate-500 mt-1">de 0 registros</p>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-400 dark:text-violet-300/70 uppercase">Entregues</span>
+              <span class="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-xs">✅</span>
+            </div>
+            <div id="kpi_entregues" class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1.5">0</div>
+            <p id="kpi_total_geral" class="text-[11px] text-slate-500 dark:text-violet-300/70 mt-1">de 0 registros</p>
           </div>
-          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span class="text-[11px] font-bold text-slate-400 uppercase">Taxa Resolução</span>
-            <div id="kpi_taxa" class="text-2xl font-extrabold text-sky-600 mt-1">0%</div>
-            <p class="text-[11px] text-slate-500 mt-1">Histórico acumulado</p>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-400 dark:text-violet-300/70 uppercase">Resolução</span>
+              <span class="w-7 h-7 rounded-lg bg-violet-50 dark:bg-violet-950/70 flex items-center justify-center text-xs">📈</span>
+            </div>
+            <div id="kpi_taxa" class="text-2xl font-extrabold text-violet-600 dark:text-violet-400 mt-1.5">0%</div>
+            <p class="text-[11px] text-slate-500 dark:text-violet-300/70 mt-1">Histórico acumulado</p>
           </div>
-          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span class="text-[11px] font-bold text-slate-400 uppercase">Tempo Médio</span>
-            <div id="kpi_tempo_medio" class="text-2xl font-extrabold text-slate-800 mt-1">0d</div>
-            <p class="text-[11px] text-slate-500 mt-1">Coleta até entrega</p>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-400 dark:text-violet-300/70 uppercase">Tempo Médio</span>
+              <span class="w-7 h-7 rounded-lg bg-fuchsia-50 dark:bg-fuchsia-950/60 flex items-center justify-center text-xs">⏱️</span>
+            </div>
+            <div id="kpi_tempo_medio" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1.5">0d</div>
+            <p class="text-[11px] text-slate-500 dark:text-violet-300/70 mt-1">Coleta até entrega</p>
           </div>
-          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span class="text-[11px] font-bold text-slate-400 uppercase">Custo no Mês</span>
-            <div id="kpi_custo_mes" class="text-xl font-extrabold text-slate-800 mt-1">R$ 0,00</div>
-            <p id="kpi_custo_geral" class="text-[11px] text-slate-500 mt-1">Total: R$ 0,00</p>
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-400 dark:text-violet-300/70 uppercase">Custo no Mês</span>
+              <span class="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-xs">💰</span>
+            </div>
+            <div id="kpi_custo_mes" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1.5">R$ 0,00</div>
+            <p id="kpi_custo_geral" class="text-[11px] text-slate-500 dark:text-violet-300/70 mt-1">Total: R$ 0,00</p>
           </div>
         </div>
 
         <!-- GRÁFICOS PRINCIPAIS -->
         <div class="grid lg:grid-cols-3 gap-5">
-          <div class="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4">
             <div class="flex items-center justify-between">
               <div>
-                <h3 class="text-sm font-bold text-slate-800">Evolução dos Últimos 6 Meses</h3>
-                <p class="text-[11px] text-slate-500">Entradas coletadas vs. equipamentos entregues</p>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Evolução dos Últimos 6 Meses</h3>
+                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Entradas coletadas vs. equipamentos entregues</p>
               </div>
-              <div class="flex items-center gap-3 text-[11px] font-semibold">
-                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500 inline-block"></span> Entradas</span>
-                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"></span> Entregas</span>
+              <div class="flex items-center gap-3 text-[11px] font-semibold text-slate-600 dark:text-violet-200">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-violet-500 inline-block"></span> Entradas</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"></span> Entregas</span>
               </div>
             </div>
-            <div id="dashEvolucaoGrafico" class="h-52 flex items-end gap-3 pt-4 border-b border-slate-100"></div>
+            <div id="dashEvolucaoGrafico" class="h-52 flex items-end gap-3 pt-4 border-b border-violet-100 dark:border-violet-900/60"></div>
           </div>
 
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4">
             <div>
-              <h3 class="text-sm font-bold text-slate-800">Pendentes por Localização</h3>
-              <p class="text-[11px] text-slate-500">Onde os equipamentos estão agora</p>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Pendentes por Localização</h3>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Onde os equipamentos estão agora</p>
             </div>
             <div id="dashLocalizacoes" class="space-y-3"></div>
-            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-              <span class="text-slate-500 font-medium">Com custo / Sem custo:</span>
-              <span id="dashProporcaoCusto" class="font-bold text-slate-700">0 / 0</span>
+            <div class="pt-3 border-t border-violet-100 dark:border-violet-900/60 flex items-center justify-between text-xs">
+              <span class="text-slate-500 dark:text-violet-300/80 font-medium">Com custo / Sem custo:</span>
+              <span id="dashProporcaoCusto" class="font-bold text-slate-800 dark:text-violet-100">0 / 0</span>
             </div>
           </div>
         </div>
 
         <!-- RANKINGS E ALERTAS DE SLA -->
         <div class="grid lg:grid-cols-3 gap-5">
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-            <h3 class="text-sm font-bold text-slate-800">Ranking de Técnicos</h3>
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Ranking de Técnicos</h3>
             <div id="dashTecnicos" class="space-y-2 text-xs"></div>
           </div>
 
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-            <h3 class="text-sm font-bold text-slate-800">Principais Origens / Setores</h3>
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Principais Origens / Setores</h3>
             <div id="dashOrigens" class="space-y-2 text-xs"></div>
           </div>
 
-          <div class="bg-white p-5 rounded-xl border border-rose-200 shadow-sm space-y-3">
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-rose-200 dark:border-rose-900/70 shadow-sm space-y-3">
             <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold text-rose-700">🚨 Alertas de Atraso (SLA)</h3>
-              <span class="text-[11px] text-slate-400">Clique para abrir</span>
+              <h3 class="text-sm font-bold text-rose-700 dark:text-rose-400">🚨 Alertas de Atraso (SLA)</h3>
+              <span class="text-[11px] text-slate-400 dark:text-violet-300/70">Clique para abrir</span>
             </div>
             <div id="dashAlertasAtraso" class="space-y-2 text-xs"></div>
           </div>
@@ -348,46 +386,46 @@
     <div id="viewEquipamentos" class="flex-1 flex overflow-x-auto overflow-y-hidden hidden">
 
       <!-- PAINEL ESQUERDO: FORMULÁRIOS -->
-      <aside id="painelFormularios" class="w-[360px] xl:w-[420px] shrink-0 bg-white border-r border-pastel-border flex flex-col shadow-sm">
-        <div class="grid grid-cols-2 p-3 gap-2 border-b border-pastel-border bg-slate-50">
-          <button id="btnTabEntrada" onclick="alternarTab('entrada')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200">
+      <aside id="painelFormularios" class="w-[360px] xl:w-[420px] shrink-0 bg-white dark:bg-[#141024] border-r border-violet-200/80 dark:border-violet-900/70 flex flex-col shadow-sm">
+        <div class="grid grid-cols-2 p-3 gap-2 border-b border-violet-200/80 dark:border-violet-900/70 bg-violet-50/70 dark:bg-[#1C1633]">
+          <button id="btnTabEntrada" onclick="alternarTab('entrada')" class="py-2 px-3 text-xs font-bold rounded-xl transition-all bg-violet-600 text-white shadow-sm">
             📥 Registrar Entrada
           </button>
-          <button id="btnTabSaida" onclick="alternarTab('saida')" class="py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800">
+          <button id="btnTabSaida" onclick="alternarTab('saida')" class="py-2 px-3 text-xs font-bold rounded-xl transition-all text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40">
             📤 Dar Saída
           </button>
         </div>
 
         <!-- FORMULÁRIO DE ENTRADA -->
         <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
-          <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2.5">
-            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Dados da Coleta</span>
+          <div class="bg-violet-50/70 dark:bg-[#1C1633] p-3.5 rounded-xl border border-violet-200/80 dark:border-violet-900/70 space-y-2.5">
+            <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider block">Dados da Coleta</span>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Téc. Coleta *</label>
-                <input type="text" id="ent_tec" list="datalistTecnicos" placeholder="Ex: Carlos Silva" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Téc. Coleta *</label>
+                <input type="text" id="ent_tec" list="datalistTecnicos" placeholder="Ex: Carlos Silva" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Data Coleta *</label>
-                <input type="date" id="ent_data" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Data Coleta *</label>
+                <input type="date" id="ent_data" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Origem *</label>
-                <input type="text" id="ent_origem" list="datalistOrigens" placeholder="Ex: Financeiro" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Origem *</label>
+                <input type="text" id="ent_origem" list="datalistOrigens" placeholder="Ex: Financeiro" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">O.S Coleta *</label>
-                <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">O.S Coleta *</label>
+                <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
             </div>
 
             <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Localização Inicial</label>
-              <select id="ent_loc" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Localização Inicial</label>
+              <select id="ent_loc" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430]">
                 <option value="Bancada TI">Bancada TI</option>
                 <option value="PlayLan">PlayLan</option>
                 <option value="Central Informática">Central Informática</option>
@@ -398,42 +436,42 @@
 
           <div class="space-y-3">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-700">Equipamentos (<span id="countItens">1</span>)</span>
-              <button onclick="adicionarItemEntrada()" class="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-lg border border-sky-200 transition-all flex items-center gap-1">
+              <span class="text-xs font-bold text-slate-700 dark:text-violet-100">Equipamentos (<span id="countItens">1</span>)</span>
+              <button onclick="adicionarItemEntrada()" class="px-2.5 py-1 bg-violet-50 dark:bg-violet-950/60 hover:bg-violet-100 dark:hover:bg-violet-900/70 text-violet-700 dark:text-violet-300 text-xs font-bold rounded-lg border border-violet-200 dark:border-violet-700 transition-all flex items-center gap-1">
                 ➕ Adicionar Outro
               </button>
             </div>
 
             <div id="listaItensEntrada" class="space-y-3">
-              <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                  <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #1</span>
+              <div class="item-entrada-card bg-white dark:bg-[#1C1633] p-3 rounded-xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2 relative">
+                <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-800/70 pb-1.5">
+                  <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 num-item-label">Item #1</span>
                   <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento *</label>
-                  <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Notebook Dell Vostro">
+                  <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
+                  <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: Notebook Dell Vostro">
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento *</label>
-                  <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 123456">
+                  <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
+                  <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456">
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
-                  <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
+                  <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
+                  <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="pt-2 space-y-2">
-            <button id="btnSalvarEntrada" onclick="salvarEntrada()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+            <button id="btnSalvarEntrada" onclick="salvarEntrada()" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
               📥 Registrar Entrada
             </button>
-            <button id="btnAtualizarEntrada" onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
+            <button id="btnAtualizarEntrada" onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 disabled:opacity-60 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl transition-all border border-violet-200 dark:border-violet-800">
               ✏️ Atualizar Entrada do Item Selecionado
             </button>
           </div>
@@ -441,29 +479,29 @@
 
         <!-- FORMULÁRIO DE SAÍDA -->
         <div id="formSaidaContainer" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4 hidden">
-          <div id="badgeStatusSelecao" class="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2">
+          <div id="badgeStatusSelecao" class="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-300 flex items-center gap-2">
             ⚠️ Nenhum item selecionado na lista
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">Téc. Entrega *</label>
-              <input type="text" id="sai_tec" list="datalistTecnicos" placeholder="Ex: Roberto Gomes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Téc. Entrega *</label>
+              <input type="text" id="sai_tec" list="datalistTecnicos" placeholder="Ex: Roberto Gomes" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">O.S Entrega *</label>
-              <input type="text" id="sai_os" placeholder="Ex: OS-2026-99" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">O.S Entrega *</label>
+              <input type="text" id="sai_os" placeholder="Ex: OS-2026-99" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">Data Entrega *</label>
-              <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Data Entrega *</label>
+              <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">Laudado?</label>
-              <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Laudado?</label>
+              <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430]">
                 <option value="Não">Não</option>
                 <option value="Sim">Sim</option>
               </select>
@@ -472,55 +510,55 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">Status Custo</label>
-              <select id="sai_status_custo" onchange="alternarCampoCusto()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Status Custo</label>
+              <select id="sai_status_custo" onchange="alternarCampoCusto()" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430]">
                 <option value="Sem Custo">Sem Custo</option>
                 <option value="Com Custo">Com Custo</option>
               </select>
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">Valor (R$)</label>
-              <input type="number" min="0" step="0.01" id="sai_valor" value="0.00" disabled class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Valor (R$)</label>
+              <input type="number" min="0" step="0.01" id="sai_valor" value="0.00" disabled class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-slate-50 dark:bg-[#120E21] text-slate-400 outline-none transition-all">
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Serviço / Resolução</label>
-            <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all resize-none"></textarea>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Serviço / Resolução</label>
+            <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all resize-none"></textarea>
           </div>
 
-          <button id="btnSalvarSaida" onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+          <button id="btnSalvarSaida" onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
             ✅ Finalizar &amp; Marcar Entregue
           </button>
         </div>
 
-        <div class="p-3 bg-slate-50 border-t border-pastel-border flex gap-2">
-          <button id="btnExcluirItem" onclick="excluirRegistroAdmin()" class="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg transition-all border border-rose-200 hidden">
+        <div class="p-3 bg-violet-50/70 dark:bg-[#1C1633] border-t border-violet-200/80 dark:border-violet-900/70 flex gap-2">
+          <button id="btnExcluirItem" onclick="excluirRegistroAdmin()" class="flex-1 py-2 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 text-xs font-semibold rounded-xl transition-all border border-rose-200 dark:border-rose-800/70 hidden">
             🗑️ Excluir
           </button>
-          <button onclick="limparFormularios()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all">
+          <button onclick="limparFormularios()" class="flex-1 py-2 bg-violet-100 dark:bg-violet-900/50 hover:bg-violet-200 dark:hover:bg-violet-800/60 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl transition-all">
             🧹 Limpar
           </button>
         </div>
       </aside>
 
       <!-- PAINEL CENTRAL: LISTA DE EQUIPAMENTOS -->
-      <main id="painelLista" class="w-[410px] xl:w-[490px] shrink-0 bg-white border-r border-pastel-border flex flex-col shadow-sm">
-        <div class="p-3 border-b border-pastel-border bg-slate-50 space-y-2">
+      <main id="painelLista" class="w-[410px] xl:w-[490px] shrink-0 bg-white dark:bg-[#141024] border-r border-violet-200/80 dark:border-violet-900/70 flex flex-col shadow-sm">
+        <div class="p-3 border-b border-violet-200/80 dark:border-violet-900/70 bg-violet-50/70 dark:bg-[#1C1633] space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-700">Equipamentos (<span id="listaContagem">0</span>)</span>
+            <span class="text-xs font-bold text-slate-800 dark:text-white">Equipamentos (<span id="listaContagem">0</span>)</span>
             <div class="flex gap-1">
-              <button id="btnFiltroPendentes" onclick="carregarLista('nao_finalizados')" class="px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white rounded-md shadow-sm transition-all">Pendentes</button>
-              <button id="btnFiltroEntregues" onclick="carregarLista('finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all">Entregues</button>
-              <button id="btnFiltroTodos" onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all">Todos</button>
+              <button id="btnFiltroPendentes" onclick="carregarLista('nao_finalizados')" class="px-2.5 py-1 text-[11px] font-bold bg-violet-600 text-white rounded-lg shadow-sm transition-all">Pendentes</button>
+              <button id="btnFiltroEntregues" onclick="carregarLista('finalizados')" class="px-2.5 py-1 text-[11px] font-semibold bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-800 rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all">Entregues</button>
+              <button id="btnFiltroTodos" onclick="carregarLista('todos')" class="px-2.5 py-1 text-[11px] font-semibold bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-800 rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all">Todos</button>
             </div>
           </div>
-          <input type="search" id="inputBuscaLista" oninput="filtrarTabelaLocal()" placeholder="Buscar por ID, equipamento, tombamento, O.S., origem ou técnico..." class="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none">
+          <input type="search" id="inputBuscaLista" oninput="filtrarTabelaLocal()" placeholder="Buscar por ID, equipamento, tombamento, O.S., origem ou técnico..." class="w-full px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#141024] focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none">
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar">
           <table class="w-full text-left text-xs border-collapse">
-            <thead class="bg-slate-100 sticky top-0 text-slate-600 font-bold border-b border-pastel-border">
+            <thead class="bg-violet-50 dark:bg-[#1C1633] sticky top-0 text-violet-900 dark:text-violet-200 font-bold border-b border-violet-200 dark:border-violet-900">
               <tr>
                 <th class="p-2.5">ID</th>
                 <th class="p-2.5">Equipamento</th>
@@ -528,57 +566,57 @@
                 <th class="p-2.5">Status</th>
               </tr>
             </thead>
-            <tbody id="tabelaCorpo" class="divide-y divide-slate-100"></tbody>
+            <tbody id="tabelaCorpo" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
           </table>
         </div>
       </main>
 
       <!-- PAINEL DIREITO: FICHA TÉCNICA DETALHADA -->
-      <section id="painelFicha" class="flex-1 min-w-[360px] bg-slate-50 flex flex-col overflow-y-auto p-6 custom-scrollbar">
-        <div id="fichaVazia" class="flex-1 flex flex-col items-center justify-center text-slate-400">
-          <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl mb-3">📋</div>
+      <section id="painelFicha" class="flex-1 min-w-[360px] bg-[#F6F4FC] dark:bg-[#0B0816] flex flex-col overflow-y-auto p-6 custom-scrollbar">
+        <div id="fichaVazia" class="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-violet-300/60">
+          <div class="w-16 h-16 rounded-2xl bg-violet-100 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 flex items-center justify-center text-2xl mb-3">📋</div>
           <p class="text-xs font-medium">Selecione um equipamento na lista para carregar a ficha técnica.</p>
         </div>
 
         <div id="fichaConteudo" class="hidden space-y-4 max-w-2xl mx-auto w-full">
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start">
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm flex justify-between items-start">
             <div>
-              <span id="f_id" class="text-xs font-bold text-sky-600 uppercase tracking-wider">REGISTRO #0</span>
-              <h2 id="f_equipamento" class="text-lg font-bold text-slate-800 mt-1">NOME DO EQUIPAMENTO</h2>
-              <p id="f_tombamento" class="text-xs text-slate-500 font-medium">Tombamento: ---</p>
+              <span id="f_id" class="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider">REGISTRO #0</span>
+              <h2 id="f_equipamento" class="text-lg font-extrabold text-slate-900 dark:text-white mt-1">NOME DO EQUIPAMENTO</h2>
+              <p id="f_tombamento" class="text-xs text-slate-500 dark:text-violet-300/80 font-medium">Tombamento: ---</p>
             </div>
-            <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+            <span id="f_badge_status" class="px-3 py-1 text-xs font-bold rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
               ⏳ PENDENTE
             </span>
           </div>
 
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📥 Dados de Entrada</h3>
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+            <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider border-b border-violet-100 dark:border-violet-900/60 pb-2">📥 Dados de Entrada</h3>
             <div class="grid grid-cols-2 gap-3 text-xs">
-              <div><span class="text-slate-400 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-700">---</span></div>
-              <div><span class="text-slate-400 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-700">---</span></div>
-              <div><span class="text-slate-400 font-medium block">O.S. Coleta:</span><span id="f_os_coleta" class="font-semibold text-slate-700">---</span></div>
-              <div><span class="text-slate-400 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-700">---</span></div>
-              <div><span class="text-slate-400 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Técnico Coleta:</span><span id="f_tec_coleta" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Data Coleta:</span><span id="f_data_coleta" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">O.S. Coleta:</span><span id="f_os_coleta" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Origem:</span><span id="f_origem" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Localização:</span><span id="f_localizacao" class="font-semibold text-slate-800 dark:text-white">---</span></div>
             </div>
             <div class="pt-2">
-              <span class="text-slate-400 font-medium block text-xs">Problema Relatado:</span>
-              <p id="f_problema" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+              <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Problema Relatado:</span>
+              <p id="f_problema" class="text-xs bg-violet-50/70 dark:bg-[#1C1633] p-2.5 rounded-xl border border-violet-100 dark:border-violet-800/70 text-slate-700 dark:text-violet-100 mt-1 font-medium">---</p>
             </div>
           </div>
 
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">📤 Resolução &amp; Entrega</h3>
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+            <h3 class="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider border-b border-violet-100 dark:border-violet-900/60 pb-2">📤 Resolução &amp; Entrega</h3>
             <div class="grid grid-cols-2 gap-3 text-xs">
-              <div><span class="text-slate-400 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-700">---</span></div>
-              <div><span class="text-slate-400 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-700">---</span></div>
-              <div><span class="text-slate-400 font-medium block">O.S. Entrega:</span><span id="f_os_entrega" class="font-semibold text-slate-700">---</span></div>
-              <div><span class="text-slate-400 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-700">---</span></div>
-              <div><span class="text-slate-400 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-700">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Técnico Entrega:</span><span id="f_tec_entrega" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Data Entrega:</span><span id="f_data_entrega" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">O.S. Entrega:</span><span id="f_os_entrega" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Status Custo:</span><span id="f_custo" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-800 dark:text-white">---</span></div>
             </div>
             <div class="pt-2">
-              <span class="text-slate-400 font-medium block text-xs">Serviço Realizado:</span>
-              <p id="f_resolucao" class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-700 mt-1 font-medium">---</p>
+              <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Serviço Realizado:</span>
+              <p id="f_resolucao" class="text-xs bg-violet-50/70 dark:bg-[#1C1633] p-2.5 rounded-xl border border-violet-100 dark:border-violet-800/70 text-slate-700 dark:text-violet-100 mt-1 font-medium">---</p>
             </div>
           </div>
         </div>
@@ -588,67 +626,65 @@
     <!-- ==================================================================== -->
     <!-- VISÃO 3: GESTÃO DE EQUIPE & EMPRESA (ADMIN)                          -->
     <!-- ==================================================================== -->
-    <section id="viewEmpresa" class="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar hidden">
+    <section id="viewEmpresa" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
       <div class="max-w-6xl mx-auto grid lg:grid-cols-3 gap-6">
-        <!-- Configurações da Empresa -->
-        <form onsubmit="salvarConfiguracoesEmpresa(event)" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 h-fit">
-          <h2 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">🏢 Configurações da Empresa</h2>
+        <form onsubmit="salvarConfiguracoesEmpresa(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4 h-fit">
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">🏢 Configurações da Empresa</h2>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Nome da Empresa *</label>
-            <input type="text" id="emp_nome" required class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-200">
+            <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome da Empresa *</label>
+            <input type="text" id="emp_nome" required class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none focus:ring-2 focus:ring-violet-400/40">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Prazo SLA (dias) *</label>
-            <input type="number" id="emp_sla" min="1" max="60" required class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-200">
+            <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Prazo SLA (dias) *</label>
+            <input type="number" id="emp_sla" min="1" max="60" required class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none focus:ring-2 focus:ring-violet-400/40">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Localizações Permitidas (uma por linha)</label>
-            <textarea id="emp_locs" rows="5" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-200"></textarea>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Localizações Permitidas (uma por linha)</label>
+            <textarea id="emp_locs" rows="5" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none focus:ring-2 focus:ring-violet-400/40"></textarea>
           </div>
-          <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-all">
+          <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
             Salvar Configurações
           </button>
         </form>
 
-        <!-- Equipe da Empresa -->
         <div class="lg:col-span-2 space-y-5">
-          <form onsubmit="adicionarMembroEquipe(event)" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-            <h2 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">👥 Adicionar Colaborador</h2>
+          <form onsubmit="adicionarMembroEquipe(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">👥 Adicionar Colaborador</h2>
             <div class="grid md:grid-cols-4 gap-3">
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Nome *</label>
-                <input type="text" id="mem_nome" required placeholder="Nome completo" class="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome *</label>
+                <input type="text" id="mem_nome" required placeholder="Nome completo" class="w-full px-2.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">E-mail *</label>
-                <input type="email" id="mem_email" required placeholder="email@empresa.com" class="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">E-mail *</label>
+                <input type="email" id="mem_email" required placeholder="email@empresa.com" class="w-full px-2.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Senha Inicial *</label>
-                <input type="password" id="mem_senha" required minlength="6" placeholder="Mín. 6 chars" class="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Senha Inicial *</label>
+                <input type="password" id="mem_senha" required minlength="6" placeholder="Mín. 6 chars" class="w-full px-2.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Papel</label>
-                <select id="mem_role" class="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg bg-white outline-none">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Papel</label>
+                <select id="mem_role" class="w-full px-2.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
                   <option value="tecnico">Técnico</option>
                   <option value="admin">Administrador</option>
                 </select>
               </div>
             </div>
             <div class="flex justify-end">
-              <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-all">
+              <button type="submit" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-violet-600/20">
                 ➕ Cadastrar Colaborador
               </button>
             </div>
           </form>
 
-          <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-              <h3 class="text-sm font-bold text-slate-800">Membros da Equipe</h3>
-              <button onclick="carregarUsuariosEmpresa()" class="text-xs font-semibold text-sky-600 hover:text-sky-700">Atualizar</button>
+          <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Membros da Equipe</h3>
+              <button onclick="carregarUsuariosEmpresa()" class="text-xs font-semibold text-violet-600 dark:text-violet-400 hover:text-violet-700">Atualizar</button>
             </div>
             <table class="w-full text-left text-xs border-collapse">
-              <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+              <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold border-b border-violet-200 dark:border-violet-900">
                 <tr>
                   <th class="p-3">Nome</th>
                   <th class="p-3">E-mail</th>
@@ -657,23 +693,23 @@
                   <th class="p-3 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody id="tabelaUsuariosEmpresa" class="divide-y divide-slate-100"></tbody>
+              <tbody id="tabelaUsuariosEmpresa" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
             </table>
           </div>
         </div>
 
         <!-- Importação e Backup de Dados -->
-        <div class="lg:col-span-3 bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div class="lg:col-span-3 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
             <div>
-              <h2 class="text-sm font-bold text-slate-800">📦 Importação &amp; Backup de Dados</h2>
-              <p class="text-xs text-slate-500">Importe registros de sistemas antigos em <b>JSON</b>, <b>CSV</b> (vírgula ou ponto e vírgula) ou <b>Excel (.xlsx)</b>, ou baixe um backup completo da empresa.</p>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">📦 Importação &amp; Backup de Dados</h2>
+              <p class="text-xs text-slate-500 dark:text-violet-300/80">Importe registros de sistemas antigos em <b>JSON</b>, <b>CSV</b> (vírgula ou ponto e vírgula) ou <b>Excel (.xlsx)</b>, ou baixe um backup completo da empresa.</p>
             </div>
             <div class="flex flex-wrap gap-2">
-              <button type="button" onclick="baixarModeloImportacao('csv')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-all">
+              <button type="button" onclick="baixarModeloImportacao('csv')" class="px-3 py-1.5 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl border border-violet-200 dark:border-violet-800 transition-all">
                 📄 Modelo CSV (Excel)
               </button>
-              <button type="button" onclick="baixarModeloImportacao('json')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-all">
+              <button type="button" onclick="baixarModeloImportacao('json')" class="px-3 py-1.5 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl border border-violet-200 dark:border-violet-800 transition-all">
                 📄 Modelo JSON
               </button>
             </div>
@@ -681,37 +717,37 @@
 
           <div class="grid md:grid-cols-3 gap-4 items-end">
             <div>
-              <label for="imp_arquivo" class="block text-xs font-semibold text-slate-600 mb-1">Arquivo (.json, .csv ou .xlsx — máx. 5 MB)</label>
-              <input type="file" id="imp_arquivo" accept=".json,.csv,.xlsx" class="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-slate-50 file:text-slate-700 hover:file:bg-slate-100">
+              <label for="imp_arquivo" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Arquivo (.json, .csv ou .xlsx — máx. 5 MB)</label>
+              <input type="file" id="imp_arquivo" accept=".json,.csv,.xlsx" class="w-full text-xs text-slate-600 dark:text-violet-200 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border file:border-violet-200 dark:file:border-violet-700 file:text-xs file:font-semibold file:bg-violet-50 dark:file:bg-[#1C1633] file:text-violet-700 dark:file:text-violet-200 hover:file:bg-violet-100">
             </div>
 
             <div>
-              <label for="imp_modo" class="block text-xs font-semibold text-slate-600 mb-1">Modo de Importação</label>
-              <select id="imp_modo" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white outline-none">
+              <label for="imp_modo" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Modo de Importação</label>
+              <select id="imp_modo" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
                 <option value="anexar">Adicionar aos dados atuais (gera novos IDs)</option>
                 <option value="preservar_ids">Preservar IDs originais (apenas empresa vazia)</option>
               </select>
             </div>
 
             <div class="flex gap-2">
-              <button id="btnPreviewImport" type="button" onclick="executarImportacao(true)" class="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-800 text-xs font-bold rounded-lg border border-slate-200 transition-all">
+              <button id="btnPreviewImport" type="button" onclick="executarImportacao(true)" class="flex-1 py-2 px-3 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 disabled:opacity-60 text-violet-800 dark:text-violet-200 text-xs font-bold rounded-xl border border-violet-200 dark:border-violet-800 transition-all">
                 👁️ Pré-visualizar
               </button>
-              <button id="btnExecutarImport" type="button" onclick="executarImportacao(false)" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+              <button id="btnExecutarImport" type="button" onclick="executarImportacao(false)" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
                 📥 Importar Dados
               </button>
             </div>
           </div>
 
-          <div id="imp_resultado" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3 text-xs"></div>
+          <div id="imp_resultado" class="hidden rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/70 dark:bg-[#1C1633] p-4 space-y-3 text-xs"></div>
 
-          <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <span class="text-xs text-slate-500">Exporte todos os registros atuais desta empresa para backup ou análise externa:</span>
+          <div class="pt-3 border-t border-violet-100 dark:border-violet-900/60 flex flex-wrap items-center justify-between gap-3">
+            <span class="text-xs text-slate-500 dark:text-violet-300/80">Exporte todos os registros atuais desta empresa para backup ou análise externa:</span>
             <div class="flex flex-wrap gap-2">
-              <button type="button" onclick="exportarDadosEmpresa('json')" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all">
+              <button type="button" onclick="exportarDadosEmpresa('json')" class="px-3.5 py-2 bg-violet-700 hover:bg-violet-800 text-white text-xs font-bold rounded-xl transition-all">
                 📤 Exportar Backup JSON
               </button>
-              <button type="button" onclick="exportarDadosEmpresa('csv')" class="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-all">
+              <button type="button" onclick="exportarDadosEmpresa('csv')" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all">
                 📊 Exportar Planilha CSV (Excel)
               </button>
             </div>
@@ -729,17 +765,17 @@
   <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- MODAL DE EXPORTAÇÃO DE RELATÓRIO PDF -->
-  <div id="modalRelatorio" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-2xl border border-slate-200 p-6 w-96 shadow-xl space-y-4">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-        <h3 class="text-sm font-bold text-slate-800">📄 Gerar Relatório PDF</h3>
-        <button onclick="fecharModalRelatorio()" class="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+  <div id="modalRelatorio" class="fixed inset-0 bg-[#0B0816]/60 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-96 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-3">
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white">📄 Gerar Relatório PDF</h3>
+        <button onclick="fecharModalRelatorio()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
       </div>
 
       <div class="space-y-3">
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Tipo de Relatório</label>
-          <select id="rel_tipo" onchange="alternarCamposRelatorio()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none bg-white">
+          <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Tipo de Relatório</label>
+          <select id="rel_tipo" onchange="alternarCamposRelatorio()" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none bg-white dark:bg-[#1A1430]">
             <option value="mensal">Mensal (por Mês / Ano)</option>
             <option value="pendentes">Pendentes / Em Manutenção</option>
             <option value="geral">Relatório Geral (Todos)</option>
@@ -747,9 +783,9 @@
         </div>
 
         <div id="grupoPeriodoRelatorio">
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Selecione o Mês / Ano</label>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Selecione o Mês / Ano</label>
           <div class="grid grid-cols-2 gap-2">
-            <select id="rel_mes" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none bg-white">
+            <select id="rel_mes" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none bg-white dark:bg-[#1A1430]">
               <option value="1">Janeiro</option>
               <option value="2">Fevereiro</option>
               <option value="3">Março</option>
@@ -763,21 +799,21 @@
               <option value="11">Novembro</option>
               <option value="12">Dezembro</option>
             </select>
-            <input type="number" id="rel_ano" min="2000" max="2100" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+            <input type="number" id="rel_ano" min="2000" max="2100" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
           </div>
         </div>
 
         <div class="flex items-center gap-2 pt-1">
-          <input type="checkbox" id="rel_anonimizar" class="rounded border-slate-300 text-sky-600 focus:ring-sky-200">
-          <label for="rel_anonimizar" class="text-xs text-slate-600 font-medium">Anonimizar Nomes (LGPD)</label>
+          <input type="checkbox" id="rel_anonimizar" class="rounded border-violet-300 text-violet-600 focus:ring-violet-400">
+          <label for="rel_anonimizar" class="text-xs text-slate-600 dark:text-violet-200 font-medium">Anonimizar Nomes (LGPD)</label>
         </div>
       </div>
 
       <div class="flex gap-2 pt-2">
-        <button id="btnBaixarPdf" onclick="baixarRelatorioPDF()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+        <button id="btnBaixarPdf" onclick="baixarRelatorioPDF()" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
           📥 Download PDF
         </button>
-        <button onclick="fecharModalRelatorio()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
+        <button onclick="fecharModalRelatorio()" class="py-2.5 px-4 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl transition-all border border-violet-200 dark:border-violet-800">
           Cancelar
         </button>
       </div>
@@ -785,22 +821,22 @@
   </div>
 
   <!-- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO (ADMIN) -->
-  <div id="modalExcluir" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-2xl border border-slate-200 p-6 w-96 shadow-xl space-y-4">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-        <h3 class="text-sm font-bold text-rose-700">🗑️ Excluir Registro</h3>
-        <button onclick="fecharModalExcluir()" class="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+  <div id="modalExcluir" class="fixed inset-0 bg-[#0B0816]/60 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-rose-200 dark:border-rose-900 p-6 w-96 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-3">
+        <h3 class="text-sm font-bold text-rose-700 dark:text-rose-400">🗑️ Excluir Registro</h3>
+        <button onclick="fecharModalExcluir()" class="text-slate-400 hover:text-rose-500 font-bold text-sm">✕</button>
       </div>
 
-      <p id="del_descricao" class="text-xs text-slate-600">
+      <p id="del_descricao" class="text-xs text-slate-600 dark:text-violet-200">
         Deseja excluir permanentemente o registro selecionado?
       </p>
 
       <div class="flex gap-2 pt-2">
-        <button id="btnConfirmarExclusao" onclick="confirmarExclusaoAdmin()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+        <button id="btnConfirmarExclusao" onclick="confirmarExclusaoAdmin()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
           🗑️ Confirmar Exclusão
         </button>
-        <button onclick="fecharModalExcluir()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-200">
+        <button onclick="fecharModalExcluir()" class="py-2.5 px-4 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl transition-all border border-violet-200 dark:border-violet-800">
           Cancelar
         </button>
       </div>

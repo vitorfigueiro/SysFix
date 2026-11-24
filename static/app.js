@@ -1,5 +1,6 @@
 const API_BASE = '/api';
 const TOKEN_STORAGE_KEY = 'sysfix_auth_token';
+const THEME_STORAGE_KEY = 'sysfix_theme';
 
 let clientConfig = { auth_mode: 'local', storage_backend: 'local', firebase_web: null };
 let firebaseClient = null;
@@ -12,6 +13,42 @@ let registroSelecionadoId = null;
 let filtroAtual = 'nao_finalizados';
 let visaoAtual = 'dashboard';
 let enviandoRequisicao = false;
+
+function obterTemaAtual() {
+  try {
+    const salvo = localStorage.getItem(THEME_STORAGE_KEY);
+    if (salvo === 'dark' || salvo === 'light') return salvo;
+  } catch (_) {}
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+function aplicarTema(tema) {
+  const isDark = tema === 'dark';
+  document.documentElement.classList.toggle('dark', isDark);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, tema);
+  } catch (_) {}
+
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    metaTheme.setAttribute('content', isDark ? '#141024' : '#7C3AED');
+  }
+
+  const labelAuth = isDark ? '☀️ Modo Claro' : '🌙 Modo Escuro';
+  const labelHeader = isDark ? '☀️ Claro' : '🌙 Escuro';
+  const btnAuth = document.getElementById('btnTemaAuth');
+  const btnHeader = document.getElementById('btnTemaHeader');
+  if (btnAuth) btnAuth.textContent = labelAuth;
+  if (btnHeader) btnHeader.textContent = labelHeader;
+}
+
+function alternarTema() {
+  const proximo = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+  aplicarTema(proximo);
+}
 
 function obterDataHojeISO() {
   const hoje = new Date();
@@ -58,9 +95,9 @@ function mostrarToast(mensagem, tipo = 'sucesso') {
 
   const toast = document.createElement('div');
   const estilos = {
-    sucesso: 'bg-slate-900 text-emerald-400 border-emerald-500/30',
-    erro: 'bg-slate-900 text-rose-400 border-rose-500/30',
-    info: 'bg-slate-900 text-sky-400 border-sky-500/30'
+    sucesso: 'bg-[#1C1633] text-emerald-300 border-emerald-500/40',
+    erro: 'bg-[#1C1633] text-rose-300 border-rose-500/40',
+    info: 'bg-[#1C1633] text-violet-200 border-violet-500/40'
   };
   const icones = { sucesso: '✨', erro: '🚨', info: 'ℹ️' };
 
@@ -147,6 +184,7 @@ async function apiFetch(path, options = {}) {
 // ==============================================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
+  aplicarTema(obterTemaAtual());
   const hoje = new Date();
   const hojeISO = obterDataHojeISO();
   document.getElementById('ent_data').value = hojeISO;
@@ -234,12 +272,11 @@ function alternarAuthTab(tab) {
   document.getElementById('formLogin').classList.toggle('hidden', !isLogin);
   document.getElementById('formRegister').classList.toggle('hidden', isLogin);
 
-  document.getElementById('btnAuthTabLogin').className = isLogin
-    ? 'py-2 text-xs font-bold rounded-lg bg-white text-slate-800 shadow-sm transition-all'
-    : 'py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-800 transition-all';
-  document.getElementById('btnAuthTabRegister').className = !isLogin
-    ? 'py-2 text-xs font-bold rounded-lg bg-white text-slate-800 shadow-sm transition-all'
-    : 'py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-800 transition-all';
+  const active = 'py-2 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all';
+  const inactive = 'py-2 text-xs font-bold rounded-lg text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-white transition-all';
+
+  document.getElementById('btnAuthTabLogin').className = isLogin ? active : inactive;
+  document.getElementById('btnAuthTabRegister').className = !isLogin ? active : inactive;
 }
 
 async function carregarSessao() {
@@ -288,8 +325,19 @@ function aplicarSessaoNaUI() {
 
   document.getElementById('headerEmpresaNome').textContent = tenant.nome || 'SysFix';
   document.getElementById('headerPlanoBadge').textContent = (tenant.plano || 'pro').toUpperCase();
-  document.getElementById('headerUsuarioNome').textContent = user.nome || user.email;
+  const nomeExibicao = user.nome || user.email || 'US';
+  document.getElementById('headerUsuarioNome').textContent = nomeExibicao;
   document.getElementById('headerUsuarioRole').textContent = isAdmin ? 'Administrador' : 'Técnico';
+  const avatarEl = document.getElementById('headerUsuarioAvatar');
+  if (avatarEl) {
+    const iniciais = nomeExibicao
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(p => p[0].toUpperCase())
+      .join('') || 'US';
+    avatarEl.textContent = iniciais;
+  }
 
   document.getElementById('navBtnEmpresa').classList.toggle('hidden', !isAdmin);
   document.getElementById('btnExcluirItem').classList.toggle('hidden', !isAdmin);
@@ -469,8 +517,8 @@ function alternarVisao(visao) {
   document.getElementById('viewEquipamentos').classList.toggle('hidden', visao !== 'equipamentos');
   document.getElementById('viewEmpresa').classList.toggle('hidden', visao !== 'empresa');
 
-  const active = 'px-3 py-1.5 text-xs font-bold rounded-lg bg-white text-slate-800 shadow-sm transition-all';
-  const inactive = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all';
+  const active = 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all';
+  const inactive = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all';
 
   document.getElementById('navBtnDashboard').className = visao === 'dashboard' ? active : inactive;
   document.getElementById('navBtnEquipamentos').className = visao === 'equipamentos' ? active : inactive;
@@ -530,16 +578,16 @@ function renderizarDashboard(d) {
       <div class="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
         <div class="flex items-end gap-1.5 h-40">
           <div class="flex flex-col items-center gap-1">
-            <span class="text-[10px] font-bold text-slate-600">${item.entradas}</span>
-            <div class="w-4 sm:w-5 rounded-t bg-sky-500 transition-all" style="height:${hEnt}px" title="Entradas: ${item.entradas}"></div>
+            <span class="text-[10px] font-bold text-slate-600 dark:text-violet-200">${item.entradas}</span>
+            <div class="w-4 sm:w-5 rounded-t bg-gradient-to-t from-violet-700 to-violet-400 transition-all" style="height:${hEnt}px" title="Entradas: ${item.entradas}"></div>
           </div>
           <div class="flex flex-col items-center gap-1">
-            <span class="text-[10px] font-bold text-slate-600">${item.entregas}</span>
-            <div class="w-4 sm:w-5 rounded-t bg-emerald-500 transition-all" style="height:${hSai}px" title="Entregas: ${item.entregas}"></div>
+            <span class="text-[10px] font-bold text-slate-600 dark:text-violet-200">${item.entregas}</span>
+            <div class="w-4 sm:w-5 rounded-t bg-gradient-to-t from-emerald-600 to-emerald-400 transition-all" style="height:${hSai}px" title="Entregas: ${item.entregas}"></div>
           </div>
         </div>
-        <span class="text-[11px] font-bold text-slate-600">${escapeHtml(item.label)}</span>
-        <span class="text-[10px] text-slate-400">R$ ${formatarMoedaBR(item.custo)}</span>
+        <span class="text-[11px] font-bold text-slate-700 dark:text-violet-100">${escapeHtml(item.label)}</span>
+        <span class="text-[10px] text-slate-400 dark:text-violet-300/70">R$ ${formatarMoedaBR(item.custo)}</span>
       </div>
     `;
   }).join('');
@@ -548,7 +596,7 @@ function renderizarDashboard(d) {
   const locContainer = document.getElementById('dashLocalizacoes');
   const locs = d.por_localizacao || [];
   if (locs.length === 0) {
-    locContainer.innerHTML = '<p class="text-xs text-slate-400">Nenhum equipamento pendente.</p>';
+    locContainer.innerHTML = '<p class="text-xs text-slate-400 dark:text-violet-300/60">Nenhum equipamento pendente.</p>';
   } else {
     const maxLoc = Math.max(1, ...locs.map(l => l.quantidade));
     locContainer.innerHTML = locs.map(l => {
@@ -556,11 +604,11 @@ function renderizarDashboard(d) {
       return `
         <div class="space-y-1">
           <div class="flex justify-between text-xs">
-            <span class="font-semibold text-slate-700">${escapeHtml(l.localizacao)}</span>
-            <span class="font-bold text-slate-800">${l.quantidade}</span>
+            <span class="font-semibold text-slate-700 dark:text-violet-100">${escapeHtml(l.localizacao)}</span>
+            <span class="font-bold text-violet-700 dark:text-violet-300">${l.quantidade}</span>
           </div>
-          <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-            <div class="bg-sky-500 h-2 rounded-full" style="width:${pct}%"></div>
+          <div class="w-full bg-violet-100 dark:bg-[#1C1633] rounded-full h-2 overflow-hidden">
+            <div class="bg-gradient-to-r from-violet-600 to-fuchsia-500 h-2 rounded-full" style="width:${pct}%"></div>
           </div>
         </div>
       `;
@@ -571,12 +619,12 @@ function renderizarDashboard(d) {
   const tecContainer = document.getElementById('dashTecnicos');
   const tecs = d.por_tecnico || [];
   tecContainer.innerHTML = tecs.length === 0
-    ? '<p class="text-slate-400">Sem registros ainda.</p>'
+    ? '<p class="text-slate-400 dark:text-violet-300/60">Sem registros ainda.</p>'
     : tecs.map(t => `
-      <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-        <span class="font-semibold text-slate-700">${escapeHtml(t.tecnico)}</span>
-        <span class="text-[11px] text-slate-500">
-          <b class="text-sky-600">${t.coletas}</b> col. / <b class="text-emerald-600">${t.entregas}</b> ent.
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-100 dark:border-violet-800/60">
+        <span class="font-semibold text-slate-800 dark:text-violet-100">${escapeHtml(t.tecnico)}</span>
+        <span class="text-[11px] text-slate-500 dark:text-violet-300">
+          <b class="text-violet-600 dark:text-violet-400">${t.coletas}</b> col. / <b class="text-emerald-600 dark:text-emerald-400">${t.entregas}</b> ent.
         </span>
       </div>
     `).join('');
@@ -585,11 +633,11 @@ function renderizarDashboard(d) {
   const origContainer = document.getElementById('dashOrigens');
   const origens = d.top_origens || [];
   origContainer.innerHTML = origens.length === 0
-    ? '<p class="text-slate-400">Sem registros ainda.</p>'
+    ? '<p class="text-slate-400 dark:text-violet-300/60">Sem registros ainda.</p>'
     : origens.map(o => `
-      <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-        <span class="font-semibold text-slate-700 truncate pr-2">${escapeHtml(o.origem)}</span>
-        <span class="text-[11px] font-bold text-slate-600 shrink-0">${o.quantidade}x (R$ ${formatarMoedaBR(o.custo)})</span>
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-100 dark:border-violet-800/60">
+        <span class="font-semibold text-slate-800 dark:text-violet-100 truncate pr-2">${escapeHtml(o.origem)}</span>
+        <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 shrink-0">${o.quantidade}x (R$ ${formatarMoedaBR(o.custo)})</span>
       </div>
     `).join('');
 
@@ -597,12 +645,12 @@ function renderizarDashboard(d) {
   const alertaContainer = document.getElementById('dashAlertasAtraso');
   const alertas = d.alertas_atraso || [];
   alertaContainer.innerHTML = alertas.length === 0
-    ? '<p class="text-emerald-600 font-semibold">✅ Nenhum equipamento acima do SLA!</p>'
+    ? '<p class="text-emerald-600 dark:text-emerald-400 font-semibold">✅ Nenhum equipamento acima do SLA!</p>'
     : alertas.map(a => `
-      <button onclick="abrirItemDoDashboard(${a.id})" class="w-full text-left flex items-center justify-between p-2 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all">
+      <button onclick="abrirItemDoDashboard(${a.id})" class="w-full text-left flex items-center justify-between p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-800/70 transition-all">
         <div class="truncate pr-2">
-          <div class="font-bold text-rose-900 truncate">#${a.id} ${escapeHtml(a.equipamento)}</div>
-          <div class="text-[10px] text-rose-700 truncate">${escapeHtml(a.origem)} • ${escapeHtml(a.localizacao)}</div>
+          <div class="font-bold text-rose-900 dark:text-rose-200 truncate">#${a.id} ${escapeHtml(a.equipamento)}</div>
+          <div class="text-[10px] text-rose-700 dark:text-rose-300/80 truncate">${escapeHtml(a.origem)} • ${escapeHtml(a.localizacao)}</div>
         </div>
         <span class="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold shrink-0">${a.dias_pendente}d</span>
       </button>
@@ -660,22 +708,22 @@ function adicionarItemEntrada() {
   const index = cards.length + 1;
 
   const cardHtml = `
-    <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-        <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #${index}</span>
+    <div class="item-entrada-card bg-white dark:bg-[#1C1633] p-3 rounded-xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2 relative">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-800/70 pb-1.5">
+        <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 num-item-label">Item #${index}</span>
         <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold">🗑️ Remover</button>
       </div>
       <div>
-        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento *</label>
-        <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Monitor Dell 24">
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
+        <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: Monitor Dell 24">
       </div>
       <div>
-        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento *</label>
-        <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 654321">
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
+        <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 654321">
       </div>
       <div>
-        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
-        <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
+        <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
       </div>
     </div>
   `;
@@ -716,12 +764,11 @@ function alternarTab(tab) {
   document.getElementById('formEntradaContainer').classList.toggle('hidden', !isEntrada);
   document.getElementById('formSaidaContainer').classList.toggle('hidden', isEntrada);
 
-  document.getElementById('btnTabEntrada').className = isEntrada
-    ? 'py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200'
-    : 'py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800';
-  document.getElementById('btnTabSaida').className = !isEntrada
-    ? 'py-2 px-3 text-xs font-bold rounded-lg transition-all bg-white text-slate-800 shadow-sm border border-slate-200'
-    : 'py-2 px-3 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800';
+  const active = 'py-2 px-3 text-xs font-bold rounded-xl transition-all bg-violet-600 text-white shadow-sm';
+  const inactive = 'py-2 px-3 text-xs font-bold rounded-xl transition-all text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40';
+
+  document.getElementById('btnTabEntrada').className = isEntrada ? active : inactive;
+  document.getElementById('btnTabSaida').className = !isEntrada ? active : inactive;
 }
 
 function alternarCampoCusto() {
@@ -732,13 +779,13 @@ function alternarCampoCusto() {
     campo.value = '0.00';
   }
   campo.className = isComCusto
-    ? 'w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none transition-all bg-white text-slate-800'
-    : 'w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-400 outline-none transition-all';
+    ? 'w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white'
+    : 'w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-slate-50 dark:bg-[#120E21] text-slate-400 outline-none transition-all';
 }
 
 function atualizarBotoesFiltro(filtro) {
-  const activeClass = 'px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white rounded-md shadow-sm transition-all';
-  const inactiveClass = 'px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-100 transition-all';
+  const activeClass = 'px-2.5 py-1 text-[11px] font-bold bg-violet-600 text-white rounded-lg shadow-sm transition-all';
+  const inactiveClass = 'px-2.5 py-1 text-[11px] font-semibold bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-800 rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all';
 
   document.getElementById('btnFiltroPendentes').className = filtro === 'nao_finalizados' ? activeClass : inactiveClass;
   document.getElementById('btnFiltroEntregues').className = filtro === 'finalizados' ? activeClass : inactiveClass;
@@ -779,22 +826,22 @@ function limparFormularios() {
   }
 
   document.getElementById('listaItensEntrada').innerHTML = `
-    <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-        <span class="text-[11px] font-bold text-slate-600 num-item-label">Item #1</span>
+    <div class="item-entrada-card bg-white dark:bg-[#1C1633] p-3 rounded-xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2 relative">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-800/70 pb-1.5">
+        <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 num-item-label">Item #1</span>
         <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
       </div>
       <div>
-        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento *</label>
-        <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: Notebook Dell Vostro">
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
+        <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: Notebook Dell Vostro">
       </div>
       <div>
-        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento *</label>
-        <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" placeholder="Ex: 123456">
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
+        <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456">
       </div>
       <div>
-        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
-        <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
+        <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
       </div>
     </div>
   `;
@@ -810,7 +857,7 @@ function limparFormularios() {
   alternarCampoCusto();
 
   const badge = document.getElementById('badgeStatusSelecao');
-  badge.className = 'p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 flex items-center gap-2';
+  badge.className = 'p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-300 flex items-center gap-2';
   badge.innerText = '⚠️ Nenhum item selecionado na lista';
 
   document.getElementById('fichaConteudo').classList.add('hidden');
@@ -823,7 +870,7 @@ function destacarLinhaSelecionada() {
     const ehSelecionada = Number(tr.dataset.id) === registroSelecionadoId;
     tr.classList.toggle('ring-2', ehSelecionada);
     tr.classList.toggle('ring-inset', ehSelecionada);
-    tr.classList.toggle('ring-sky-400', ehSelecionada);
+    tr.classList.toggle('ring-violet-500', ehSelecionada);
   });
 }
 
@@ -898,7 +945,7 @@ function filtrarTabelaLocal() {
   tbody.innerHTML = '';
 
   if (filtrados.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400">Nenhum equipamento encontrado.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400 dark:text-violet-300/60">Nenhum equipamento encontrado.</td></tr>';
     return;
   }
 
@@ -911,8 +958,8 @@ function filtrarTabelaLocal() {
     const estaAtrasado = !isEntregue && diasPendente > slaDias;
 
     tr.className = estaAtrasado
-      ? 'bg-rose-50 hover:bg-rose-100/80 border-l-4 border-l-rose-500 cursor-pointer transition-colors border-b border-rose-100'
-      : 'hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100';
+      ? 'bg-rose-50/90 dark:bg-rose-950/35 hover:bg-rose-100/80 dark:hover:bg-rose-900/45 border-l-4 border-l-rose-500 cursor-pointer transition-colors border-b border-rose-100 dark:border-rose-900/50'
+      : 'hover:bg-violet-50/70 dark:hover:bg-[#1C1633] cursor-pointer transition-colors border-b border-violet-100 dark:border-violet-900/40';
 
     tr.onclick = (e) => {
       e.stopPropagation();
@@ -921,17 +968,17 @@ function filtrarTabelaLocal() {
 
     let badge = '';
     if (isEntregue) {
-      badge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Entregue</span>';
+      badge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">Entregue</span>';
     } else if (estaAtrasado) {
-      badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 text-rose-700 border border-rose-300">🚨 ${diasPendente} dias</span>`;
+      badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-700">🚨 ${diasPendente} dias</span>`;
     } else {
-      badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pendente (${diasPendente}d)</span>`;
+      badge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">Pendente (${diasPendente}d)</span>`;
     }
 
     tr.innerHTML = `
-      <td class="p-2.5 font-bold ${estaAtrasado ? 'text-rose-700' : 'text-slate-500'}">#${item.id}</td>
-      <td class="p-2.5 font-semibold ${estaAtrasado ? 'text-rose-900' : 'text-slate-800'}">${escapeHtml(item.equipamento)}</td>
-      <td class="p-2.5 ${estaAtrasado ? 'text-rose-700' : 'text-slate-600'}">${escapeHtml(item.tombamento || '-')}</td>
+      <td class="p-2.5 font-bold ${estaAtrasado ? 'text-rose-700 dark:text-rose-300' : 'text-violet-600 dark:text-violet-400'}">#${item.id}</td>
+      <td class="p-2.5 font-semibold ${estaAtrasado ? 'text-rose-900 dark:text-rose-100' : 'text-slate-800 dark:text-white'}">${escapeHtml(item.equipamento)}</td>
+      <td class="p-2.5 ${estaAtrasado ? 'text-rose-700 dark:text-rose-300' : 'text-slate-600 dark:text-violet-200'}">${escapeHtml(item.tombamento || '-')}</td>
       <td class="p-2.5">${badge}</td>
     `;
     tbody.appendChild(tr);
@@ -957,22 +1004,22 @@ async function selecionarItem(id) {
     definirLocalizacaoSelect(d.localizacao);
 
     document.getElementById('listaItensEntrada').innerHTML = `
-      <div class="item-entrada-card bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2 relative">
-        <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-          <span class="text-[11px] font-bold text-slate-600 num-item-label">Registro #${d.id}</span>
+      <div class="item-entrada-card bg-white dark:bg-[#1C1633] p-3 rounded-xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2 relative">
+        <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-800/70 pb-1.5">
+          <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 num-item-label">Registro #${d.id}</span>
           <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Equipamento *</label>
-          <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" value="${escapeHtml(d.equipamento || '')}">
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
+          <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" value="${escapeHtml(d.equipamento || '')}">
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tombamento *</label>
-          <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none" value="${escapeHtml(d.tombamento || '')}">
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
+          <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" value="${escapeHtml(d.tombamento || '')}">
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Problema Relatado</label>
-          <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-200 focus:border-sky-400 outline-none resize-none" rows="2">${escapeHtml(d.problema || '')}</textarea>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
+          <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2">${escapeHtml(d.problema || '')}</textarea>
         </div>
       </div>
     `;
@@ -993,10 +1040,10 @@ async function selecionarItem(id) {
 
     const badge = document.getElementById('badgeStatusSelecao');
     if (isEntregue) {
-      badge.className = 'p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs font-semibold text-emerald-700 flex items-center gap-2';
+      badge.className = 'p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2';
       badge.innerText = `✅ Item #${d.id} selecionado (Entregue)`;
     } else {
-      badge.className = 'p-3 bg-sky-50 border border-sky-100 rounded-lg text-xs font-semibold text-sky-700 flex items-center gap-2';
+      badge.className = 'p-3 bg-violet-50 dark:bg-violet-950/50 border border-violet-200 dark:border-violet-800 rounded-xl text-xs font-semibold text-violet-700 dark:text-violet-200 flex items-center gap-2';
       badge.innerText = `📦 Item #${d.id} selecionado para saída`;
     }
 
@@ -1006,15 +1053,15 @@ async function selecionarItem(id) {
 
     const fBadge = document.getElementById('f_badge_status');
     if (isEntregue) {
-      fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200';
+      fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700';
       fBadge.innerText = '✅ ENTREGUE';
     } else {
       const dias = calcularDiasPendente(d.data_coleta);
       if (dias > slaDias) {
-        fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-rose-50 text-rose-600 border border-rose-200';
+        fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-700';
         fBadge.innerText = `🚨 ATRASADO (${dias}d)`;
       } else {
-        fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-600 border border-amber-200';
+        fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700';
         fBadge.innerText = `⏳ PENDENTE (${dias}d)`;
       }
     }
@@ -1373,14 +1420,14 @@ async function carregarUsuariosEmpresa() {
       const tr = document.createElement('tr');
       const ehProprio = u.uid === sessaoAtual.user.uid;
       const statusBadge = u.ativo
-        ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Ativo</span>'
-        : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-500 border border-slate-200">Inativo</span>';
+        ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">Ativo</span>'
+        : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-700">Inativo</span>';
 
       tr.innerHTML = `
-        <td class="p-3 font-semibold text-slate-800">${escapeHtml(u.nome)} ${ehProprio ? '<span class="text-[10px] text-sky-600">(Você)</span>' : ''}</td>
-        <td class="p-3 text-slate-600">${escapeHtml(u.email)}</td>
+        <td class="p-3 font-semibold text-slate-800 dark:text-white">${escapeHtml(u.nome)} ${ehProprio ? '<span class="text-[10px] text-violet-600 dark:text-violet-400">(Você)</span>' : ''}</td>
+        <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(u.email)}</td>
         <td class="p-3">
-          <select ${ehProprio ? 'disabled' : ''} onchange="alterarPapelUsuario('${escapeHtml(u.uid)}', this.value)" class="px-2 py-1 text-xs border border-slate-200 rounded bg-white">
+          <select ${ehProprio ? 'disabled' : ''} onchange="alterarPapelUsuario('${escapeHtml(u.uid)}', this.value)" class="px-2 py-1 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430]">
             <option value="tecnico" ${u.role === 'tecnico' ? 'selected' : ''}>Técnico</option>
             <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrador</option>
           </select>
@@ -1388,7 +1435,7 @@ async function carregarUsuariosEmpresa() {
         <td class="p-3">${statusBadge}</td>
         <td class="p-3 text-right">
           ${ehProprio ? '' : `
-            <button onclick="alternarStatusUsuario('${escapeHtml(u.uid)}', ${!u.ativo})" class="px-2.5 py-1 text-[11px] font-semibold rounded border ${u.ativo ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}">
+            <button onclick="alternarStatusUsuario('${escapeHtml(u.uid)}', ${!u.ativo})" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg border ${u.ativo ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800 hover:bg-rose-100' : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'}">
               ${u.ativo ? 'Desativar' : 'Reativar'}
             </button>
           `}
@@ -1487,16 +1534,16 @@ function renderizarResultadoImportacao(data) {
     : `${data.importados ?? 0} registro(s) importado(s).`;
 
   const errosHtml = erros.length > 0
-    ? `<div class="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 space-y-1">
+    ? `<div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 space-y-1">
          <div class="font-bold">Avisos / linhas ignoradas (${erros.length}):</div>
          <ul class="list-disc pl-4 space-y-0.5">${erros.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
        </div>`
     : '';
 
   const amostraHtml = amostra.length > 0
-    ? `<div class="overflow-x-auto bg-white rounded-lg border border-slate-200">
+    ? `<div class="overflow-x-auto bg-white dark:bg-[#141024] rounded-xl border border-violet-200 dark:border-violet-800">
          <table class="w-full text-left text-[11px] border-collapse">
-           <thead class="bg-slate-100 text-slate-600 font-bold">
+           <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold">
              <tr>
                <th class="p-2">ID Orig.</th>
                <th class="p-2">Equipamento</th>
@@ -1506,15 +1553,15 @@ function renderizarResultadoImportacao(data) {
                <th class="p-2">Status</th>
              </tr>
            </thead>
-           <tbody class="divide-y divide-slate-100">
+           <tbody class="divide-y divide-violet-100 dark:divide-violet-900/50">
              ${amostra.map(item => `
                <tr>
-                 <td class="p-2 text-slate-500">${escapeHtml(item.id ?? '-')}</td>
-                 <td class="p-2 font-semibold text-slate-800">${escapeHtml(item.equipamento)}</td>
-                 <td class="p-2 text-slate-600">${escapeHtml(item.tombamento)}</td>
-                 <td class="p-2 text-slate-600">${escapeHtml(item.origem)}</td>
-                 <td class="p-2 text-slate-600">${escapeHtml(formatarDataBR(item.data_coleta))}</td>
-                 <td class="p-2 font-semibold">${escapeHtml(item.status)}</td>
+                 <td class="p-2 text-violet-600 dark:text-violet-400 font-semibold">${escapeHtml(item.id ?? '-')}</td>
+                 <td class="p-2 font-semibold text-slate-800 dark:text-white">${escapeHtml(item.equipamento)}</td>
+                 <td class="p-2 text-slate-600 dark:text-violet-200">${escapeHtml(item.tombamento)}</td>
+                 <td class="p-2 text-slate-600 dark:text-violet-200">${escapeHtml(item.origem)}</td>
+                 <td class="p-2 text-slate-600 dark:text-violet-200">${escapeHtml(formatarDataBR(item.data_coleta))}</td>
+                 <td class="p-2 font-semibold text-slate-800 dark:text-white">${escapeHtml(item.status)}</td>
                </tr>
              `).join('')}
            </tbody>
@@ -1524,8 +1571,8 @@ function renderizarResultadoImportacao(data) {
 
   box.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <span class="font-bold text-slate-800">${titulo}</span>
-      <span class="font-semibold text-sky-700">${escapeHtml(resumo)}</span>
+      <span class="font-bold text-slate-900 dark:text-white">${titulo}</span>
+      <span class="font-semibold text-violet-700 dark:text-violet-300">${escapeHtml(resumo)}</span>
     </div>
     ${errosHtml}
     ${amostraHtml}

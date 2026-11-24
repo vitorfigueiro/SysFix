@@ -42,7 +42,7 @@ class PDFReportGenerator:
             fontSize=14,
             leading=18,
             alignment=1,
-            textColor=colors.HexColor("#1E293B"),
+            textColor=colors.HexColor("#2E1065"),
             spaceAfter=10,
         )
 
@@ -51,7 +51,7 @@ class PDFReportGenerator:
             parent=styles["Normal"],
             fontSize=8,
             leading=10,
-            textColor=colors.HexColor("#64748B"),
+            textColor=colors.HexColor("#6B5E8E"),
             alignment=2,
         )
 
@@ -218,10 +218,10 @@ class PDFReportGenerator:
         t = Table(table_data, colWidths=col_widths, repeatRows=1)
 
         t_style = [
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E293B")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4C1D95")),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDD6FE")),
             ("TOPPADDING", (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ("LEFTPADDING", (0, 0), (-1, -1), 4),
@@ -234,7 +234,7 @@ class PDFReportGenerator:
                     "BACKGROUND",
                     (0, i),
                     (-1, i),
-                    colors.HexColor("#F8FAFC"),
+                    colors.HexColor("#F5F3FF"),
                 ))
 
         t.setStyle(TableStyle(t_style))

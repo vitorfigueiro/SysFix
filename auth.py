@@ -110,6 +110,13 @@ PERMISSIONS_CATALOG = [
         "default_tecnico": True,
     },
     {
+        "key": "ver_dashboard_entradas",
+        "setor": "ti",
+        "label": "Ver Dashboard de Entradas",
+        "descricao": "Visualizar indicadores de entradas de equipamentos, pendentes, SLA, localizações e evolução.",
+        "default_tecnico": True,
+    },
+    {
         "key": "registrar_entrada",
         "setor": "ti",
         "label": "Registrar Entradas",
@@ -310,6 +317,7 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
         "descricao": "O.S. de bancada, checklist, laudos e comprovante (sem Provedor, Estoque ou Custos).",
         "permissoes": {
             "ver_ti": True,
+            "ver_dashboard_entradas": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,
@@ -324,6 +332,7 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
         "descricao": "Comodato/CPEs, preventivas de POPs, assinantes, O.S. e baixa de estoque.",
         "permissoes": {
             "ver_ti": True,
+            "ver_dashboard_entradas": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,
@@ -351,6 +360,7 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
         "descricao": "Dashboard, custos, relatórios PDF e consulta geral (sem alterar O.S.).",
         "permissoes": {
             "ver_dashboard": True,
+            "ver_dashboard_entradas": True,
             "ver_custos": True,
             "exportar_pdf": True,
             "ver_ti": True,
@@ -363,6 +373,7 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
         "descricao": "TI, Provedor, Estoque (baixa) e Laudos sem visualização financeira.",
         "permissoes": {
             "ver_ti": True,
+            "ver_dashboard_entradas": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,
@@ -387,6 +398,7 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
         "descricao": "Auditoria de câmeras, infra, IoT, alarmes, O.S. de bancada e laudos.",
         "permissoes": {
             "ver_ti": True,
+            "ver_dashboard_entradas": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,

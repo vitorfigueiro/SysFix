@@ -237,6 +237,13 @@ def _filtrar_registro_por_permissao(
 def _filtrar_dashboard_por_permissao(
     dashboard: dict, current_user: dict[str, Any]
 ) -> dict:
+    tem_dash_exec = usuario_tem_permissao(current_user, "ver_dashboard")
+    if not tem_dash_exec:
+        dashboard["modo_entradas"] = True
+        dashboard.pop("por_tecnico", None)
+    else:
+        dashboard["modo_entradas"] = False
+
     if usuario_tem_permissao(current_user, "ver_custos"):
         dashboard["ocultar_custos"] = False
         return dashboard
@@ -843,7 +850,9 @@ def alterar_senha_usuario_api(
 def obter_dashboard(
     mes: Optional[int] = Query(None, ge=1, le=12),
     ano: Optional[int] = Query(None, ge=2000, le=2100),
-    current_user: dict[str, Any] = Depends(require_permission("ver_dashboard")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_dashboard", "ver_dashboard_entradas")
+    ),
 ):
     try:
         tenant = current_user["tenant"]

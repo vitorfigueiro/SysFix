@@ -513,6 +513,10 @@ function temAcessoSetorTI() {
   return setorEmpresaAtivo('ti') && temPermissao('ver_ti');
 }
 
+function temAcessoDashboardEntradas() {
+  return setorEmpresaAtivo('ti') && temPermissao('ver_dashboard_entradas');
+}
+
 function temAcessoSetorProvedor() {
   return setorEmpresaAtivo('provedor') && (
     temPermissao('ver_provedor') ||
@@ -553,7 +557,9 @@ function temAcessoSetorLaudos() {
 }
 
 function aplicarPermissoesNaUI() {
-  const podeDashboard = temPermissao('ver_dashboard');
+  const podeDashExec = temPermissao('ver_dashboard');
+  const podeDashEntradas = temAcessoDashboardEntradas();
+  const podeDashboard = podeDashExec || podeDashEntradas;
   const podeCustos = temPermissao('ver_custos');
   const podeTI = temAcessoSetorTI();
   const podeEntrar = podeTI && temPermissao('registrar_entrada');
@@ -604,6 +610,8 @@ function aplicarPermissoesNaUI() {
 
   setHidden('kpiCardCustoMes', !podeCustos);
   setHidden('dashBlocoProporcaoCusto', !podeCustos);
+  setHidden('dashCardRankingTecnicos', !podeDashExec);
+  setHidden('miniDashEntradas', !podeDashboard);
 
   setHidden('btnAdicionarItemEntrada', !podeEntrar);
   setHidden('btnSalvarEntrada', !podeEntrar);
@@ -726,7 +734,7 @@ function aplicarSessaoNaUI() {
   if (typeof sincronizarDatalistClientes === 'function' && setorEmpresaAtivo('provedor') && temPermissao('gerenciar_clientes_pops')) {
     sincronizarDatalistClientes();
   }
-  const primeiraVisao = temPermissao('ver_dashboard')
+  const primeiraVisao = (temPermissao('ver_dashboard') || temAcessoDashboardEntradas())
     ? 'dashboard'
     : (temAcessoSetorTI()
       ? 'equipamentos'
@@ -1014,6 +1022,15 @@ function renderizarDashboard(d) {
   document.getElementById('kpi_total_geral').textContent = `de ${r.total_registros ?? 0} registros`;
   document.getElementById('kpi_taxa').textContent = `${r.taxa_resolucao_percent ?? 0}%`;
   document.getElementById('kpi_tempo_medio').textContent = `${r.tempo_medio_resolucao_dias ?? 0}d`;
+  if (document.getElementById('miniDashPendentes')) {
+    document.getElementById('miniDashPendentes').textContent = r.total_pendentes ?? 0;
+    document.getElementById('miniDashAtrasados').textContent = r.total_atrasados ?? 0;
+    document.getElementById('miniDashEntregues').textContent = r.total_entregues ?? 0;
+  }
+  const cardTec = document.getElementById('dashCardRankingTecnicos');
+  if (cardTec) {
+    cardTec.classList.toggle('hidden', Boolean(d.modo_entradas || !temPermissao('ver_dashboard')));
+  }
   if (podeCustos) {
     document.getElementById('kpi_custo_mes').textContent = `R$ ${formatarMoedaBR(r.custo_total_mes)}`;
     document.getElementById('kpi_custo_geral').textContent = `Total: R$ ${formatarMoedaBR(r.custo_total_geral)}`;
@@ -1392,10 +1409,28 @@ async function carregarLista(filtro = filtroAtual) {
     listaEquipamentosCache = Array.isArray(dados) ? dados : [];
     atualizarDatalists(listaEquipamentosCache);
     filtrarTabelaLocal();
+    if (temPermissao('ver_dashboard') || temAcessoDashboardEntradas()) {
+      atualizarMiniDashEntradas();
+    }
   } catch (e) {
     console.error('Erro ao carregar lista:', e);
     mostrarToast('Não foi possível conectar ao servidor SysFix.', 'erro');
   }
+}
+
+async function atualizarMiniDashEntradas() {
+  if (!document.getElementById('miniDashEntradas')) return;
+  try {
+    const res = await apiFetch('/dashboard');
+    if (!res.ok) return;
+    const d = await res.json();
+    const r = d.resumo || {};
+    if (document.getElementById('miniDashPendentes')) {
+      document.getElementById('miniDashPendentes').textContent = r.total_pendentes ?? 0;
+      document.getElementById('miniDashAtrasados').textContent = r.total_atrasados ?? 0;
+      document.getElementById('miniDashEntregues').textContent = r.total_entregues ?? 0;
+    }
+  } catch (_) {}
 }
 
 function filtrarTabelaLocal() {
@@ -1934,6 +1969,7 @@ function obterCatalogoPermissoes() {
   if (permissionsCatalog.length > 0) return permissionsCatalog;
   return [
     { key: 'ver_ti', setor: 'ti', label: 'Acessar Bancada TI (O.S.)', descricao: 'Fila e ficha de TI', default_tecnico: true },
+    { key: 'ver_dashboard_entradas', setor: 'ti', label: 'Ver Dashboard de Entradas', descricao: 'Indicadores de entradas, pendentes e SLA', default_tecnico: true },
     { key: 'registrar_entrada', setor: 'ti', label: 'Registrar Entradas', descricao: 'Cadastrar novos itens', default_tecnico: true },
     { key: 'editar_entrada', setor: 'ti', label: 'Editar Entradas e Checklist', descricao: 'Alterar dados e checklist', default_tecnico: true },
     { key: 'registrar_saida', setor: 'ti', label: 'Dar Saída / Entregar', descricao: 'Finalizar O.S.', default_tecnico: true },
@@ -2014,13 +2050,13 @@ function obterMapaPreset(presetKey) {
     return rolePresets[presetKey].permissoes;
   }
   const fallback = {
-    tecnico_ti: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true },
-    tecnico_isp: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true },
+    tecnico_ti: { ver_ti: true, ver_dashboard_entradas: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true },
+    tecnico_isp: { ver_ti: true, ver_dashboard_entradas: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true },
     tecnico_automacao: { ver_automacao: true, gerenciar_automacao: true, ver_estoque: true, movimentar_estoque: true, acessar_criador_laudos: true, gerenciar_laudos: true, exportar_pdf: true },
     analista_cyber: { ver_ciberseguranca: true, gerenciar_auditoria_cyber: true, executar_auditoria_rede: true, ver_automacao: true, ver_dashboard: true, exportar_pdf: true },
     estoquista: { ver_estoque: true, movimentar_estoque: true, gerenciar_estoque: true },
-    financeiro_gestor: { ver_dashboard: true, ver_custos: true, exportar_pdf: true, ver_ti: true, ver_provedor: true, ver_estoque: true, ver_automacao: true, ver_ciberseguranca: true },
-    operacional_sem_custos: { ver_ti: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, ver_automacao: true, gerenciar_automacao: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
+    financeiro_gestor: { ver_dashboard: true, ver_dashboard_entradas: true, ver_custos: true, exportar_pdf: true, ver_ti: true, ver_provedor: true, ver_estoque: true, ver_automacao: true, ver_ciberseguranca: true },
+    operacional_sem_custos: { ver_ti: true, ver_dashboard_entradas: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, ver_automacao: true, gerenciar_automacao: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
   };
   return fallback[presetKey] || null;
 }

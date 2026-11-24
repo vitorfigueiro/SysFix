@@ -1759,6 +1759,84 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
             guard(tec_sem)
         self.assertEqual(ctx_403.exception.status_code, 403)
 
+    def test_dashboard_entradas_permissao_separada(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="DashEntradas Labs",
+                nome_usuario="Admin",
+                email="admin@dashentradas.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        me = app_module.obter_sessao_atual(admin)
+        cat_keys = {c["key"]: c for c in me["permissions_catalog"]}
+        self.assertIn("ver_dashboard_entradas", cat_keys)
+        self.assertEqual(cat_keys["ver_dashboard_entradas"]["setor"], "ti")
+        self.assertTrue(me["role_presets"]["tecnico_ti"]["permissoes"]["ver_dashboard_entradas"])
+
+        app_module.criar_entrada(
+            app_module.EntradaSchema(
+                equipamento="Switch 24p",
+                tombamento="SW-10",
+                tecnico="Admin",
+                data_coleta="24/11/2026",
+                origem="Matriz",
+                os_coleta="OS-10",
+                localizacao="Bancada TI",
+                problema="Sem link",
+            ),
+            current_user=admin,
+        )
+
+        # Técnico com ver_dashboard_entradas=True, sem ver_dashboard executivo e sem custos
+        perms_ent = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        perms_ent["ver_ti"] = True
+        perms_ent["ver_dashboard_entradas"] = True
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Técnico Dash Entradas",
+                email="entdash@dashentradas.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=perms_ent,
+            ),
+            current_user=admin,
+        )
+        tok_ent = app_module.login_usuario(
+            app_module.LoginSchema(email="entdash@dashentradas.com", senha="secret123")
+        )["token"]
+        tec_ent = app_module.get_current_user(f"Bearer {tok_ent}")
+
+        guard = app_module.require_any_permission("ver_dashboard", "ver_dashboard_entradas")
+        dash = app_module.obter_dashboard(mes=11, ano=2026, current_user=guard(tec_ent))
+        self.assertTrue(dash["modo_entradas"])
+        self.assertEqual(dash["resumo"]["total_pendentes"], 1)
+        self.assertNotIn("por_tecnico", dash)
+        self.assertNotIn("custo_total_mes", dash["resumo"])
+
+        # Técnico sem ver_dashboard e sem ver_dashboard_entradas -> 403
+        perms_no_dash = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        perms_no_dash["ver_ti"] = True
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Técnico Sem Dash",
+                email="semdash@dashentradas.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=perms_no_dash,
+            ),
+            current_user=admin,
+        )
+        tok_no = app_module.login_usuario(
+            app_module.LoginSchema(email="semdash@dashentradas.com", senha="secret123")
+        )["token"]
+        tec_no = app_module.get_current_user(f"Bearer {tok_no}")
+        with self.assertRaises(HTTPException) as ctx_403:
+            guard(tec_no)
+        self.assertEqual(ctx_403.exception.status_code, 403)
+
 
 class AutomationAndCyberSecurityTests(unittest.TestCase):
     def setUp(self):

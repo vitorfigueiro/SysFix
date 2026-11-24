@@ -47,7 +47,7 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/static/theme.css?v=2.6.0">
+  <link rel="stylesheet" href="/static/theme.css?v=2.7.0">
 </head>
 <body class="h-screen flex flex-col overflow-hidden relative bg-[#F6F4FC] dark:bg-[#0B0816] text-[#1C1635] dark:text-[#F4F1FF]">
 
@@ -476,18 +476,18 @@
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Origem *</label>
+              <div data-bancada-field="origem">
+                <label data-bancada-label="origem" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Origem *</label>
                 <input type="text" id="ent_origem" list="datalistOrigens" placeholder="Ex: Financeiro" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">O.S Coleta *</label>
+              <div data-bancada-field="os_coleta">
+                <label data-bancada-label="os_coleta" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">O.S Coleta *</label>
                 <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
             </div>
 
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Localização Inicial</label>
+            <div data-bancada-field="localizacao">
+              <label data-bancada-label="localizacao" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Localização Inicial</label>
               <select id="ent_loc" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430]">
                 <option value="Bancada TI">Bancada TI</option>
                 <option value="PlayLan">PlayLan</option>
@@ -507,8 +507,8 @@
                   <option value="Preventiva">Preventiva</option>
                 </select>
               </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Prioridade / SLA</label>
+              <div data-bancada-field="prioridade">
+                <label data-bancada-label="prioridade" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Prioridade / SLA</label>
                 <select id="ent_prioridade" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
                   <option value="Normal">Normal</option>
                   <option value="Baixa">Baixa</option>
@@ -540,8 +540,8 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI/ISP</label>
+                  <div data-bancada-field="categoria">
+                    <label data-bancada-label="categoria" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI/ISP</label>
                     <select class="ent_categoria w-full px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
                       <option value="">Geral</option>
                       <option value="ONU / ONT (Fibra)">ONU / ONT (Fibra)</option>
@@ -563,9 +563,16 @@
                       <option value="Outro">Outro</option>
                     </select>
                   </div>
-                  <div>
-                    <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
-                    <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456 ou S/N">
+                  <div data-bancada-field="tombamento">
+                    <label data-bancada-label="tombamento" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Identificação *</label>
+                    <div class="flex gap-1">
+                      <select onchange="alternarTipoTombamento(this)" class="ent_tipo_tomb px-1.5 py-1.5 text-[11px] font-semibold border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
+                        <option value="Tombamento">Tombamento</option>
+                        <option value="Sem tombamento">Sem tombamento</option>
+                        <option value="Serial">Serial</option>
+                      </select>
+                      <input type="text" class="ent_tomb flex-1 min-w-0 px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456">
+                    </div>
                   </div>
                 </div>
 
@@ -574,13 +581,15 @@
                   <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 48575443A1B2C3D4 ou AA:BB:CC:DD:EE:FF">
                 </div>
 
-                <div>
-                  <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
+                <div data-bancada-field="problema">
+                  <label data-bancada-label="problema" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
                   <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
                 </div>
               </div>
             </div>
           </div>
+
+          <div id="camposCustomEntradaContainer" class="space-y-2.5"></div>
 
           <div class="pt-2 space-y-2">
             <button id="btnSalvarEntrada" onclick="salvarEntrada()" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
@@ -614,8 +623,8 @@
               <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Data Entrega *</label>
               <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Laudado?</label>
+            <div data-bancada-field="laudado">
+              <label data-bancada-label="laudado" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Laudado?</label>
               <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430]">
                 <option value="Não">Não</option>
                 <option value="Sim">Sim</option>
@@ -637,15 +646,17 @@
             </div>
           </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Garantia do Serviço (dias)</label>
+          <div data-bancada-field="garantia">
+            <label data-bancada-label="garantia" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Garantia do Serviço (dias)</label>
             <input type="number" min="0" max="3650" id="sai_garantia" value="90" placeholder="Ex: 90 (0 = sem garantia)" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
           </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Serviço / Resolução</label>
+          <div data-bancada-field="resolucao">
+            <label data-bancada-label="resolucao" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Serviço / Resolução</label>
             <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all resize-none"></textarea>
           </div>
+
+          <div id="camposCustomSaidaContainer" class="space-y-2.5"></div>
 
           <button id="btnSalvarSaida" onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
             ✅ Finalizar &amp; Marcar Entregue
@@ -737,6 +748,12 @@
               <button id="btnNovoLaudoOs" type="button" onclick="abrirModalLaudo()" class="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold transition-all">
                 📋 Emitir Laudo
               </button>
+              <button id="btnResumoColetaOs" type="button" onclick="abrirResumoOsModal('coleta')" class="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 text-[11px] font-bold transition-all">
+                📥 Resumo Coleta
+              </button>
+              <button id="btnResumoEntregaOs" type="button" onclick="abrirResumoOsModal('entrega')" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold transition-all">
+                📤 Resumo Entrega
+              </button>
               <button id="btnComprovanteOs" type="button" onclick="baixarComprovanteOsPdf()" class="px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 text-[11px] font-bold transition-all">
                 📄 Comprovante PDF
               </button>
@@ -777,6 +794,7 @@
               <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Problema Relatado:</span>
               <p id="f_problema" class="text-xs bg-violet-50/70 dark:bg-[#1C1633] p-2.5 rounded-xl border border-violet-100 dark:border-violet-800/70 text-slate-700 dark:text-violet-100 mt-1 font-medium">---</p>
             </div>
+            <div id="fichaCamposCustomEntrada" class="grid sm:grid-cols-2 gap-2 text-xs"></div>
           </div>
 
           <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
@@ -794,6 +812,7 @@
               <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Serviço Realizado:</span>
               <p id="f_resolucao" class="text-xs bg-violet-50/70 dark:bg-[#1C1633] p-2.5 rounded-xl border border-violet-100 dark:border-violet-800/70 text-slate-700 dark:text-violet-100 mt-1 font-medium">---</p>
             </div>
+            <div id="fichaCamposCustomSaida" class="grid sm:grid-cols-2 gap-2 text-xs"></div>
           </div>
 
           <!-- Checklist Técnico de Bancada -->
@@ -1866,6 +1885,60 @@
           </div>
         </div>
 
+        <!-- Personalização Completa de Campos da Bancada TI (Admin) -->
+        <div id="blocoCamposBancada" class="lg:col-span-3 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">🧩 Campos Personalizáveis da Bancada TI (Entrada &amp; Saída)</h2>
+              <p class="text-xs text-slate-500 dark:text-violet-300/80">O administrador pode ocultar/exibir campos padrão, mudar rótulos, definir obrigatoriedade e adicionar ou remover novos campos na O.S.</p>
+            </div>
+            <button type="button" onclick="salvarCamposBancadaEmpresa()" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              💾 Salvar Campos da Bancada
+            </button>
+          </div>
+
+          <div class="grid lg:grid-cols-2 gap-5 text-xs">
+            <div class="space-y-2">
+              <span class="font-bold text-violet-800 dark:text-violet-200 uppercase text-[11px] block">Campos Padrão da Bancada</span>
+              <div id="listaCamposPadraoBancada" class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1"></div>
+            </div>
+
+            <div class="space-y-3">
+              <span class="font-bold text-violet-800 dark:text-violet-200 uppercase text-[11px] block">Adicionar / Remover Novos Campos</span>
+              <div class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
+                <div class="grid sm:grid-cols-3 gap-2">
+                  <input type="text" id="cf_novo_label" placeholder="Nome do campo * (Ex: Acessórios)" class="sm:col-span-2 px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
+                  <select id="cf_novo_secao" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none">
+                    <option value="entrada">Na Entrada / Coleta</option>
+                    <option value="saida">Na Saída / Entrega</option>
+                  </select>
+                </div>
+                <div class="grid sm:grid-cols-3 gap-2">
+                  <select id="cf_novo_tipo" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none">
+                    <option value="texto">Texto curto</option>
+                    <option value="textarea">Texto longo</option>
+                    <option value="numero">Número</option>
+                    <option value="select">Lista de opções</option>
+                    <option value="checkbox">Sim / Não (Checkbox)</option>
+                  </select>
+                  <input type="text" id="cf_novo_placeholder" placeholder="Dica/Placeholder (opcional)" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
+                  <input type="text" id="cf_novo_opcoes" placeholder="Opções (se lista: A, B, C)" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <label class="flex items-center gap-2 cursor-pointer text-[11px]">
+                    <input type="checkbox" id="cf_novo_obrig" class="rounded border-violet-300 text-violet-600">
+                    <span>Campo obrigatório</span>
+                  </label>
+                  <button type="button" onclick="adicionarCampoCustomBancada()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg">
+                    ➕ Adicionar Campo
+                  </button>
+                </div>
+              </div>
+              <div id="listaCamposCustomBancada" class="space-y-2 max-h-52 overflow-y-auto custom-scrollbar pr-1"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Importação e Backup de Dados -->
         <div id="blocoImportExport" class="lg:col-span-3 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
@@ -2334,9 +2407,32 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.6.0"></script>
-  <script src="/static/laudos_ops.js?v=2.6.0"></script>
-  <script src="/static/automation_cyber.js?v=2.6.0"></script>
-  <script src="/static/auth_security_ui.js?v=2.6.0"></script>
+  <!-- MODAL: RESUMO DE COLETA / ENTREGA PARA ANEXAR NA O.S. -->
+  <div id="modalResumoOs" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-xl shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-2.5">
+        <h3 id="resumoOsTitulo" class="text-sm font-extrabold text-slate-900 dark:text-white">📋 Resumo para Anexar na O.S.</h3>
+        <button type="button" onclick="fecharModalResumoOs()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
+      </div>
+      <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Copie o resumo abaixo para colar no seu sistema/ERP de O.S. ou baixe em arquivo <code>.txt</code> para anexar diretamente.</p>
+      <textarea id="resumoOsTexto" readonly rows="12" class="w-full px-3.5 py-3 text-xs font-mono border border-violet-200 dark:border-violet-800 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] text-slate-800 dark:text-violet-100 outline-none"></textarea>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="copiarResumoOsTexto()" class="flex-1 py-2.5 px-3 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+          📋 Copiar Resumo
+        </button>
+        <button type="button" onclick="baixarResumoOsTxt()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm">
+          ⬇️ Baixar .TXT
+        </button>
+        <button type="button" onclick="fecharModalResumoOs()" class="py-2.5 px-4 bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl border border-violet-200 dark:border-violet-800">
+          Fechar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=2.7.0"></script>
+  <script src="/static/laudos_ops.js?v=2.7.0"></script>
+  <script src="/static/automation_cyber.js?v=2.7.0"></script>
+  <script src="/static/auth_security_ui.js?v=2.7.0"></script>
 </body>
 </html>

@@ -57,6 +57,83 @@ DEFAULT_ACTIVE_SECTORS: dict[str, bool] = {
     "ciberseguranca": True,
 }
 
+DEFAULT_BANCADA_FIELDS: dict[str, Any] = {
+    "padrao": {
+        "categoria": {"label": "Categoria TI/ISP", "visivel": True, "obrigatorio": False},
+        "tombamento": {"label": "Tombamento / Serial", "visivel": True, "obrigatorio": True},
+        "localizacao": {"label": "Localização Inicial", "visivel": True, "obrigatorio": True},
+        "prioridade": {"label": "Prioridade / SLA", "visivel": True, "obrigatorio": False},
+        "problema": {"label": "Problema Relatado", "visivel": True, "obrigatorio": False},
+        "os_coleta": {"label": "O.S Coleta", "visivel": True, "obrigatorio": True},
+        "origem": {"label": "Origem / Cliente", "visivel": True, "obrigatorio": True},
+        "laudado": {"label": "Laudado?", "visivel": True, "obrigatorio": False},
+        "garantia": {"label": "Garantia do Serviço (dias)", "visivel": True, "obrigatorio": False},
+        "resolucao": {"label": "Serviço / Resolução", "visivel": True, "obrigatorio": False},
+    },
+    "personalizados": [],
+}
+
+
+def _normalizar_campos_bancada(raw: Any) -> dict[str, Any]:
+    padrao_out: dict[str, dict[str, Any]] = {}
+    raw_padrao = raw.get("padrao") if isinstance(raw, dict) else {}
+    if not isinstance(raw_padrao, dict):
+        raw_padrao = {}
+
+    for key, cfg_def in DEFAULT_BANCADA_FIELDS["padrao"].items():
+        item = raw_padrao.get(key)
+        if isinstance(item, dict):
+            lbl = SecurityValidator.sanitizar_texto(item.get("label"))[:50] or cfg_def["label"]
+            vis = bool(item.get("visivel", cfg_def["visivel"]))
+            obrig = bool(item.get("obrigatorio", cfg_def["obrigatorio"])) if vis else False
+            padrao_out[key] = {"label": lbl, "visivel": vis, "obrigatorio": obrig}
+        else:
+            padrao_out[key] = dict(cfg_def)
+
+    custom_out: list[dict[str, Any]] = []
+    raw_custom = raw.get("personalizados") if isinstance(raw, dict) else []
+    if isinstance(raw_custom, list):
+        vistos: set[str] = set()
+        for entry in raw_custom[:25]:
+            if not isinstance(entry, dict):
+                continue
+            label = SecurityValidator.sanitizar_texto(entry.get("label"))[:60]
+            if not label:
+                continue
+            cid_raw = SecurityValidator.sanitizar_texto(entry.get("id"))
+            cid = re.sub(r"[^a-zA-Z0-9_]", "_", cid_raw).strip("_").lower()[:40]
+            if not cid:
+                cid = re.sub(r"[^a-zA-Z0-9_]", "_", label).strip("_").lower()[:32] or f"campo_{len(custom_out)+1}"
+            if cid in vistos:
+                cid = f"{cid[:32]}_{len(custom_out)+1}"
+            vistos.add(cid)
+
+            secao = str(entry.get("secao") or "entrada").strip().lower()
+            if secao not in {"entrada", "saida"}:
+                secao = "entrada"
+            tipo = str(entry.get("tipo") or "texto").strip().lower()
+            if tipo not in {"texto", "textarea", "numero", "select", "checkbox"}:
+                tipo = "texto"
+            opcoes_raw = entry.get("opcoes")
+            if isinstance(opcoes_raw, str):
+                opcoes = [SecurityValidator.sanitizar_texto(o)[:60] for o in opcoes_raw.split(",") if SecurityValidator.sanitizar_texto(o)]
+            elif isinstance(opcoes_raw, list):
+                opcoes = [SecurityValidator.sanitizar_texto(o)[:60] for o in opcoes_raw if SecurityValidator.sanitizar_texto(o)]
+            else:
+                opcoes = []
+
+            custom_out.append({
+                "id": cid,
+                "label": label,
+                "secao": secao,
+                "tipo": tipo,
+                "opcoes": opcoes[:20],
+                "obrigatorio": bool(entry.get("obrigatorio", False)),
+                "placeholder": SecurityValidator.sanitizar_texto(entry.get("placeholder"))[:80],
+            })
+
+    return {"padrao": padrao_out, "personalizados": custom_out}
+
 PERMISSION_SECTORS = [
     {
         "key": "ti",
@@ -621,6 +698,7 @@ def sanitizar_tenant(tenant: dict) -> dict:
         "localizacoes": list(tenant.get("localizacoes") or DEFAULT_LOCATIONS),
         "setores_ativos": setores,
         "exigir_mfa_equipe": bool(tenant.get("exigir_mfa_equipe", False)),
+        "campos_bancada": _normalizar_campos_bancada(tenant.get("campos_bancada")),
         "cyber_governanca": gov,
         "cnpj": tenant.get("cnpj", ""),
         "telefone": tenant.get("telefone", ""),
@@ -921,6 +999,7 @@ class AuthService:
             "localizacoes": list(DEFAULT_LOCATIONS),
             "setores_ativos": dict(DEFAULT_ACTIVE_SECTORS),
             "exigir_mfa_equipe": False,
+            "campos_bancada": _normalizar_campos_bancada(None),
             "cyber_governanca": {
                 "permitir_auditoria_rede": False,
                 "escopo_autorizado": [],
@@ -1533,6 +1612,7 @@ class AuthService:
         localizacoes: list[str] | None = None,
         setores_ativos: dict[str, Any] | None = None,
         exigir_mfa_equipe: bool | None = None,
+        campos_bancada: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
             raise AuthorizationError(
@@ -1559,6 +1639,9 @@ class AuthService:
 
         if exigir_mfa_equipe is not None:
             updates["exigir_mfa_equipe"] = bool(exigir_mfa_equipe)
+
+        if campos_bancada is not None:
+            updates["campos_bancada"] = _normalizar_campos_bancada(campos_bancada)
 
         if not updates:
             tenant = self.user_store.get_tenant(admin_ctx["tenant_id"])

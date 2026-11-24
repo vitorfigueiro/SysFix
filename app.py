@@ -357,6 +357,7 @@ class TenantSettingsSchema(BaseModel):
     localizacoes: Optional[List[str]] = None
     setores_ativos: Optional[dict[str, bool]] = None
     exigir_mfa_equipe: Optional[bool] = None
+    campos_bancada: Optional[dict[str, Any]] = None
 
 
 class ImportarDadosSchema(BaseModel):
@@ -518,6 +519,7 @@ class CyberConhecimentoSchema(BaseModel):
 
 class EntradaSchema(BaseModel):
     equipamento: Optional[str] = ""
+    tipo_tombamento: Optional[str] = "Tombamento"
     tombamento: Optional[str] = ""
     tecnico: Optional[str] = ""
     tecnico_coleta: Optional[str] = ""
@@ -532,6 +534,7 @@ class EntradaSchema(BaseModel):
     prioridade: Optional[str] = ""
     garantia_dias: Optional[int] = 0
     checklist: Optional[List[Any]] = None
+    campos_personalizados: Optional[dict[str, Any]] = None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -559,6 +562,7 @@ class SaidaSchema(BaseModel):
     resolucao: Optional[str] = ""
     laudado: Optional[str] = "Não"
     garantia_dias: Optional[int] = None
+    campos_personalizados: Optional[dict[str, Any]] = None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -941,6 +945,52 @@ def obter_equipamento(
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
+@app.get("/api/equipamentos/{registro_id}/resumo")
+def obter_resumo_os_api(
+    registro_id: int,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    reg = ColetaModel.buscar_por_id(
+        registro_id, tenant_id=current_user["tenant_id"]
+    )
+    if not reg:
+        raise HTTPException(
+            status_code=404, detail=obter_mensagem_erro("NOT_FOUND")
+        )
+    tenant = current_user.get("tenant") or {}
+    campos_cfg = tenant.get("campos_bancada")
+    tenant_nome = tenant.get("nome") or ""
+    ocultar_custos = not usuario_tem_permissao(current_user, "ver_custos")
+
+    resumo_coleta = reg.get("resumo_coleta") or ColetaModel.gerar_resumo_coleta(
+        reg, tenant_nome=tenant_nome, campos_config=campos_cfg
+    )
+    tem_entrega = (
+        str(reg.get("status") or "").lower() in {"entregue", "finalizado"}
+        or bool(reg.get("tecnico_entrega"))
+        or bool(reg.get("data_entrega"))
+    )
+    resumo_entrega = (
+        ColetaModel.gerar_resumo_entrega(
+            reg,
+            tenant_nome=tenant_nome,
+            ocultar_custos=ocultar_custos,
+            campos_config=campos_cfg,
+        )
+        if tem_entrega
+        else ""
+    )
+    resumo_completo = (
+        f"{resumo_coleta}\n\n{resumo_entrega}" if resumo_entrega else resumo_coleta
+    )
+    return {
+        "registro_id": registro_id,
+        "resumo_coleta": resumo_coleta,
+        "resumo_entrega": resumo_entrega,
+        "resumo_completo": resumo_completo,
+    }
+
+
 @app.post("/api/equipamentos")
 def criar_entrada(
     payload: Union[EntradaSchema, List[EntradaSchema]],
@@ -948,8 +998,11 @@ def criar_entrada(
 ):
     """Endpoint flexível: aceita um único objeto de entrada ou uma lista em lote."""
     tenant_id = current_user["tenant_id"]
+    tenant = current_user["tenant"]
+    tenant_nome = tenant.get("nome") or ""
+    campos_cfg = tenant.get("campos_bancada")
     actor = current_user.get("nome") or current_user.get("email") or ""
-    allowed_locations = current_user["tenant"].get("localizacoes")
+    allowed_locations = tenant.get("localizacoes")
 
     try:
         if isinstance(payload, list):
@@ -964,19 +1017,31 @@ def criar_entrada(
                 tenant_id=tenant_id,
                 actor=actor,
                 allowed_locations=allowed_locations,
-                default_checklist=current_user["tenant"].get("checklist_padrao"),
+                default_checklist=tenant.get("checklist_padrao"),
+                campos_config=campos_cfg,
+                tenant_nome=tenant_nome,
             )
+            resumos = []
+            for rid in ids_criados:
+                reg = ColetaModel.buscar_por_id(rid, tenant_id=tenant_id)
+                if reg:
+                    resumos.append(
+                        ColetaModel.gerar_resumo_coleta(
+                            reg, tenant_nome=tenant_nome, campos_config=campos_cfg
+                        )
+                    )
 
             return {
                 "sucesso": True,
                 "ids": ids_criados,
+                "resumo_coleta": "\n\n".join(resumos),
                 "mensagem": f"{len(ids_criados)} entrada(s) registrada(s) com sucesso.",
             }
 
         checklist_inicial = (
             payload.checklist
             if payload.checklist is not None
-            else current_user["tenant"].get("checklist_padrao")
+            else tenant.get("checklist_padrao")
         )
         novo_id = ColetaModel.registrar_entrada(
             equipamento=payload.equipamento,
@@ -996,10 +1061,18 @@ def criar_entrada(
             prioridade=payload.prioridade or "",
             garantia_dias=payload.garantia_dias or 0,
             checklist=checklist_inicial,
+            tipo_tombamento=payload.tipo_tombamento or "Tombamento",
+            campos_personalizados=payload.campos_personalizados,
+            campos_config=campos_cfg,
+            tenant_nome=tenant_nome,
         )
+        reg = ColetaModel.buscar_por_id(novo_id, tenant_id=tenant_id) or {}
         return {
             "sucesso": True,
             "id": novo_id,
+            "resumo_coleta": ColetaModel.gerar_resumo_coleta(
+                reg, tenant_nome=tenant_nome, campos_config=campos_cfg
+            ),
             "mensagem": "Entrada registrada com sucesso.",
         }
 
@@ -1041,6 +1114,9 @@ def registrar_saida(
     current_user: dict[str, Any] = Depends(require_permission("registrar_saida")),
 ):
     try:
+        tenant = current_user["tenant"]
+        tenant_nome = tenant.get("nome") or ""
+        campos_cfg = tenant.get("campos_bancada")
         valor_informado = (
             payload.valor_custo
             if payload.valor_custo is not None
@@ -1061,13 +1137,31 @@ def registrar_saida(
             tenant_id=current_user["tenant_id"],
             actor=current_user.get("nome") or current_user.get("email") or "",
             garantia_dias=payload.garantia_dias,
+            campos_personalizados=payload.campos_personalizados,
+            campos_config=campos_cfg,
+            tenant_nome=tenant_nome,
         )
         if not atualizado:
             raise HTTPException(
                 status_code=404, detail=obter_mensagem_erro("NOT_FOUND")
             )
+        reg = ColetaModel.buscar_por_id(
+            registro_id, tenant_id=current_user["tenant_id"]
+        ) or {}
+        ocultar_custos = not usuario_tem_permissao(current_user, "ver_custos")
+        resumo_entrega = ColetaModel.gerar_resumo_entrega(
+            reg,
+            tenant_nome=tenant_nome,
+            ocultar_custos=ocultar_custos,
+            campos_config=campos_cfg,
+        )
+        resumo_coleta = reg.get("resumo_coleta") or ColetaModel.gerar_resumo_coleta(
+            reg, tenant_nome=tenant_nome, campos_config=campos_cfg
+        )
         return {
             "sucesso": True,
+            "resumo_coleta": resumo_coleta,
+            "resumo_entrega": resumo_entrega,
             "mensagem": "Saída/Entrega registrada com sucesso.",
         }
     except HTTPException:
@@ -1124,6 +1218,9 @@ def atualizar_equipamento_unificado(
                 tenant_id=tenant_id,
                 actor=actor,
                 garantia_dias=saida_data.garantia_dias,
+                campos_personalizados=saida_data.campos_personalizados,
+                campos_config=current_user["tenant"].get("campos_bancada"),
+                tenant_nome=current_user["tenant"].get("nome") or "",
             )
             if not atualizado:
                 raise HTTPException(
@@ -1158,6 +1255,10 @@ def atualizar_equipamento_unificado(
             tipo_fluxo=entrada_data.tipo_fluxo if "tipo_fluxo" in payload else None,
             prioridade=entrada_data.prioridade if "prioridade" in payload else None,
             garantia_dias=entrada_data.garantia_dias if "garantia_dias" in payload else None,
+            tipo_tombamento=entrada_data.tipo_tombamento if "tipo_tombamento" in payload else None,
+            campos_personalizados=entrada_data.campos_personalizados if "campos_personalizados" in payload else None,
+            campos_config=current_user["tenant"].get("campos_bancada"),
+            tenant_nome=current_user["tenant"].get("nome") or "",
         )
         if not atualizado:
             raise HTTPException(
@@ -1296,6 +1397,7 @@ def atualizar_configuracoes_empresa(
             localizacoes=payload.localizacoes,
             setores_ativos=payload.setores_ativos,
             exigir_mfa_equipe=payload.exigir_mfa_equipe,
+            campos_bancada=payload.campos_bancada,
         )
         return {"sucesso": True, "tenant": tenant}
     except AuthorizationError as aze:

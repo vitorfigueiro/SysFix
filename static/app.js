@@ -222,6 +222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (typeof fecharModalMovEstoque === 'function') fecharModalMovEstoque();
       if (typeof fecharModalHistoricoEstoque === 'function') fecharModalHistoricoEstoque();
       if (typeof fecharModalMinhaSeguranca === 'function') fecharModalMinhaSeguranca();
+      if (typeof fecharModalResumoOs === 'function') fecharModalResumoOs();
     }
   });
 
@@ -637,8 +638,12 @@ function aplicarPermissoesNaUI() {
 
   setHidden('blocoConfigEmpresa', !podeEquipe);
   setHidden('blocoEquipeEmpresa', !podeEquipe);
+  setHidden('blocoCamposBancada', !podeEquipe);
   setHidden('blocoModelosLaudoEmpresa', !podeModelos && !podeEquipe);
   setHidden('blocoImportExport', !podeBackup);
+  if (typeof aplicarConfigCamposBancadaNaUI === 'function') {
+    aplicarConfigCamposBancadaNaUI();
+  }
 
   setHidden('blocoEntradaProvedor', !podeVerProvedorCampos);
   setHidden('fichaBlocoProvedor', !podeVerProvedorCampos);
@@ -1181,6 +1186,18 @@ function calcularDiasPendente(dataStr) {
 
 function criarCardHtmlEntrada(labelTitulo, dados = {}, mostrarRemover = true) {
   const cat = dados.categoria || '';
+  const tipoTomb = dados.tipo_tombamento || 'Tombamento';
+  const semTomb = tipoTomb === 'Sem tombamento';
+  const cfgPadrao = obterConfigCamposBancada().padrao || {};
+  const vis = (k) => cfgPadrao[k]?.visivel !== false;
+  const lblTxt = (k, fallback) => {
+    const base = cfgPadrao[k]?.label || fallback;
+    return cfgPadrao[k]?.obrigatorio ? `${base} *` : base;
+  };
+  const tombPlaceholder = tipoTomb === 'Serial'
+    ? 'Ex: S/N 48575443...'
+    : (semTomb ? 'Sem tombamento' : 'Ex: 123456');
+
   const optsCat = [
     ['', 'Geral'],
     ['ONU / ONT (Fibra)', 'ONU / ONT (Fibra)'],
@@ -1213,21 +1230,28 @@ function criarCardHtmlEntrada(labelTitulo, dados = {}, mostrarRemover = true) {
         <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: ONU Huawei HG8145V5 / Notebook" value="${escapeHtml(dados.equipamento || '')}">
       </div>
       <div class="grid grid-cols-2 gap-2">
-        <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI/ISP</label>
+        <div data-bancada-field="categoria" class="${vis('categoria') ? '' : 'hidden'}">
+          <label data-bancada-label="categoria" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">${escapeHtml(lblTxt('categoria', 'Categoria TI/ISP'))}</label>
           <select class="ent_categoria w-full px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">${optsCat}</select>
         </div>
-        <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento *</label>
-          <input type="text" class="ent_tomb w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456 ou S/N" value="${escapeHtml(dados.tombamento || '')}">
+        <div data-bancada-field="tombamento" class="${vis('tombamento') ? '' : 'hidden'}">
+          <label data-bancada-label="tombamento" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">${escapeHtml(lblTxt('tombamento', 'Identificação'))}</label>
+          <div class="flex gap-1">
+            <select onchange="alternarTipoTombamento(this)" class="ent_tipo_tomb px-1.5 py-1.5 text-[11px] font-semibold border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
+              <option value="Tombamento" ${tipoTomb === 'Tombamento' ? 'selected' : ''}>Tombamento</option>
+              <option value="Sem tombamento" ${semTomb ? 'selected' : ''}>Sem tombamento</option>
+              <option value="Serial" ${tipoTomb === 'Serial' ? 'selected' : ''}>Serial</option>
+            </select>
+            <input type="text" ${semTomb ? 'disabled' : ''} class="ent_tomb flex-1 min-w-0 px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="${tombPlaceholder}" value="${escapeHtml(semTomb ? 'Sem tombamento' : (dados.tombamento || ''))}">
+          </div>
         </div>
       </div>
       <div class="bloco-serial-provedor p-2 rounded-lg bg-violet-50/70 dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800/70 ${typeof temPermissao === 'function' && setorEmpresaAtivo('provedor') && temPermissao('ver_provedor') ? '' : 'hidden'}">
         <label class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">📡 Serial / MAC / GPON SN (Provedor &amp; Ativos)</label>
         <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 48575443A1B2C3D4 ou AA:BB:CC:DD:EE:FF" value="${escapeHtml(dados.serial_mac || '')}">
       </div>
-      <div>
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
+      <div data-bancada-field="problema" class="${vis('problema') ? '' : 'hidden'}">
+        <label data-bancada-label="problema" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">${escapeHtml(lblTxt('problema', 'Problema Relatado'))}</label>
         <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha...">${escapeHtml(dados.problema || '')}</textarea>
       </div>
     </div>
@@ -1350,6 +1374,10 @@ function limparFormularios() {
   document.getElementById('sai_valor').value = '0.00';
   document.getElementById('sai_resolucao').value = '';
   alternarCampoCusto();
+  if (typeof preencherCamposCustomFormulario === 'function') {
+    preencherCamposCustomFormulario('entrada', {});
+    preencherCamposCustomFormulario('saida', {});
+  }
 
   const badge = document.getElementById('badgeStatusSelecao');
   badge.className = 'p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-300 flex items-center gap-2';
@@ -1568,7 +1596,10 @@ async function selecionarItem(id) {
         : 'px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200');
 
     document.getElementById('f_equipamento').innerText = d.equipamento || '---';
-    document.getElementById('f_tombamento').innerText = `Tombamento: ${d.tombamento || '---'}`;
+    const tipoTombLabel = d.tipo_tombamento === 'Sem tombamento'
+      ? 'Identificação: Sem tombamento'
+      : `${d.tipo_tombamento || 'Tombamento'}: ${d.tombamento || '---'}`;
+    document.getElementById('f_tombamento').innerText = tipoTombLabel;
 
     const fBadge = document.getElementById('f_badge_status');
     if (isEntregue) {
@@ -1612,6 +1643,12 @@ async function selecionarItem(id) {
     if (typeof renderizarExtrasFicha === 'function') renderizarExtrasFicha(d);
     if (typeof renderizarChecklistFicha === 'function') renderizarChecklistFicha(d);
     if (typeof renderizarLaudosFicha === 'function') renderizarLaudosFicha(d);
+    if (typeof preencherCamposCustomFormulario === 'function') {
+      preencherCamposCustomFormulario('entrada', d.campos_personalizados || {});
+      preencherCamposCustomFormulario('saida', d.campos_personalizados || {});
+      renderizarCamposCustomNaFicha('fichaCamposCustomEntrada', 'entrada', d.campos_personalizados || {});
+      renderizarCamposCustomNaFicha('fichaCamposCustomSaida', 'saida', d.campos_personalizados || {});
+    }
 
     document.getElementById('fichaVazia').classList.add('hidden');
     document.getElementById('fichaConteudo').classList.remove('hidden');
@@ -1634,16 +1671,21 @@ async function salvarEntrada() {
 
   const cards = document.querySelectorAll('.item-entrada-card');
   const itensParaSalvar = [];
+  const customEntrada = typeof coletarCamposCustomFormulario === 'function'
+    ? coletarCamposCustomFormulario('entrada')
+    : {};
 
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i];
     const equip = card.querySelector('.ent_equip').value.trim();
     const categoria = card.querySelector('.ent_categoria') ? card.querySelector('.ent_categoria').value : '';
-    const tomb = card.querySelector('.ent_tomb').value.trim();
+    const tipoTomb = card.querySelector('.ent_tipo_tomb') ? card.querySelector('.ent_tipo_tomb').value : 'Tombamento';
+    const tombRaw = card.querySelector('.ent_tomb').value.trim();
+    const tomb = tipoTomb === 'Sem tombamento' ? 'Sem tombamento' : tombRaw;
     const serialMac = card.querySelector('.ent_serial') ? card.querySelector('.ent_serial').value.trim() : '';
     const prob = card.querySelector('.ent_prob').value.trim();
 
-    if (!equip && (tomb || prob || serialMac)) {
+    if (!equip && ((tipoTomb !== 'Sem tombamento' && tomb) || prob || serialMac)) {
       mostrarToast(`Item #${i + 1}: preencha o nome do equipamento.`, 'erro');
       return;
     }
@@ -1652,6 +1694,7 @@ async function salvarEntrada() {
       itensParaSalvar.push({
         equipamento: equip,
         categoria,
+        tipo_tombamento: tipoTomb,
         tombamento: tomb,
         serial_mac: serialMac,
         tipo_fluxo: tipoFluxo,
@@ -1661,7 +1704,8 @@ async function salvarEntrada() {
         origem,
         os_coleta: osColeta,
         localizacao,
-        problema: prob
+        problema: prob,
+        campos_personalizados: customEntrada
       });
     }
   }
@@ -1690,6 +1734,9 @@ async function salvarEntrada() {
     mostrarToast(resultado.mensagem || 'Entrada registrada com sucesso!', 'sucesso');
     limparFormularios();
     carregarLista();
+    if (resultado.resumo_coleta && typeof abrirResumoOsModal === 'function') {
+      abrirResumoOsModal('coleta', resultado.resumo_coleta);
+    }
   } catch (e) {
     console.error('Erro ao salvar entrada:', e);
     mostrarToast('Falha na conexão ao tentar registrar entrada.', 'erro');
@@ -1709,13 +1756,19 @@ async function atualizarEntradaAdmin() {
   const card = document.querySelector('.item-entrada-card');
   const equip = card ? card.querySelector('.ent_equip').value.trim() : '';
   const categoria = card && card.querySelector('.ent_categoria') ? card.querySelector('.ent_categoria').value : '';
-  const tomb = card ? card.querySelector('.ent_tomb').value.trim() : '';
+  const tipoTomb = card && card.querySelector('.ent_tipo_tomb') ? card.querySelector('.ent_tipo_tomb').value : 'Tombamento';
+  const tombRaw = card ? card.querySelector('.ent_tomb').value.trim() : '';
+  const tomb = tipoTomb === 'Sem tombamento' ? 'Sem tombamento' : tombRaw;
   const serialMac = card && card.querySelector('.ent_serial') ? card.querySelector('.ent_serial').value.trim() : '';
   const prob = card ? card.querySelector('.ent_prob').value.trim() : '';
+  const customEntrada = typeof coletarCamposCustomFormulario === 'function'
+    ? coletarCamposCustomFormulario('entrada')
+    : {};
 
   const payload = {
     equipamento: equip,
     categoria,
+    tipo_tombamento: tipoTomb,
     tombamento: tomb,
     serial_mac: serialMac,
     tipo_fluxo: document.getElementById('ent_fluxo').value,
@@ -1725,7 +1778,8 @@ async function atualizarEntradaAdmin() {
     origem: document.getElementById('ent_origem').value.trim(),
     os_coleta: document.getElementById('ent_os').value.trim(),
     localizacao: document.getElementById('ent_loc').value,
-    problema: prob
+    problema: prob,
+    campos_personalizados: customEntrada
   };
 
   if (!payload.equipamento) {
@@ -1773,6 +1827,9 @@ async function salvarSaida() {
     : 0.0;
 
   const garantiaVal = Number.parseInt(document.getElementById('sai_garantia').value, 10);
+  const customSaida = typeof coletarCamposCustomFormulario === 'function'
+    ? coletarCamposCustomFormulario('saida')
+    : {};
   const payload = {
     tecnico_entrega: document.getElementById('sai_tec').value.trim(),
     os_entrega: document.getElementById('sai_os').value.trim(),
@@ -1781,7 +1838,8 @@ async function salvarSaida() {
     garantia_dias: Number.isFinite(garantiaVal) && garantiaVal >= 0 ? garantiaVal : 0,
     status_custo: statusCusto,
     valor_custo: valorNumerico,
-    resolucao: document.getElementById('sai_resolucao').value.trim()
+    resolucao: document.getElementById('sai_resolucao').value.trim(),
+    campos_personalizados: customSaida
   };
 
   const btn = document.getElementById('btnSalvarSaida');
@@ -1799,9 +1857,13 @@ async function salvarSaida() {
       return;
     }
 
+    const resultado = await res.json();
     mostrarToast(`Saída finalizada! Item #${registroSelecionadoId} marcado como Entregue.`, 'sucesso');
     limparFormularios();
     carregarLista();
+    if (resultado.resumo_entrega && typeof abrirResumoOsModal === 'function') {
+      abrirResumoOsModal('entrega', resultado.resumo_entrega);
+    }
   } catch (e) {
     console.error('Erro ao registrar saída:', e);
     mostrarToast('Falha de conexão ao registrar a saída do item.', 'erro');
@@ -1944,6 +2006,7 @@ async function carregarTelaEmpresa() {
       document.getElementById('emp_exigir_mfa').checked = Boolean(tenant.exigir_mfa_equipe);
     }
     renderizarCheckboxesPermissoesNovoMembro();
+    if (typeof carregarEditorCamposBancada === 'function') carregarEditorCamposBancada();
     await carregarUsuariosEmpresa();
   }
   if ((temPermissao('gerenciar_modelos') || temPermissao('gerenciar_equipe')) && typeof carregarBrandingEModelosNaUI === 'function') {
@@ -2459,4 +2522,314 @@ function baixarModeloImportacao(formato) {
 function exportarDadosEmpresa(formato) {
   const nome = formato === 'csv' ? 'backup_sysfix.csv' : 'backup_sysfix.json';
   baixarArquivoAutenticado(`/empresa/exportar?formato=${encodeURIComponent(formato)}`, nome);
+}
+
+// ==============================================================================
+// TOMBAMENTO FLEXÍVEL, CAMPOS CONFIGURÁVEIS & RESUMOS DE COLETA / ENTREGA
+// ==============================================================================
+
+const BANCADA_DEFAULT_PADRAO = {
+  categoria: { label: 'Categoria TI/ISP', visivel: true, obrigatorio: false },
+  tombamento: { label: 'Tombamento / Serial', visivel: true, obrigatorio: true },
+  localizacao: { label: 'Localização Inicial', visivel: true, obrigatorio: true },
+  prioridade: { label: 'Prioridade / SLA', visivel: true, obrigatorio: false },
+  problema: { label: 'Problema Relatado', visivel: true, obrigatorio: false },
+  os_coleta: { label: 'O.S Coleta', visivel: true, obrigatorio: true },
+  origem: { label: 'Origem / Cliente', visivel: true, obrigatorio: true },
+  laudado: { label: 'Laudado?', visivel: true, obrigatorio: false },
+  garantia: { label: 'Garantia do Serviço (dias)', visivel: true, obrigatorio: false },
+  resolucao: { label: 'Serviço / Resolução', visivel: true, obrigatorio: false },
+};
+
+let camposBancadaDraft = { padrao: { ...BANCADA_DEFAULT_PADRAO }, personalizados: [] };
+
+function obterConfigCamposBancada() {
+  const raw = sessaoAtual?.tenant?.campos_bancada;
+  const padrao = {};
+  for (const [k, def] of Object.entries(BANCADA_DEFAULT_PADRAO)) {
+    const item = raw?.padrao?.[k];
+    padrao[k] = item
+      ? {
+          label: item.label || def.label,
+          visivel: item.visivel !== false,
+          obrigatorio: Boolean(item.obrigatorio),
+        }
+      : { ...def };
+  }
+  const personalizados = Array.isArray(raw?.personalizados) ? raw.personalizados : [];
+  return { padrao, personalizados };
+}
+
+function alternarTipoTombamento(selectEl) {
+  const card = selectEl?.closest('.item-entrada-card');
+  if (!card) return;
+  const input = card.querySelector('.ent_tomb');
+  if (!input) return;
+  const tipo = selectEl.value;
+  if (tipo === 'Sem tombamento') {
+    input.value = 'Sem tombamento';
+    input.disabled = true;
+    input.placeholder = 'Sem tombamento';
+  } else {
+    input.disabled = false;
+    if (input.value === 'Sem tombamento') input.value = '';
+    input.placeholder = tipo === 'Serial' ? 'Ex: S/N 48575443...' : 'Ex: 123456';
+  }
+}
+
+function aplicarConfigCamposBancadaNaUI() {
+  const cfg = obterConfigCamposBancada();
+  const padrao = cfg.padrao;
+
+  document.querySelectorAll('[data-bancada-field]').forEach(el => {
+    const key = el.dataset.bancadaField;
+    const item = padrao[key];
+    if (!item) return;
+    el.classList.toggle('hidden', item.visivel === false);
+    const lbl = el.querySelector(`[data-bancada-label="${key}"]`);
+    if (lbl) {
+      lbl.textContent = item.obrigatorio ? `${item.label} *` : item.label;
+    }
+  });
+
+  ['entrada', 'saida'].forEach(secao => {
+    const containerId = secao === 'entrada' ? 'camposCustomEntradaContainer' : 'camposCustomSaidaContainer';
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    const lista = cfg.personalizados.filter(c => c.secao === secao);
+    if (lista.length === 0) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = lista.map(c => {
+      const reqMark = c.obrigatorio ? ' *' : '';
+      const idAttr = `cf_val_${escapeHtml(secao)}_${escapeHtml(c.id)}`;
+      const common = `class="custom-bancada-input w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none" data-custom-id="${escapeHtml(c.id)}" data-custom-secao="${escapeHtml(secao)}"`;
+      let ctrl = '';
+      if (c.tipo === 'textarea') {
+        ctrl = `<textarea id="${idAttr}" rows="2" placeholder="${escapeHtml(c.placeholder || '')}" ${common}></textarea>`;
+      } else if (c.tipo === 'numero') {
+        ctrl = `<input id="${idAttr}" type="number" step="any" placeholder="${escapeHtml(c.placeholder || '')}" ${common}>`;
+      } else if (c.tipo === 'select') {
+        const opts = (c.opcoes || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
+        ctrl = `<select id="${idAttr}" class="custom-bancada-input w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none" data-custom-id="${escapeHtml(c.id)}" data-custom-secao="${escapeHtml(secao)}"><option value="">Selecione...</option>${opts}</select>`;
+      } else if (c.tipo === 'checkbox') {
+        return `
+          <label class="flex items-center gap-2 p-2 rounded-lg bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 cursor-pointer text-xs">
+            <input id="${idAttr}" type="checkbox" class="custom-bancada-input rounded border-violet-300 text-violet-600" data-custom-id="${escapeHtml(c.id)}" data-custom-secao="${escapeHtml(secao)}">
+            <span class="font-semibold text-slate-700 dark:text-violet-100">${escapeHtml(c.label)}${reqMark}</span>
+          </label>
+        `;
+      } else {
+        ctrl = `<input id="${idAttr}" type="text" placeholder="${escapeHtml(c.placeholder || '')}" ${common}>`;
+      }
+      return `
+        <div>
+          <label for="${idAttr}" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">${escapeHtml(c.label)}${reqMark}</label>
+          ${ctrl}
+        </div>
+      `;
+    }).join('');
+  });
+}
+
+function coletarCamposCustomFormulario(secao) {
+  const out = {};
+  document.querySelectorAll(`.custom-bancada-input[data-custom-secao="${secao}"]`).forEach(el => {
+    const key = el.dataset.customId;
+    if (!key) return;
+    out[key] = el.type === 'checkbox' ? Boolean(el.checked) : el.value.trim();
+  });
+  return out;
+}
+
+function preencherCamposCustomFormulario(secao, valores = {}) {
+  const map = valores && typeof valores === 'object' ? valores : {};
+  document.querySelectorAll(`.custom-bancada-input[data-custom-secao="${secao}"]`).forEach(el => {
+    const key = el.dataset.customId;
+    const val = map[key];
+    if (el.type === 'checkbox') {
+      el.checked = Boolean(val);
+    } else {
+      el.value = val !== undefined && val !== null ? String(val) : '';
+    }
+  });
+}
+
+function renderizarCamposCustomNaFicha(containerId, secao, valores = {}) {
+  const box = document.getElementById(containerId);
+  if (!box) return;
+  const defs = obterConfigCamposBancada().personalizados.filter(c => c.secao === secao);
+  const map = valores && typeof valores === 'object' ? valores : {};
+  const preenchidos = defs.filter(c => {
+    const v = map[c.id];
+    return v !== undefined && v !== null && v !== '' && v !== false;
+  });
+  if (preenchidos.length === 0) {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = preenchidos.map(c => {
+    const val = map[c.id] === true ? 'Sim' : String(map[c.id]);
+    return `
+      <div class="p-2 rounded-lg bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/70 dark:border-violet-800/70">
+        <span class="text-[10px] font-bold text-violet-700 dark:text-violet-300 block">${escapeHtml(c.label)}</span>
+        <span class="font-semibold text-slate-800 dark:text-white">${escapeHtml(val)}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function abrirResumoOsModal(tipo = 'coleta', textoPronto = null) {
+  const tituloEl = document.getElementById('resumoOsTitulo');
+  const txtEl = document.getElementById('resumoOsTexto');
+  const modal = document.getElementById('modalResumoOs');
+  if (!modal || !txtEl) return;
+
+  const isEntrega = tipo === 'entrega';
+  if (tituloEl) {
+    tituloEl.textContent = isEntrega
+      ? '📤 Resumo de Entrega para Anexar na O.S.'
+      : '📥 Resumo de Coleta para Anexar na O.S.';
+  }
+
+  if (textoPronto !== null) {
+    txtEl.value = textoPronto;
+    modal.classList.remove('hidden');
+    return;
+  }
+
+  if (!registroSelecionadoId) {
+    mostrarToast('Selecione um equipamento para gerar o resumo.', 'erro');
+    return;
+  }
+  const res = await apiFetch(`/equipamentos/${registroSelecionadoId}/resumo`);
+  if (!res.ok) {
+    mostrarToast(await extrairErroResposta(res, 'Não foi possível gerar resumo da O.S.'), 'erro');
+    return;
+  }
+  const data = await res.json();
+  const texto = isEntrega
+    ? (data.resumo_entrega || 'Esta O.S. ainda não possui saída/entrega finalizada.')
+    : (data.resumo_coleta || '');
+  txtEl.value = texto;
+  modal.classList.remove('hidden');
+}
+
+function fecharModalResumoOs() {
+  document.getElementById('modalResumoOs')?.classList.add('hidden');
+}
+
+function copiarResumoOsTexto() {
+  const txt = document.getElementById('resumoOsTexto')?.value || '';
+  if (!txt) return;
+  navigator.clipboard?.writeText(txt);
+  mostrarToast('Resumo copiado para anexar na O.S.!', 'sucesso');
+}
+
+function baixarResumoOsTxt() {
+  const txt = document.getElementById('resumoOsTexto')?.value || '';
+  if (!txt) return;
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `resumo_os_${registroSelecionadoId || 'coleta'}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function carregarEditorCamposBancada() {
+  const cfg = obterConfigCamposBancada();
+  camposBancadaDraft = {
+    padrao: JSON.parse(JSON.stringify(cfg.padrao)),
+    personalizados: cfg.personalizados.map(c => ({ ...c, opcoes: [...(c.opcoes || [])] })),
+  };
+  renderizarEditorCamposBancada();
+}
+
+function renderizarEditorCamposBancada() {
+  const boxPad = document.getElementById('listaCamposPadraoBancada');
+  if (boxPad) {
+    boxPad.innerHTML = Object.entries(camposBancadaDraft.padrao).map(([key, item]) => `
+      <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 flex flex-wrap items-center gap-2">
+        <input type="text" value="${escapeHtml(item.label)}" onchange="camposBancadaDraft.padrao['${key}'].label = this.value.trim() || '${escapeHtml(BANCADA_DEFAULT_PADRAO[key].label)}'" class="flex-1 min-w-[140px] px-2 py-1 text-xs font-semibold border border-violet-200 dark:border-violet-700 rounded-lg outline-none">
+        <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+          <input type="checkbox" ${item.visivel !== false ? 'checked' : ''} onchange="camposBancadaDraft.padrao['${key}'].visivel = this.checked" class="rounded text-violet-600">
+          <span>Visível</span>
+        </label>
+        <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+          <input type="checkbox" ${item.obrigatorio ? 'checked' : ''} onchange="camposBancadaDraft.padrao['${key}'].obrigatorio = this.checked" class="rounded text-violet-600">
+          <span>Obrigatório</span>
+        </label>
+      </div>
+    `).join('');
+  }
+
+  const boxCust = document.getElementById('listaCamposCustomBancada');
+  if (boxCust) {
+    boxCust.innerHTML = camposBancadaDraft.personalizados.length === 0
+      ? '<p class="text-slate-400">Nenhum campo personalizado adicionado ainda.</p>'
+      : camposBancadaDraft.personalizados.map((c, idx) => `
+        <div class="p-2.5 rounded-xl bg-white dark:bg-[#141024] border border-violet-200/80 dark:border-violet-800/70 flex items-center justify-between gap-2">
+          <div>
+            <span class="font-bold text-slate-900 dark:text-white">${escapeHtml(c.label)}</span>
+            <span class="text-[10px] text-violet-600 dark:text-violet-300 font-semibold ml-1">(${c.secao === 'saida' ? 'Saída' : 'Entrada'} • ${escapeHtml(c.tipo)}${c.obrigatorio ? ' • Obrigatório' : ''})</span>
+          </div>
+          <button type="button" onclick="removerCampoCustomBancada(${idx})" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 text-[10px] font-bold">✕ Remover</button>
+        </div>
+      `).join('');
+  }
+}
+
+function adicionarCampoCustomBancada() {
+  const label = document.getElementById('cf_novo_label')?.value.trim() || '';
+  if (!label) {
+    mostrarToast('Informe o nome do novo campo.', 'erro');
+    return;
+  }
+  const secao = document.getElementById('cf_novo_secao')?.value || 'entrada';
+  const tipo = document.getElementById('cf_novo_tipo')?.value || 'texto';
+  const placeholder = document.getElementById('cf_novo_placeholder')?.value.trim() || '';
+  const opcoesRaw = document.getElementById('cf_novo_opcoes')?.value || '';
+  const obrigatorio = Boolean(document.getElementById('cf_novo_obrig')?.checked);
+
+  camposBancadaDraft.personalizados.push({
+    id: `cf_${Date.now()}_${camposBancadaDraft.personalizados.length + 1}`,
+    label,
+    secao,
+    tipo,
+    placeholder,
+    opcoes: opcoesRaw.split(',').map(s => s.trim()).filter(Boolean),
+    obrigatorio,
+  });
+
+  document.getElementById('cf_novo_label').value = '';
+  document.getElementById('cf_novo_placeholder').value = '';
+  document.getElementById('cf_novo_opcoes').value = '';
+  document.getElementById('cf_novo_obrig').checked = false;
+  renderizarEditorCamposBancada();
+}
+
+function removerCampoCustomBancada(idx) {
+  camposBancadaDraft.personalizados.splice(idx, 1);
+  renderizarEditorCamposBancada();
+}
+
+async function salvarCamposBancadaEmpresa() {
+  const res = await apiFetch('/empresa/configuracoes', {
+    method: 'PUT',
+    body: JSON.stringify({ campos_bancada: camposBancadaDraft }),
+  });
+  if (!res.ok) {
+    mostrarToast(await extrairErroResposta(res, 'Erro ao salvar campos da bancada.'), 'erro');
+    return;
+  }
+  const data = await res.json();
+  sessaoAtual.tenant = data.tenant;
+  aplicarConfigCamposBancadaNaUI();
+  limparFormularios();
+  mostrarToast('Campos da Bancada TI atualizados!', 'sucesso');
 }

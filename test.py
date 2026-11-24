@@ -2411,5 +2411,194 @@ class AuthHardeningAnd2FATests(unittest.TestCase):
         self.assertTrue(user_ok["mfa_enabled"])
 
 
+class BancadaCustomFieldsAndSummariesTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
+        self.original_backend = os.environ.get("SYSFIX_BACKEND")
+        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
+
+        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
+        os.environ["SYSFIX_BACKEND"] = "local"
+        os.environ["SYSFIX_SECRET_KEY"] = "bancada-custom-secret-2026"
+
+        self.original_store = models._store
+        self.original_get_auth_service = app_module._get_auth_service
+
+        models._store = JsonStore(Path(self.temp_dir.name) / "coletas.json")
+        models._store.ensure()
+        self.user_store = LocalTenantUserStore(Path(self.temp_dir.name) / "auth_db.json")
+        self.user_store.ensure()
+        self.auth_service = AuthService(user_store=self.user_store, backend_override="local")
+        app_module._get_auth_service = lambda: self.auth_service
+
+    def tearDown(self):
+        models._store = self.original_store
+        app_module._get_auth_service = self.original_get_auth_service
+        for key, old in (
+            ("SYSFIX_DATA_DIR", self.original_data_dir),
+            ("SYSFIX_BACKEND", self.original_backend),
+            ("SYSFIX_SECRET_KEY", self.original_secret),
+        ):
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        self.temp_dir.cleanup()
+
+    def test_tombamento_opcoes_resumos_e_campos_editaveis(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="Bancada Flex TI",
+                nome_usuario="Gestor Admin",
+                email="gestor@bancadaflex.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        # 1. Admin personaliza campos padrão (torna os_coleta opcional/oculto) e cria campos personalizados obrigatórios
+        cfg_campos = {
+            "padrao": {
+                **auth_module.DEFAULT_BANCADA_FIELDS["padrao"],
+                "os_coleta": {"label": "O.S Coleta", "visivel": False, "obrigatorio": False},
+            },
+            "personalizados": [
+                {
+                    "id": "acessorios",
+                    "label": "Acessórios Recebidos",
+                    "secao": "entrada",
+                    "tipo": "texto",
+                    "obrigatorio": True,
+                },
+                {
+                    "id": "nota_fiscal",
+                    "label": "Nota Fiscal",
+                    "secao": "saida",
+                    "tipo": "texto",
+                    "obrigatorio": True,
+                },
+            ],
+        }
+        upd = app_module.atualizar_configuracoes_empresa(
+            app_module.TenantSettingsSchema(campos_bancada=cfg_campos),
+            current_user=admin,
+        )
+        self.assertFalse(upd["tenant"]["campos_bancada"]["padrao"]["os_coleta"]["obrigatorio"])
+        self.assertEqual(len(upd["tenant"]["campos_bancada"]["personalizados"]), 2)
+
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        # 2. Campo personalizado obrigatório faltando -> HTTP 400
+        with self.assertRaises(HTTPException) as ctx_miss:
+            app_module.criar_entrada(
+                app_module.EntradaSchema(
+                    equipamento="Notebook Dell Inspiron",
+                    tipo_tombamento="Sem tombamento",
+                    tombamento="",
+                    tecnico="Gestor Admin",
+                    data_coleta="24/11/2026",
+                    origem="Cliente Loja",
+                    os_coleta="",
+                    localizacao="Bancada TI",
+                ),
+                current_user=admin,
+            )
+        self.assertEqual(ctx_miss.exception.status_code, 400)
+
+        # 3. Entrada com "Sem tombamento", os_coleta oculto/vazio e campo personalizado preenchido gera resumo_coleta
+        ent = app_module.criar_entrada(
+            app_module.EntradaSchema(
+                equipamento="Notebook Dell Inspiron",
+                tipo_tombamento="Sem tombamento",
+                tombamento="",
+                tecnico="Gestor Admin",
+                data_coleta="24/11/2026",
+                origem="Cliente Loja",
+                os_coleta="",
+                localizacao="Bancada TI",
+                problema="Não liga",
+                campos_personalizados={"acessorios": "Carregador original + mouse"},
+            ),
+            current_user=admin,
+        )
+        os_id = ent["id"]
+        self.assertIn("Identificação (Sem tombamento): Sem tombamento", ent["resumo_coleta"])
+        self.assertIn("Acessórios Recebidos: Carregador original + mouse", ent["resumo_coleta"])
+
+        # 4. Entrada por Serial aproveitando serial_mac quando tombamento vazio
+        ent_serial = app_module.criar_entrada(
+            [
+                app_module.EntradaSchema(
+                    equipamento="ONU Huawei",
+                    tipo_tombamento="Serial",
+                    tombamento="",
+                    serial_mac="48575443AABBCC",
+                    tecnico="Gestor Admin",
+                    data_coleta="24/11/2026",
+                    origem="Assinante",
+                    localizacao="Bancada TI",
+                    campos_personalizados={"acessorios": "Fonte 12V"},
+                )
+            ],
+            current_user=admin,
+        )
+        self.assertIn("Identificação (Serial): 48575443AABBCC", ent_serial["resumo_coleta"])
+
+        # 5. Saída gera resumo_entrega com campos personalizados e oculta custos para técnico sem ver_custos
+        with self.assertRaises(HTTPException) as ctx_out_req:
+            app_module.registrar_saida(
+                os_id,
+                app_module.SaidaSchema(
+                    tecnico_entrega="Gestor Admin",
+                    data_entrega="24/11/2026",
+                    os_entrega="OS-DEL-1",
+                    status_custo="Com Custo",
+                    valor_custo=180.0,
+                    resolucao="Troca de DC Jack",
+                ),
+                current_user=admin,
+            )
+        self.assertEqual(ctx_out_req.exception.status_code, 400)
+
+        sai = app_module.registrar_saida(
+            os_id,
+            app_module.SaidaSchema(
+                tecnico_entrega="Gestor Admin",
+                data_entrega="24/11/2026",
+                os_entrega="OS-DEL-1",
+                status_custo="Com Custo",
+                valor_custo=180.0,
+                resolucao="Troca de DC Jack",
+                campos_personalizados={"nota_fiscal": "NF-4410"},
+            ),
+            current_user=admin,
+        )
+        self.assertIn("Nota Fiscal: NF-4410", sai["resumo_entrega"])
+        self.assertIn("180.00", sai["resumo_entrega"])
+
+        # Técnico sem ver_custos consulta GET /api/equipamentos/{id}/resumo sem vazar valores
+        perms_sem_custo = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        perms_sem_custo["ver_ti"] = True
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Técnico Operacional",
+                email="op@bancadaflex.com",
+                senha="secret123",
+                role="tecnico",
+                permissoes=perms_sem_custo,
+            ),
+            current_user=admin,
+        )
+        tok_op = app_module.login_usuario(
+            app_module.LoginSchema(email="op@bancadaflex.com", senha="secret123")
+        )["token"]
+        tec_op = app_module.get_current_user(f"Bearer {tok_op}")
+
+        resumo_tec = app_module.obter_resumo_os_api(os_id, current_user=tec_op)
+        self.assertIn("Nota Fiscal: NF-4410", resumo_tec["resumo_entrega"])
+        self.assertNotIn("180.00", resumo_tec["resumo_entrega"])
+
+
 if __name__ == "__main__":
     unittest.main()

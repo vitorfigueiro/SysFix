@@ -661,6 +661,62 @@
             </table>
           </div>
         </div>
+
+        <!-- Importação e Backup de Dados -->
+        <div class="lg:col-span-3 bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-slate-800">📦 Importação &amp; Backup de Dados</h2>
+              <p class="text-xs text-slate-500">Importe registros de sistemas antigos em <b>JSON</b>, <b>CSV</b> (vírgula ou ponto e vírgula) ou <b>Excel (.xlsx)</b>, ou baixe um backup completo da empresa.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="baixarModeloImportacao('csv')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-all">
+                📄 Modelo CSV (Excel)
+              </button>
+              <button type="button" onclick="baixarModeloImportacao('json')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-all">
+                📄 Modelo JSON
+              </button>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-4 items-end">
+            <div>
+              <label for="imp_arquivo" class="block text-xs font-semibold text-slate-600 mb-1">Arquivo (.json, .csv ou .xlsx — máx. 5 MB)</label>
+              <input type="file" id="imp_arquivo" accept=".json,.csv,.xlsx" class="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-slate-50 file:text-slate-700 hover:file:bg-slate-100">
+            </div>
+
+            <div>
+              <label for="imp_modo" class="block text-xs font-semibold text-slate-600 mb-1">Modo de Importação</label>
+              <select id="imp_modo" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white outline-none">
+                <option value="anexar">Adicionar aos dados atuais (gera novos IDs)</option>
+                <option value="preservar_ids">Preservar IDs originais (apenas empresa vazia)</option>
+              </select>
+            </div>
+
+            <div class="flex gap-2">
+              <button id="btnPreviewImport" type="button" onclick="executarImportacao(true)" class="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-800 text-xs font-bold rounded-lg border border-slate-200 transition-all">
+                👁️ Pré-visualizar
+              </button>
+              <button id="btnExecutarImport" type="button" onclick="executarImportacao(false)" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+                📥 Importar Dados
+              </button>
+            </div>
+          </div>
+
+          <div id="imp_resultado" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3 text-xs"></div>
+
+          <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <span class="text-xs text-slate-500">Exporte todos os registros atuais desta empresa para backup ou análise externa:</span>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="exportarDadosEmpresa('json')" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all">
+                📤 Exportar Backup JSON
+              </button>
+              <button type="button" onclick="exportarDadosEmpresa('csv')" class="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-all">
+                📊 Exportar Planilha CSV (Excel)
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </div>

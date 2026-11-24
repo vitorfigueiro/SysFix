@@ -405,6 +405,46 @@ class ColetaModel:
         return _get_active_store().get(registro_id, tenant_id=tenant_id)
 
     @staticmethod
+    def importar_registros(
+        registros: list[dict],
+        tenant_id: str = "default",
+        modo: str = "anexar",
+    ) -> dict:
+        if not registros:
+            raise ValueError("Nenhum registro válido para importar.")
+
+        modo_norm = str(modo or "anexar").strip().lower()
+        if modo_norm == "anexar":
+            payload = []
+            for row in registros:
+                item = dict(row)
+                item.pop("id", None)
+                item["tenant_id"] = tenant_id
+                payload.append(item)
+            ids = _get_active_store().create_records(payload, tenant_id=tenant_id)
+            return {"importados": len(ids), "modo": "anexar"}
+
+        if modo_norm == "preservar_ids":
+            vistos: set[int] = set()
+            payload = []
+            for idx, row in enumerate(registros, start=1):
+                item = dict(row)
+                item["tenant_id"] = tenant_id
+                rid = item.get("id")
+                if isinstance(rid, bool) or not isinstance(rid, int) or rid < 1:
+                    raise ValueError(
+                        f"Registro {idx}: para preservar IDs originais, todos os itens precisam ter 'id' numérico >= 1."
+                    )
+                if rid in vistos:
+                    raise ValueError(f"ID duplicado no arquivo importado: {rid}.")
+                vistos.add(rid)
+                payload.append(item)
+            total = _get_active_store().import_records(payload, tenant_id=tenant_id)
+            return {"importados": total, "modo": "preservar_ids"}
+
+        raise ValueError("Modo de importação inválido. Use 'anexar' ou 'preservar_ids'.")
+
+    @staticmethod
     def obter_dashboard(
         tenant_id: str = "default",
         mes: int | None = None,

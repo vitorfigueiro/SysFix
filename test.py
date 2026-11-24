@@ -1,7 +1,10 @@
+import base64
+import io
 import json
 import os
 import tempfile
 import unittest
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -760,6 +763,204 @@ class ApiIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(pdf_resp.media_type, "application/pdf")
         self.assertTrue(pdf_resp.body.startswith(b"%PDF-"))
+
+
+class ImportExportTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
+        self.original_backend = os.environ.get("SYSFIX_BACKEND")
+        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
+
+        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
+        os.environ["SYSFIX_BACKEND"] = "local"
+        os.environ["SYSFIX_SECRET_KEY"] = "import-test-secret-2026"
+
+        self.original_store = models._store
+        self.original_get_auth_service = app_module._get_auth_service
+
+        models._store = JsonStore(Path(self.temp_dir.name) / "coletas.json")
+        models._store.ensure()
+
+        self.user_store = LocalTenantUserStore(Path(self.temp_dir.name) / "auth_db.json")
+        self.user_store.ensure()
+        app_module._get_auth_service = lambda: AuthService(
+            user_store=self.user_store, backend_override="local"
+        )
+
+    def tearDown(self):
+        models._store = self.original_store
+        app_module._get_auth_service = self.original_get_auth_service
+        for key, old in (
+            ("SYSFIX_DATA_DIR", self.original_data_dir),
+            ("SYSFIX_BACKEND", self.original_backend),
+            ("SYSFIX_SECRET_KEY", self.original_secret),
+        ):
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        self.temp_dir.cleanup()
+
+    @staticmethod
+    def _build_sample_xlsx() -> bytes:
+        buf = io.BytesIO()
+        shared_strings = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="6" uniqueCount="6">'
+            "<si><t>Equipamento</t></si>"
+            "<si><t>Patrimônio</t></si>"
+            "<si><t>Setor</t></si>"
+            "<si><t>Data Entrada</t></si>"
+            "<si><t>Notebook XLSX</t></si>"
+            "<si><t>Financeiro</t></si>"
+            "</sst>"
+        )
+        sheet1 = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            "<sheetData>"
+            '<row r="1">'
+            '<c r="A1" t="s"><v>0</v></c>'
+            '<c r="B1" t="s"><v>1</v></c>'
+            '<c r="C1" t="s"><v>2</v></c>'
+            '<c r="D1" t="s"><v>3</v></c>'
+            "</row>"
+            '<row r="2">'
+            '<c r="A2" t="s"><v>4</v></c>'
+            '<c r="B2" t="inlineStr"><is><t>99123</t></is></c>'
+            '<c r="C2" t="s"><v>5</v></c>'
+            '<c r="D2"><v>46320</v></c>'
+            "</row>"
+            "</sheetData>"
+            "</worksheet>"
+        )
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("xl/sharedStrings.xml", shared_strings)
+            zf.writestr("xl/worksheets/sheet1.xml", sheet1)
+        return buf.getvalue()
+
+    def test_import_json_csv_xlsx_and_export(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="Empresa Import",
+                nome_usuario="Admin Import",
+                email="admin@import.com",
+                senha="secret123",
+            )
+        )
+        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+
+        app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Tec Import",
+                email="tec@import.com",
+                senha="secret123",
+                role="tecnico",
+            ),
+            current_user=admin,
+        )
+        login_tec = app_module.login_usuario(
+            app_module.LoginSchema(email="tec@import.com", senha="secret123")
+        )
+        tec = app_module.get_current_user(f"Bearer {login_tec['token']}")
+
+        with self.assertRaises(HTTPException) as ctx_rbac:
+            app_module.require_admin(tec)
+        self.assertEqual(ctx_rbac.exception.status_code, 403)
+
+        # 1. JSON estilo Neon com entidade HTML e os_coleta null (preservando IDs)
+        neon_json = json.dumps([
+            {
+                "id": 6,
+                "equipamento": "Computador",
+                "tombamento": "62255",
+                "tecnico_coleta": "Dioni",
+                "data_coleta": "2026-08-27",
+                "origem": "UBS Caixa d&#x27;agua",
+                "localizacao": "Bancada",
+                "problema": "Desligando",
+                "status": "Entregue",
+                "status_custo": "Sem Custo",
+                "valor_custo": 0.0,
+                "os_coleta": None,
+                "os_entrega": "35340",
+                "data_entrega": "2026-08-31",
+            }
+        ]).encode("utf-8")
+
+        preview = app_module.importar_dados_empresa(
+            app_module.ImportarDadosSchema(
+                filename="neon.json",
+                conteudo_base64=base64.b64encode(neon_json).decode("ascii"),
+                modo="preservar_ids",
+                simular=True,
+            ),
+            current_user=admin,
+        )
+        self.assertTrue(preview["simulado"])
+        self.assertEqual(preview["total_validos"], 1)
+        self.assertEqual(preview["amostra"][0]["origem"], "UBS Caixa d'agua")
+
+        imp_json = app_module.importar_dados_empresa(
+            app_module.ImportarDadosSchema(
+                filename="neon.json",
+                conteudo_base64=base64.b64encode(neon_json).decode("ascii"),
+                modo="preservar_ids",
+                simular=False,
+            ),
+            current_user=admin,
+        )
+        self.assertEqual(imp_json["importados"], 1)
+        self.assertEqual(
+            app_module.obter_equipamento(6, current_user=admin)["origem"],
+            "UBS Caixa d'agua",
+        )
+
+        # 2. CSV PT-BR com delimitador ';' e BOM UTF-8 (modo anexar)
+        csv_bytes = (
+            "Equipamento;Patrimônio;Setor;Valor (R$);Status\n"
+            "Impressora CSV;77889;RH;180,50;Entregue\n"
+        ).encode("utf-8-sig")
+        imp_csv = app_module.importar_dados_empresa(
+            app_module.ImportarDadosSchema(
+                filename="planilha.csv",
+                conteudo_base64=base64.b64encode(csv_bytes).decode("ascii"),
+                modo="anexar",
+                simular=False,
+            ),
+            current_user=admin,
+        )
+        self.assertEqual(imp_csv["formato"], "csv")
+        self.assertEqual(imp_csv["importados"], 1)
+
+        # 3. Excel .xlsx real gerado em memória (modo anexar)
+        xlsx_bytes = self._build_sample_xlsx()
+        imp_xlsx = app_module.importar_dados_empresa(
+            app_module.ImportarDadosSchema(
+                filename="legado.xlsx",
+                conteudo_base64=base64.b64encode(xlsx_bytes).decode("ascii"),
+                modo="anexar",
+                simular=False,
+            ),
+            current_user=admin,
+        )
+        self.assertEqual(imp_xlsx["formato"], "xlsx")
+        self.assertEqual(imp_xlsx["importados"], 1)
+
+        lista = app_module.listar_equipamentos(status="todos", current_user=admin)
+        self.assertEqual(len(lista), 3)
+        self.assertTrue(any(item["equipamento"] == "Notebook XLSX" for item in lista))
+
+        # 4. Exportação JSON/CSV e modelos
+        exp_json = app_module.exportar_dados_empresa(formato="json", current_user=admin)
+        self.assertEqual(json.loads(exp_json.body)["total"], 3)
+
+        exp_csv = app_module.exportar_dados_empresa(formato="csv", current_user=admin)
+        self.assertIn("Notebook XLSX", exp_csv.body.decode("utf-8-sig"))
+
+        mod_csv = app_module.baixar_modelo_importacao(formato="csv", _current_user=admin)
+        self.assertIn("equipamento", mod_csv.body.decode("utf-8-sig"))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import date, datetime
+import base64
+import binascii
 import logging
 import os
 from pathlib import Path
@@ -19,6 +21,14 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from importer import (
+    MAX_IMPORT_BYTES,
+    exportar_csv,
+    exportar_json,
+    gerar_modelo_importacao,
+    normalizar_registros_importacao,
+    parse_import_file,
+)
 from mensagens import obter_mensagem_erro
 from models import ColetaModel
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
@@ -182,6 +192,13 @@ class TenantSettingsSchema(BaseModel):
     nome: Optional[str] = None
     sla_dias: Optional[int] = None
     localizacoes: Optional[List[str]] = None
+
+
+class ImportarDadosSchema(BaseModel):
+    filename: str
+    conteudo_base64: str
+    modo: str = "anexar"
+    simular: bool = False
 
 
 class EntradaSchema(BaseModel):
@@ -729,6 +746,132 @@ def atualizar_configuracoes_empresa(
     except Exception:
         logger.exception("Erro ao atualizar configurações da empresa")
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/empresa/importar")
+def importar_dados_empresa(
+    payload: ImportarDadosSchema,
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    """Importa registros em JSON, CSV ou Excel (.xlsx) para a empresa do administrador."""
+    try:
+        raw_b64 = (payload.conteudo_base64 or "").strip()
+        if "," in raw_b64 and raw_b64.startswith("data:"):
+            raw_b64 = raw_b64.split(",", 1)[1]
+        try:
+            raw_bytes = base64.b64decode(raw_b64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("Conteúdo do arquivo em base64 inválido.") from exc
+
+        if len(raw_bytes) > MAX_IMPORT_BYTES:
+            raise ValueError("O arquivo excede o limite máximo permitido de 5 MB.")
+
+        formato, raw_rows = parse_import_file(payload.filename, raw_bytes)
+        tenant = current_user["tenant"]
+        locs = tenant.get("localizacoes") or ["Bancada TI"]
+        resultado = normalizar_registros_importacao(
+            raw_rows=raw_rows,
+            formato=formato,
+            tenant_id=current_user["tenant_id"],
+            actor=current_user.get("nome") or current_user.get("email") or "",
+            default_location=locs[0],
+        )
+
+        if payload.simular:
+            return {
+                "sucesso": True,
+                "simulado": True,
+                "formato": resultado["formato"],
+                "total_lidos": resultado["total_lidos"],
+                "total_validos": len(resultado["registros"]),
+                "erros": resultado["erros"][:30],
+                "amostra": resultado["registros"][:5],
+            }
+
+        if not resultado["registros"]:
+            detalhe = (
+                resultado["erros"][0]
+                if resultado["erros"]
+                else "Nenhum registro válido encontrado no arquivo."
+            )
+            raise ValueError(detalhe)
+
+        importado = ColetaModel.importar_registros(
+            registros=resultado["registros"],
+            tenant_id=current_user["tenant_id"],
+            modo=payload.modo,
+        )
+        return {
+            "sucesso": True,
+            "simulado": False,
+            "formato": resultado["formato"],
+            "modo": importado["modo"],
+            "importados": importado["importados"],
+            "total_lidos": resultado["total_lidos"],
+            "ignorados_com_erro": len(resultado["erros"]),
+            "erros": resultado["erros"][:20],
+            "mensagem": f"{importado['importados']} registro(s) importado(s) com sucesso ({resultado['formato'].upper()}).",
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except RuntimeError as re_err:
+        raise HTTPException(status_code=409, detail=str(re_err))
+    except Exception:
+        logger.exception("Erro ao importar arquivo de dados")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/empresa/exportar")
+def exportar_dados_empresa(
+    formato: str = Query("json"),
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    """Exporta todos os registros da empresa em JSON ou CSV (Excel PT-BR)."""
+    try:
+        registros = ColetaModel.buscar_todos(tenant_id=current_user["tenant_id"])
+        fmt = formato.strip().lower()
+        if fmt == "json":
+            conteudo = exportar_json(
+                registros, nome_empresa=current_user["tenant"].get("nome") or "SysFix"
+            )
+            media_type = "application/json; charset=utf-8"
+            filename = "backup_sysfix.json"
+        elif fmt == "csv":
+            conteudo = exportar_csv(registros)
+            media_type = "text/csv; charset=utf-8"
+            filename = "backup_sysfix.csv"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Formato de exportação inválido. Use 'json' ou 'csv'.",
+            )
+
+        return Response(
+            content=conteudo,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro ao exportar backup da empresa")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/empresa/modelo-importacao")
+def baixar_modelo_importacao(
+    formato: str = Query("csv"),
+    _current_user: dict[str, Any] = Depends(require_admin),
+):
+    try:
+        conteudo, media_type, filename = gerar_modelo_importacao(formato)
+        return Response(
+            content=conteudo,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
 
 
 # ==============================================================================

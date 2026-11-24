@@ -1454,3 +1454,165 @@ async function alternarStatusUsuario(uid, ativo) {
   mostrarToast(ativo ? 'Usuário reativado!' : 'Usuário desativado!', 'info');
   await carregarUsuariosEmpresa();
 }
+
+// ==============================================================================
+// IMPORTAÇÃO (JSON, CSV, XLSX) E BACKUP DE DADOS
+// ==============================================================================
+
+function lerArquivoBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const resultado = String(reader.result || '');
+      const idx = resultado.indexOf(',');
+      resolve(idx >= 0 ? resultado.slice(idx + 1) : resultado);
+    };
+    reader.onerror = () => reject(new Error('Não foi possível ler o arquivo selecionado.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderizarResultadoImportacao(data) {
+  const box = document.getElementById('imp_resultado');
+  box.classList.remove('hidden');
+
+  const erros = Array.isArray(data.erros) ? data.erros : [];
+  const amostra = Array.isArray(data.amostra) ? data.amostra : [];
+  const titulo = data.simulado
+    ? `Pré-visualização (${escapeHtml((data.formato || '').toUpperCase())})`
+    : `Importação concluída (${escapeHtml((data.formato || '').toUpperCase())})`;
+
+  const resumo = data.simulado
+    ? `${data.total_validos ?? 0} registro(s) válido(s) de ${data.total_lidos ?? 0} linha(s) lida(s).`
+    : `${data.importados ?? 0} registro(s) importado(s).`;
+
+  const errosHtml = erros.length > 0
+    ? `<div class="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 space-y-1">
+         <div class="font-bold">Avisos / linhas ignoradas (${erros.length}):</div>
+         <ul class="list-disc pl-4 space-y-0.5">${erros.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+       </div>`
+    : '';
+
+  const amostraHtml = amostra.length > 0
+    ? `<div class="overflow-x-auto bg-white rounded-lg border border-slate-200">
+         <table class="w-full text-left text-[11px] border-collapse">
+           <thead class="bg-slate-100 text-slate-600 font-bold">
+             <tr>
+               <th class="p-2">ID Orig.</th>
+               <th class="p-2">Equipamento</th>
+               <th class="p-2">Tombamento</th>
+               <th class="p-2">Origem</th>
+               <th class="p-2">Data</th>
+               <th class="p-2">Status</th>
+             </tr>
+           </thead>
+           <tbody class="divide-y divide-slate-100">
+             ${amostra.map(item => `
+               <tr>
+                 <td class="p-2 text-slate-500">${escapeHtml(item.id ?? '-')}</td>
+                 <td class="p-2 font-semibold text-slate-800">${escapeHtml(item.equipamento)}</td>
+                 <td class="p-2 text-slate-600">${escapeHtml(item.tombamento)}</td>
+                 <td class="p-2 text-slate-600">${escapeHtml(item.origem)}</td>
+                 <td class="p-2 text-slate-600">${escapeHtml(formatarDataBR(item.data_coleta))}</td>
+                 <td class="p-2 font-semibold">${escapeHtml(item.status)}</td>
+               </tr>
+             `).join('')}
+           </tbody>
+         </table>
+       </div>`
+    : '';
+
+  box.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <span class="font-bold text-slate-800">${titulo}</span>
+      <span class="font-semibold text-sky-700">${escapeHtml(resumo)}</span>
+    </div>
+    ${errosHtml}
+    ${amostraHtml}
+  `;
+}
+
+async function executarImportacao(simular) {
+  const input = document.getElementById('imp_arquivo');
+  const arquivo = input.files && input.files[0];
+  if (!arquivo) {
+    mostrarToast('Selecione um arquivo .json, .csv ou .xlsx primeiro.', 'erro');
+    return;
+  }
+  if (arquivo.size > 5 * 1024 * 1024) {
+    mostrarToast('O arquivo ultrapassa o limite máximo de 5 MB.', 'erro');
+    return;
+  }
+
+  const modo = document.getElementById('imp_modo').value;
+  const btnPrev = document.getElementById('btnPreviewImport');
+  const btnExec = document.getElementById('btnExecutarImport');
+  btnPrev.disabled = true;
+  btnExec.disabled = true;
+
+  try {
+    const conteudoBase64 = await lerArquivoBase64(arquivo);
+    const res = await apiFetch('/empresa/importar', {
+      method: 'POST',
+      body: JSON.stringify({
+        filename: arquivo.name,
+        conteudo_base64: conteudoBase64,
+        modo,
+        simular
+      })
+    });
+
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Falha ao processar arquivo para importação.'), 'erro');
+      return;
+    }
+
+    const data = await res.json();
+    renderizarResultadoImportacao(data);
+
+    if (simular) {
+      mostrarToast(`Pré-visualização pronta: ${data.total_validos} registro(s) válido(s).`, 'info');
+    } else {
+      mostrarToast(data.mensagem || 'Dados importados com sucesso!', 'sucesso');
+      input.value = '';
+      await carregarLista();
+      await carregarDashboard();
+    }
+  } catch (e) {
+    mostrarToast(e.message || 'Erro ao enviar arquivo de importação.', 'erro');
+  } finally {
+    btnPrev.disabled = false;
+    btnExec.disabled = false;
+  }
+}
+
+async function baixarArquivoAutenticado(path, nomePadrao) {
+  try {
+    const res = await apiFetch(path);
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Erro ao baixar arquivo.'), 'erro');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nomePadrao;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (e) {
+    mostrarToast('Falha ao baixar o arquivo.', 'erro');
+  }
+}
+
+function baixarModeloImportacao(formato) {
+  const nome = formato === 'json' ? 'modelo_importacao_sysfix.json' : 'modelo_importacao_sysfix.csv';
+  baixarArquivoAutenticado(`/empresa/modelo-importacao?formato=${encodeURIComponent(formato)}`, nome);
+}
+
+function exportarDadosEmpresa(formato) {
+  const nome = formato === 'csv' ? 'backup_sysfix.csv' : 'backup_sysfix.json';
+  baixarArquivoAutenticado(`/empresa/exportar?formato=${encodeURIComponent(formato)}`, nome);
+}

@@ -11,9 +11,11 @@ from auth import (
     AuthenticationError,
     AuthorizationError,
     AuthService,
+    MfaRequiredError,
     OnboardingRequiredError,
     PERMISSION_SECTORS,
     PERMISSIONS_CATALOG,
+    RateLimitError,
     ROLE_PRESETS,
     sanitizar_tenant,
     sanitizar_usuario,
@@ -89,7 +91,22 @@ async def add_static_revalidation_headers(request: Request, call_next):
     path = request.url.path or ""
     if path.startswith("/static/") and (path.endswith(".js") or path.endswith(".css")):
         response.headers.setdefault("Cache-Control", "no-cache")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+    )
     return response
+
+
+def _extract_request_client_info(request: Any) -> tuple[str, str]:
+    if not isinstance(request, Request):
+        return "", ""
+    forwarded = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    ip = forwarded or (request.client.host if request.client else "")
+    ua = request.headers.get("User-Agent", "")
+    return ip, ua
 
 
 def _get_auth_service() -> AuthService:
@@ -131,10 +148,12 @@ def _extract_bearer_token(authorization: Optional[str]) -> str:
 
 def get_current_user(
     authorization: Optional[str] = Header(None, alias="Authorization"),
+    x_sysfix_mfa: Optional[str] = Header(None, alias="X-SysFix-MFA"),
 ) -> dict[str, Any]:
     try:
         token = _extract_bearer_token(authorization)
-        return _get_auth_service().authenticate_token(token)
+        mfa_tok = x_sysfix_mfa if isinstance(x_sysfix_mfa, str) else None
+        return _get_auth_service().authenticate_token(token, mfa_token=mfa_tok)
     except OnboardingRequiredError as ore:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -144,6 +163,22 @@ def get_current_user(
                 "email": ore.identity.get("email", ""),
                 "nome": ore.identity.get("name", ""),
             },
+        )
+    except MfaRequiredError as mre:
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail={
+                "codigo": "MFA_REQUIRED",
+                "mensagem": str(mre),
+                "email": mre.email,
+                "mode": mre.mode,
+            },
+        )
+    except RateLimitError as rle:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(rle),
+            headers={"Retry-After": str(rle.retry_after)},
         )
     except AuthenticationError as ae:
         raise HTTPException(
@@ -275,6 +310,20 @@ class LoginSchema(BaseModel):
     senha: str
 
 
+class MfaVerifyLoginSchema(BaseModel):
+    challenge_token: str
+    codigo: str
+
+
+class MfaCodeSchema(BaseModel):
+    codigo: str
+
+
+class ChangePasswordSchema(BaseModel):
+    senha_atual: str
+    nova_senha: str
+
+
 class OnboardingSchema(BaseModel):
     nome_empresa: str
     nome_usuario: Optional[str] = ""
@@ -300,6 +349,7 @@ class TenantSettingsSchema(BaseModel):
     sla_dias: Optional[int] = None
     localizacoes: Optional[List[str]] = None
     setores_ativos: Optional[dict[str, bool]] = None
+    exigir_mfa_equipe: Optional[bool] = None
 
 
 class ImportarDadosSchema(BaseModel):
@@ -601,13 +651,23 @@ def registrar_empresa(payload: RegisterSchema):
 
 
 @app.post("/api/auth/login")
-def login_usuario(payload: LoginSchema):
+def login_usuario(payload: LoginSchema, request: Request = None):
     try:
+        ip, ua = _extract_request_client_info(request)
         return _get_auth_service().login_local(
-            email=payload.email, senha=payload.senha
+            email=payload.email,
+            senha=payload.senha,
+            client_ip=ip,
+            user_agent=ua,
         )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+    except RateLimitError as rle:
+        raise HTTPException(
+            status_code=429,
+            detail=str(rle),
+            headers={"Retry-After": str(rle.retry_after)},
+        )
     except AuthenticationError as ae:
         raise HTTPException(status_code=401, detail=str(ae))
     except AuthorizationError as aze:
@@ -615,6 +675,59 @@ def login_usuario(payload: LoginSchema):
     except Exception:
         logger.exception("Erro ao autenticar usuário")
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/auth/mfa/verify-login")
+def verificar_mfa_login_api(payload: MfaVerifyLoginSchema, request: Request = None):
+    try:
+        ip, ua = _extract_request_client_info(request)
+        return _get_auth_service().verify_mfa_login_local(
+            challenge_token=payload.challenge_token,
+            code=payload.codigo,
+            client_ip=ip,
+            user_agent=ua,
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except RateLimitError as rle:
+        raise HTTPException(
+            status_code=429,
+            detail=str(rle),
+            headers={"Retry-After": str(rle.retry_after)},
+        )
+    except AuthenticationError as ae:
+        raise HTTPException(status_code=401, detail=str(ae))
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+
+
+@app.post("/api/auth/mfa/verify-session")
+def verificar_mfa_sessao_api(
+    payload: MfaCodeSchema,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    request: Request = None,
+):
+    try:
+        token = _extract_bearer_token(authorization)
+        ip, ua = _extract_request_client_info(request)
+        return _get_auth_service().verify_mfa_firebase_session(
+            firebase_token=token,
+            code=payload.codigo,
+            client_ip=ip,
+            user_agent=ua,
+        )
+    except RateLimitError as rle:
+        raise HTTPException(
+            status_code=429,
+            detail=str(rle),
+            headers={"Retry-After": str(rle.retry_after)},
+        )
+    except AuthenticationError as ae:
+        raise HTTPException(status_code=401, detail=str(ae))
+    except AuthorizationError as aze:
+        raise HTTPException(status_code=403, detail=str(aze))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
 
 
 @app.post("/api/auth/onboarding")
@@ -647,6 +760,78 @@ def obter_sessao_atual(current_user: dict[str, Any] = Depends(get_current_user))
         "permission_sectors": PERMISSION_SECTORS,
         "role_presets": ROLE_PRESETS,
     }
+
+
+@app.get("/api/auth/seguranca")
+def obter_seguranca_usuario_api(
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    return _get_auth_service().get_user_security_status(current_user)
+
+
+@app.post("/api/auth/mfa/setup")
+def iniciar_setup_mfa_api(
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    try:
+        return _get_auth_service().start_mfa_setup(current_user)
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+
+
+@app.post("/api/auth/mfa/confirm")
+def confirmar_setup_mfa_api(
+    payload: MfaCodeSchema,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    try:
+        return _get_auth_service().confirm_mfa_setup(current_user, payload.codigo)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except AuthenticationError as ae:
+        raise HTTPException(status_code=400, detail=str(ae))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+
+
+@app.post("/api/auth/mfa/disable")
+def desativar_mfa_api(
+    payload: MfaCodeSchema,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    try:
+        return _get_auth_service().disable_mfa(current_user, payload.codigo)
+    except AuthenticationError as ae:
+        raise HTTPException(status_code=400, detail=str(ae))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+
+
+@app.post("/api/auth/sessoes/revogar")
+def revogar_sessoes_api(
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    try:
+        return _get_auth_service().revoke_all_sessions(current_user)
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+
+
+@app.post("/api/auth/alterar-senha")
+def alterar_senha_usuario_api(
+    payload: ChangePasswordSchema,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    try:
+        return _get_auth_service().change_local_password(
+            current_user, payload.senha_atual, payload.nova_senha
+        )
+    except AuthenticationError as ae:
+        raise HTTPException(status_code=400, detail=str(ae))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
 
 
 # ==============================================================================
@@ -1101,6 +1286,7 @@ def atualizar_configuracoes_empresa(
             sla_dias=payload.sla_dias,
             localizacoes=payload.localizacoes,
             setores_ativos=payload.setores_ativos,
+            exigir_mfa_equipe=payload.exigir_mfa_equipe,
         )
         return {"sucesso": True, "tenant": tenant}
     except AuthorizationError as aze:

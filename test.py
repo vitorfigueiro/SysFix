@@ -12,6 +12,7 @@ from fastapi import HTTPException
 
 import app as app_module
 import auth as auth_module
+import auth_security
 import automation_cyber
 import models
 import ops_modules
@@ -1990,6 +1991,238 @@ class AutomationAndCyberSecurityTests(unittest.TestCase):
         )
         self.assertEqual(ach["titulo"], "Teste FS")
         self.assertEqual(len(svc.listar_achados("tenant_fs")), 1)
+
+
+class AuthHardeningAnd2FATests(unittest.TestCase):
+    def setUp(self):
+        auth_security.login_rate_limiter.clear()
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
+        self.original_backend = os.environ.get("SYSFIX_BACKEND")
+        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
+
+        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
+        os.environ["SYSFIX_BACKEND"] = "local"
+        os.environ["SYSFIX_SECRET_KEY"] = "hardening-2fa-secret-2026"
+
+        self.original_store = models._store
+        self.original_get_auth_service = app_module._get_auth_service
+
+        models._store = JsonStore(Path(self.temp_dir.name) / "coletas.json")
+        models._store.ensure()
+        self.user_store = LocalTenantUserStore(Path(self.temp_dir.name) / "auth_db.json")
+        self.user_store.ensure()
+        self.auth_service = AuthService(user_store=self.user_store, backend_override="local")
+        app_module._get_auth_service = lambda: self.auth_service
+
+    def tearDown(self):
+        auth_security.login_rate_limiter.clear()
+        models._store = self.original_store
+        app_module._get_auth_service = self.original_get_auth_service
+        for key, old in (
+            ("SYSFIX_DATA_DIR", self.original_data_dir),
+            ("SYSFIX_BACKEND", self.original_backend),
+            ("SYSFIX_SECRET_KEY", self.original_secret),
+        ):
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        self.temp_dir.cleanup()
+
+    def test_local_totp_2fa_recovery_codes_session_revocation_and_password_change(self):
+        reg = app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="SecAuth TI",
+                nome_usuario="Vitor Admin",
+                email="vitor@secauth.com",
+                senha="SenhaForte#1",
+            )
+        )
+        token_inicial = reg["token"]
+        admin = app_module.get_current_user(f"Bearer {token_inicial}")
+        self.assertFalse(admin["mfa_enabled"])
+        self.assertEqual(admin["session_version"], 1)
+
+        # Configura política da empresa recomendando 2FA
+        cfg = app_module.atualizar_configuracoes_empresa(
+            app_module.TenantSettingsSchema(exigir_mfa_equipe=True),
+            current_user=admin,
+        )
+        self.assertTrue(cfg["tenant"]["exigir_mfa_equipe"])
+
+        # Inicia setup 2FA e valida geração de QR SVG
+        setup = app_module.iniciar_setup_mfa_api(admin)
+        self.assertIn("secret", setup)
+        self.assertTrue(setup["qr_svg_data_uri"].startswith("data:image/svg+xml;base64,"))
+        self.assertIn("otpauth://totp/", setup["otpauth_uri"])
+
+        # Confirma com código TOTP gerado pelo módulo
+        totp_now = auth_security.compute_totp(setup["secret"])
+        confirm = app_module.confirmar_setup_mfa_api(
+            app_module.MfaCodeSchema(codigo=totp_now),
+            current_user=admin,
+        )
+        self.assertTrue(confirm["mfa_enabled"])
+        self.assertEqual(len(confirm["recovery_codes"]), 8)
+
+        # Sanitização não pode expor segredos
+        raw_user = self.user_store.get_user(admin["uid"])
+        sanitized = auth_module.sanitizar_usuario(raw_user)
+        for hidden_key in ("password_hash", "mfa_secret", "mfa_pending_secret", "mfa_recovery_hashes"):
+            self.assertNotIn(hidden_key, sanitized)
+
+        # Novo login retorna challenge MFA e NÃO emite token de sessão direto
+        login_res = app_module.login_usuario(
+            app_module.LoginSchema(email="vitor@secauth.com", senha="SenhaForte#1")
+        )
+        self.assertTrue(login_res["mfa_required"])
+        self.assertNotIn("token", login_res)
+
+        # Challenge token não deve ser aceito em rotas autenticadas
+        with self.assertRaises(HTTPException) as ctx_bad_tok:
+            app_module.get_current_user(f"Bearer {login_res['challenge_token']}")
+        self.assertEqual(ctx_bad_tok.exception.status_code, 401)
+
+        # Valida challenge com código TOTP
+        mfa_ok = app_module.verificar_mfa_login_api(
+            app_module.MfaVerifyLoginSchema(
+                challenge_token=login_res["challenge_token"],
+                codigo=auth_security.compute_totp(setup["secret"]),
+            )
+        )
+        self.assertIn("token", mfa_ok)
+        self.assertGreaterEqual(len(mfa_ok["user"]["ultimos_acessos"]), 1)
+
+        # Código de recuperação funciona 1 vez e é consumido
+        rec_code = confirm["recovery_codes"][0]
+        login_res2 = app_module.login_usuario(
+            app_module.LoginSchema(email="vitor@secauth.com", senha="SenhaForte#1")
+        )
+        rec_ok = app_module.verificar_mfa_login_api(
+            app_module.MfaVerifyLoginSchema(
+                challenge_token=login_res2["challenge_token"],
+                codigo=rec_code,
+            )
+        )
+        self.assertIn("token", rec_ok)
+
+        login_res3 = app_module.login_usuario(
+            app_module.LoginSchema(email="vitor@secauth.com", senha="SenhaForte#1")
+        )
+        with self.assertRaises(HTTPException) as ctx_reuse:
+            app_module.verificar_mfa_login_api(
+                app_module.MfaVerifyLoginSchema(
+                    challenge_token=login_res3["challenge_token"],
+                    codigo=rec_code,
+                )
+            )
+        self.assertEqual(ctx_reuse.exception.status_code, 401)
+
+        # Revogar sessões invalida token antigo e gera novo
+        admin_atual = app_module.get_current_user(f"Bearer {rec_ok['token']}")
+        rev = app_module.revogar_sessoes_api(admin_atual)
+        self.assertEqual(rev["session_version"], 2)
+        with self.assertRaises(HTTPException) as ctx_revoked:
+            app_module.get_current_user(f"Bearer {token_inicial}")
+        self.assertEqual(ctx_revoked.exception.status_code, 401)
+
+        # Troca de senha invalida token da v2 e autentica com nova senha
+        admin_v2 = app_module.get_current_user(f"Bearer {rev['token']}")
+        pwd_res = app_module.alterar_senha_usuario_api(
+            app_module.ChangePasswordSchema(
+                senha_atual="SenhaForte#1",
+                nova_senha="NovaSenha#2026",
+            ),
+            current_user=admin_v2,
+        )
+        self.assertEqual(pwd_res["session_version"], 3)
+        with self.assertRaises(HTTPException):
+            app_module.get_current_user(f"Bearer {rev['token']}")
+
+        # Desativar 2FA exige código válido e permite login direto depois
+        admin_v3 = app_module.get_current_user(f"Bearer {pwd_res['token']}")
+        app_module.desativar_mfa_api(
+            app_module.MfaCodeSchema(codigo=auth_security.compute_totp(setup["secret"])),
+            current_user=admin_v3,
+        )
+        login_sem_2fa = app_module.login_usuario(
+            app_module.LoginSchema(email="vitor@secauth.com", senha="NovaSenha#2026")
+        )
+        self.assertFalse(login_sem_2fa["mfa_required"])
+        self.assertIn("token", login_sem_2fa)
+
+    def test_brute_force_rate_limit_blocks_after_five_failures(self):
+        app_module.registrar_empresa(
+            app_module.RegisterSchema(
+                nome_empresa="RateLimit Labs",
+                nome_usuario="Tester",
+                email="tester@ratelimit.com",
+                senha="SenhaCorreta99",
+            )
+        )
+        for _ in range(5):
+            with self.assertRaises(HTTPException) as ctx_401:
+                app_module.login_usuario(
+                    app_module.LoginSchema(email="tester@ratelimit.com", senha="errada")
+                )
+            self.assertEqual(ctx_401.exception.status_code, 401)
+
+        # 6ª tentativa deve retornar 429 Too Many Requests mesmo com senha correta
+        with self.assertRaises(HTTPException) as ctx_429:
+            app_module.login_usuario(
+                app_module.LoginSchema(email="tester@ratelimit.com", senha="SenhaCorreta99")
+            )
+        self.assertEqual(ctx_429.exception.status_code, 429)
+
+    def test_firebase_2fa_enforces_428_until_session_verified(self):
+        fake_db = FakeFirestoreDB()
+        fake_fb_client = FakeFirebaseAuthClient()
+        fake_fb_client.tokens["fb_tok_1"] = {
+            "uid": "fb_uid_sec_1",
+            "email": "cloud@secfix.com",
+            "name": "Cloud Admin",
+        }
+        fs_user_store = FirestoreTenantUserStore(fake_db)
+        fb_provider = FirebaseAuthProvider(auth_client=fake_fb_client)
+        fb_auth_service = AuthService(
+            user_store=fs_user_store,
+            firebase_auth_provider=fb_provider,
+            backend_override="firebase",
+        )
+        app_module._get_auth_service = lambda: fb_auth_service
+
+        onb = app_module.onboarding_firebase(
+            app_module.OnboardingSchema(nome_empresa="CloudGuard", nome_usuario="Cloud Admin"),
+            authorization="Bearer fb_tok_1",
+        )
+        self.assertEqual(onb["user"]["uid"], "fb_uid_sec_1")
+
+        ctx_fb = app_module.get_current_user("Bearer fb_tok_1")
+        setup = app_module.iniciar_setup_mfa_api(ctx_fb)
+        conf = app_module.confirmar_setup_mfa_api(
+            app_module.MfaCodeSchema(codigo=auth_security.compute_totp(setup["secret"])),
+            current_user=ctx_fb,
+        )
+        self.assertTrue(conf["mfa_token"])
+
+        # Sem cabeçalho X-SysFix-MFA deve retornar 428 MFA_REQUIRED
+        with self.assertRaises(HTTPException) as ctx_428:
+            app_module.get_current_user("Bearer fb_tok_1")
+        self.assertEqual(ctx_428.exception.status_code, 428)
+        self.assertEqual(ctx_428.exception.detail["codigo"], "MFA_REQUIRED")
+
+        # Verifica sessão MFA para obter novo X-SysFix-MFA e autentica com sucesso
+        verified = app_module.verificar_mfa_sessao_api(
+            app_module.MfaCodeSchema(codigo=auth_security.compute_totp(setup["secret"])),
+            authorization="Bearer fb_tok_1",
+        )
+        user_ok = app_module.get_current_user(
+            authorization="Bearer fb_tok_1",
+            x_sysfix_mfa=verified["mfa_token"],
+        )
+        self.assertEqual(user_ok["uid"], "fb_uid_sec_1")
+        self.assertTrue(user_ok["mfa_enabled"])
 
 
 if __name__ == "__main__":

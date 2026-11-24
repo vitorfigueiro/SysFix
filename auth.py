@@ -12,6 +12,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from auth_security import (
+    append_login_audit,
+    build_login_audit_entry,
+    build_otpauth_uri,
+    create_mfa_challenge_token,
+    create_mfa_verified_token,
+    generate_qr_data_uri,
+    generate_recovery_codes,
+    generate_totp_secret,
+    hash_recovery_code,
+    login_rate_limiter,
+    verify_and_consume_recovery_code,
+    verify_mfa_challenge_token,
+    verify_mfa_verified_token,
+    verify_totp,
+)
 from config import get_data_dir, get_secret_key, get_storage_backend, get_token_ttl_hours
 from security import SecurityValidator
 from templates_laudo import (
@@ -449,6 +465,27 @@ class AuthenticationError(Exception):
     """Token ausente, inválido ou expirado."""
 
 
+class MfaRequiredError(AuthenticationError):
+    """Autenticação primária concluída; exige segundo fator (2FA TOTP)."""
+
+    def __init__(self, email: str = "", mode: str = "firebase", challenge_token: str = ""):
+        super().__init__("Verificação em duas etapas (2FA) necessária para concluir o acesso.")
+        self.email = email
+        self.mode = mode
+        self.challenge_token = challenge_token
+
+
+class RateLimitError(AuthenticationError):
+    """Excesso de tentativas inválidas; conta/IP temporariamente bloqueado."""
+
+    def __init__(self, retry_after: int = 300):
+        minutos = max(1, (int(retry_after) + 59) // 60)
+        super().__init__(
+            f"Muitas tentativas inválidas. Por segurança, aguarde cerca de {minutos} minuto(s) e tente novamente."
+        )
+        self.retry_after = max(1, int(retry_after))
+
+
 class AuthorizationError(Exception):
     """Usuário sem permissão ou conta desativada."""
 
@@ -501,8 +538,9 @@ def _normalizar_localizacoes(localizacoes: list[str] | None) -> list[str]:
 
 
 def sanitizar_usuario(user: dict) -> dict:
-    """Remove dados sensíveis (ex.: password_hash) antes de expor o usuário na API."""
+    """Remove dados sensíveis (hash de senha, segredo 2FA e códigos) antes de expor na API."""
     role = user.get("role", "tecnico")
+    ultimos = user.get("ultimos_acessos")
     return {
         "uid": user.get("uid", ""),
         "email": user.get("email", ""),
@@ -511,6 +549,10 @@ def sanitizar_usuario(user: dict) -> dict:
         "tenant_id": user.get("tenant_id", ""),
         "ativo": bool(user.get("ativo", True)),
         "permissoes": resolver_permissoes(role, user.get("permissoes")),
+        "mfa_enabled": bool(user.get("mfa_enabled", False)),
+        "mfa_ativado_em": str(user.get("mfa_ativado_em") or ""),
+        "session_version": int(user.get("session_version") or 1),
+        "ultimos_acessos": list(ultimos[:10]) if isinstance(ultimos, list) else [],
         "criado_em": user.get("criado_em", ""),
     }
 
@@ -555,6 +597,7 @@ def sanitizar_tenant(tenant: dict) -> dict:
         "sla_dias": int(tenant.get("sla_dias") or 3),
         "localizacoes": list(tenant.get("localizacoes") or DEFAULT_LOCATIONS),
         "setores_ativos": setores,
+        "exigir_mfa_equipe": bool(tenant.get("exigir_mfa_equipe", False)),
         "cyber_governanca": gov,
         "cnpj": tenant.get("cnpj", ""),
         "telefone": tenant.get("telefone", ""),
@@ -607,10 +650,12 @@ def create_local_token(user: dict) -> str:
     now = int(time.time())
     ttl_seconds = get_token_ttl_hours() * 3600
     payload = {
+        "purpose": "session",
         "uid": user["uid"],
         "tenant_id": user["tenant_id"],
         "role": user["role"],
         "email": user["email"],
+        "sv": int(user.get("session_version") or 1),
         "iat": now,
         "exp": now + ttl_seconds,
     }
@@ -644,6 +689,9 @@ def verify_local_token(token: str) -> dict[str, Any]:
     except Exception as exc:
         raise AuthenticationError("Token de sessão malformado.") from exc
 
+    purpose = payload.get("purpose")
+    if purpose and purpose != "session":
+        raise AuthenticationError("Token inadequado para sessão autenticada.")
     if int(payload.get("exp") or 0) < int(time.time()):
         raise AuthenticationError("Sessão expirada. Faça login novamente.")
     if not payload.get("uid"):
@@ -849,6 +897,7 @@ class AuthService:
             "sla_dias": 3,
             "localizacoes": list(DEFAULT_LOCATIONS),
             "setores_ativos": dict(DEFAULT_ACTIVE_SECTORS),
+            "exigir_mfa_equipe": False,
             "cyber_governanca": {
                 "permitir_auditoria_rede": False,
                 "escopo_autorizado": [],
@@ -909,7 +958,13 @@ class AuthService:
             "tenant": sanitizar_tenant(tenant),
         }
 
-    def login_local(self, email: str, senha: str) -> dict[str, Any]:
+    def login_local(
+        self,
+        email: str,
+        senha: str,
+        client_ip: str = "",
+        user_agent: str = "",
+    ) -> dict[str, Any]:
         if self.backend == "firebase":
             raise ValueError(
                 "O login em modo Firebase é realizado pelo SDK do Firebase no cliente."
@@ -919,9 +974,31 @@ class AuthService:
         if not isinstance(senha, str) or not senha:
             raise ValueError("Informe a senha.")
 
+        rate_keys = [f"email:{email_norm}"]
+        if client_ip and client_ip not in {"desconhecido", ""}:
+            rate_keys.append(f"ip:{client_ip}")
+        for rk in rate_keys:
+            allowed, retry_after = login_rate_limiter.check_allowed(rk)
+            if not allowed:
+                raise RateLimitError(retry_after)
+
         user = self.user_store.get_user_by_email(email_norm)
         if not user or not verify_password(senha, str(user.get("password_hash") or "")):
+            for rk in rate_keys:
+                login_rate_limiter.record_failure(rk)
+            if user:
+                try:
+                    aud_err = append_login_audit(
+                        user.get("ultimos_acessos"),
+                        build_login_audit_entry("Falha de senha", ip=client_ip, user_agent=user_agent, metodo="senha"),
+                    )
+                    self.user_store.update_user(user["uid"], {"ultimos_acessos": aud_err})
+                except Exception:
+                    pass
             raise AuthenticationError("E-mail ou senha inválidos.")
+
+        for rk in rate_keys:
+            login_rate_limiter.reset(rk)
 
         if not user.get("ativo", True):
             raise AuthorizationError("Sua conta está desativada. Procure o administrador da empresa.")
@@ -930,12 +1007,94 @@ class AuthService:
         if not tenant or not tenant.get("ativo", True):
             raise AuthorizationError("Esta empresa está inativa ou indisponível.")
 
-        token = create_local_token(user)
+        if user.get("mfa_enabled"):
+            return {
+                "mfa_required": True,
+                "challenge_token": create_mfa_challenge_token(user),
+                "email": user["email"],
+                "nome": user.get("nome", ""),
+            }
+
+        auditoria = append_login_audit(
+            user.get("ultimos_acessos"),
+            build_login_audit_entry("Sucesso", ip=client_ip, user_agent=user_agent, metodo="senha"),
+        )
+        updated_user = self.user_store.update_user(user["uid"], {"ultimos_acessos": auditoria}) or user
+        token = create_local_token(updated_user)
         return {
+            "mfa_required": False,
             "token": token,
-            "user": sanitizar_usuario(user),
+            "user": sanitizar_usuario(updated_user),
             "tenant": sanitizar_tenant(tenant),
         }
+
+    def verify_mfa_login_local(
+        self,
+        challenge_token: str,
+        code: str,
+        client_ip: str = "",
+        user_agent: str = "",
+    ) -> dict[str, Any]:
+        if self.backend == "firebase":
+            raise ValueError("Use o endpoint de sessão MFA para autenticação Firebase.")
+        try:
+            payload = verify_mfa_challenge_token(challenge_token)
+        except ValueError as exc:
+            raise AuthenticationError(str(exc)) from exc
+
+        uid = str(payload.get("uid") or "")
+        rate_key = f"mfa:{uid}"
+        allowed, retry_after = login_rate_limiter.check_allowed(rate_key)
+        if not allowed:
+            raise RateLimitError(retry_after)
+
+        user = self.user_store.get_user(uid)
+        if not user or not user.get("ativo", True):
+            raise AuthenticationError("Usuário não encontrado ou inativo.")
+        if int(payload.get("sv") or 1) != int(user.get("session_version") or 1):
+            raise AuthenticationError("Desafio expirado pela revogação de sessão.")
+
+        ok, remaining_hashes, usado_recovery = self._verify_user_mfa_code(user, code)
+        if not ok:
+            login_rate_limiter.record_failure(rate_key)
+            raise AuthenticationError("Código 2FA inválido ou expirado.")
+
+        login_rate_limiter.reset(rate_key)
+        tenant = self.user_store.get_tenant(user["tenant_id"])
+        if not tenant or not tenant.get("ativo", True):
+            raise AuthorizationError("Empresa suspensa ou indisponível.")
+
+        auditoria = append_login_audit(
+            user.get("ultimos_acessos"),
+            build_login_audit_entry(
+                "Sucesso",
+                ip=client_ip,
+                user_agent=user_agent,
+                metodo="senha+backup" if usado_recovery else "senha+2fa",
+            ),
+        )
+        updates: dict[str, Any] = {"ultimos_acessos": auditoria}
+        if usado_recovery:
+            updates["mfa_recovery_hashes"] = remaining_hashes
+        updated_user = self.user_store.update_user(user["uid"], updates) or user
+
+        return {
+            "token": create_local_token(updated_user),
+            "user": sanitizar_usuario(updated_user),
+            "tenant": sanitizar_tenant(tenant),
+        }
+
+    @staticmethod
+    def _verify_user_mfa_code(user: dict, code: str) -> tuple[bool, list[str], bool]:
+        secret = str(user.get("mfa_secret") or "")
+        if secret and verify_totp(secret, code):
+            return True, list(user.get("mfa_recovery_hashes") or []), False
+        ok_rec, remaining = verify_and_consume_recovery_code(
+            user.get("mfa_recovery_hashes"), code
+        )
+        if ok_rec:
+            return True, remaining, True
+        return False, list(user.get("mfa_recovery_hashes") or []), False
 
     def onboard_firebase_user(
         self, token: str, nome_empresa: str, nome_usuario: str = ""
@@ -984,7 +1143,12 @@ class AuthService:
             "tenant": sanitizar_tenant(tenant),
         }
 
-    def authenticate_token(self, token: str) -> dict[str, Any]:
+    def authenticate_token(
+        self,
+        token: str,
+        mfa_token: str | None = None,
+        allow_unverified_mfa: bool = False,
+    ) -> dict[str, Any]:
         if not token:
             raise AuthenticationError("Token de autenticação não fornecido.")
 
@@ -1002,9 +1166,20 @@ class AuthService:
             user = self.user_store.get_user(payload["uid"])
             if not user:
                 raise AuthenticationError("Sessão inválida ou usuário removido.")
+            token_sv = int(payload.get("sv") or 1)
+            user_sv = int(user.get("session_version") or 1)
+            if token_sv != user_sv:
+                raise AuthenticationError("Sessão revogada. Faça login novamente.")
 
         if not user.get("ativo", True):
             raise AuthorizationError("Sua conta foi desativada pelo administrador.")
+
+        if self.backend == "firebase" and user.get("mfa_enabled") and not allow_unverified_mfa:
+            user_sv = int(user.get("session_version") or 1)
+            if not verify_mfa_verified_token(
+                mfa_token or "", expected_uid=user["uid"], expected_sv=user_sv
+            ):
+                raise MfaRequiredError(email=user.get("email", ""), mode="firebase")
 
         tenant = self.user_store.get_tenant(user["tenant_id"])
         if not tenant or not tenant.get("ativo", True):
@@ -1013,6 +1188,176 @@ class AuthService:
         ctx = sanitizar_usuario(user)
         ctx["tenant"] = sanitizar_tenant(tenant)
         return ctx
+
+    def verify_mfa_firebase_session(
+        self,
+        firebase_token: str,
+        code: str,
+        client_ip: str = "",
+        user_agent: str = "",
+    ) -> dict[str, Any]:
+        ctx = self.authenticate_token(firebase_token, allow_unverified_mfa=True)
+        uid = ctx["uid"]
+        user = self.user_store.get_user(uid)
+        if not user:
+            raise AuthenticationError("Usuário não encontrado.")
+
+        rate_key = f"mfa:{uid}"
+        allowed, retry_after = login_rate_limiter.check_allowed(rate_key)
+        if not allowed:
+            raise RateLimitError(retry_after)
+
+        ok, remaining_hashes, usado_recovery = self._verify_user_mfa_code(user, code)
+        if not ok:
+            login_rate_limiter.record_failure(rate_key)
+            raise AuthenticationError("Código 2FA inválido ou expirado.")
+
+        login_rate_limiter.reset(rate_key)
+        auditoria = append_login_audit(
+            user.get("ultimos_acessos"),
+            build_login_audit_entry(
+                "Sucesso",
+                ip=client_ip,
+                user_agent=user_agent,
+                metodo="firebase+backup" if usado_recovery else "firebase+2fa",
+            ),
+        )
+        updates: dict[str, Any] = {"ultimos_acessos": auditoria}
+        if usado_recovery:
+            updates["mfa_recovery_hashes"] = remaining_hashes
+        updated_user = self.user_store.update_user(uid, updates) or user
+
+        return {
+            "mfa_token": create_mfa_verified_token(updated_user),
+            "user": sanitizar_usuario(updated_user),
+            "tenant": ctx["tenant"],
+        }
+
+    def get_user_security_status(self, user_ctx: dict[str, Any]) -> dict[str, Any]:
+        user = self.user_store.get_user(user_ctx["uid"]) or user_ctx
+        tenant = self.user_store.get_tenant(user_ctx["tenant_id"]) or user_ctx.get("tenant") or {}
+        sanitized = sanitizar_usuario(user)
+        return {
+            "auth_mode": self.backend,
+            "mfa_enabled": sanitized["mfa_enabled"],
+            "mfa_ativado_em": sanitized["mfa_ativado_em"],
+            "session_version": sanitized["session_version"],
+            "ultimos_acessos": sanitized["ultimos_acessos"],
+            "exigir_mfa_equipe": bool(tenant.get("exigir_mfa_equipe", False)),
+            "recovery_remaining": len(user.get("mfa_recovery_hashes") or []),
+        }
+
+    def start_mfa_setup(self, user_ctx: dict[str, Any]) -> dict[str, Any]:
+        user = self.user_store.get_user(user_ctx["uid"])
+        if not user:
+            raise LookupError("Usuário não encontrado.")
+        secret = generate_totp_secret()
+        self.user_store.update_user(user["uid"], {"mfa_pending_secret": secret})
+        otpauth_uri = build_otpauth_uri(secret, user.get("email", ""), issuer="SysFix")
+        return {
+            "secret": secret,
+            "otpauth_uri": otpauth_uri,
+            "qr_svg_data_uri": generate_qr_data_uri(otpauth_uri),
+            "mfa_enabled": bool(user.get("mfa_enabled", False)),
+        }
+
+    def confirm_mfa_setup(self, user_ctx: dict[str, Any], code: str) -> dict[str, Any]:
+        user = self.user_store.get_user(user_ctx["uid"])
+        if not user:
+            raise LookupError("Usuário não encontrado.")
+        pending = str(user.get("mfa_pending_secret") or "")
+        if not pending:
+            raise ValueError("Nenhuma configuração 2FA em andamento. Clique em Gerar QR Code primeiro.")
+        if not verify_totp(pending, code):
+            raise AuthenticationError("Código de confirmação inválido. Confira o horário do dispositivo e tente novamente.")
+
+        recovery_codes = generate_recovery_codes(8)
+        recovery_hashes = [hash_recovery_code(c) for c in recovery_codes]
+        updated = self.user_store.update_user(
+            user["uid"],
+            {
+                "mfa_enabled": True,
+                "mfa_secret": pending,
+                "mfa_pending_secret": "",
+                "mfa_recovery_hashes": recovery_hashes,
+                "mfa_ativado_em": _now_iso(),
+            },
+        ) or user
+
+        return {
+            "mfa_enabled": True,
+            "recovery_codes": recovery_codes,
+            "mfa_token": create_mfa_verified_token(updated) if self.backend == "firebase" else "",
+            "user": sanitizar_usuario(updated),
+        }
+
+    def disable_mfa(self, user_ctx: dict[str, Any], code: str) -> dict[str, Any]:
+        user = self.user_store.get_user(user_ctx["uid"])
+        if not user:
+            raise LookupError("Usuário não encontrado.")
+        if not user.get("mfa_enabled"):
+            return {"mfa_enabled": False, "user": sanitizar_usuario(user)}
+
+        ok, _, _ = self._verify_user_mfa_code(user, code)
+        if not ok:
+            raise AuthenticationError("Informe um código TOTP atual ou código de recuperação válido para desativar o 2FA.")
+
+        updated = self.user_store.update_user(
+            user["uid"],
+            {
+                "mfa_enabled": False,
+                "mfa_secret": "",
+                "mfa_pending_secret": "",
+                "mfa_recovery_hashes": [],
+                "mfa_ativado_em": "",
+            },
+        ) or user
+        return {"mfa_enabled": False, "user": sanitizar_usuario(updated)}
+
+    def revoke_all_sessions(self, user_ctx: dict[str, Any]) -> dict[str, Any]:
+        user = self.user_store.get_user(user_ctx["uid"])
+        if not user:
+            raise LookupError("Usuário não encontrado.")
+        nova_versao = int(user.get("session_version") or 1) + 1
+        updated = self.user_store.update_user(
+            user["uid"], {"session_version": nova_versao}
+        ) or user
+        return {
+            "session_version": nova_versao,
+            "token": create_local_token(updated) if self.backend != "firebase" else "",
+            "mfa_token": create_mfa_verified_token(updated)
+            if (self.backend == "firebase" and updated.get("mfa_enabled"))
+            else "",
+            "user": sanitizar_usuario(updated),
+        }
+
+    def change_local_password(
+        self, user_ctx: dict[str, Any], senha_atual: str, nova_senha: str
+    ) -> dict[str, Any]:
+        if self.backend == "firebase":
+            raise ValueError("No modo nuvem, use a redefinição de senha por e-mail.")
+        user = self.user_store.get_user(user_ctx["uid"])
+        if not user:
+            raise LookupError("Usuário não encontrado.")
+        if not verify_password(senha_atual, str(user.get("password_hash") or "")):
+            raise AuthenticationError("Senha atual incorreta.")
+        nova_valida = _validar_senha(nova_senha)
+        if senha_atual == nova_valida:
+            raise ValueError("A nova senha deve ser diferente da senha atual.")
+
+        nova_versao = int(user.get("session_version") or 1) + 1
+        updated = self.user_store.update_user(
+            user["uid"],
+            {
+                "password_hash": hash_password(nova_valida),
+                "session_version": nova_versao,
+            },
+        ) or user
+        return {
+            "token": create_local_token(updated),
+            "session_version": nova_versao,
+            "user": sanitizar_usuario(updated),
+        }
 
     def create_team_member(
         self,
@@ -1164,6 +1509,7 @@ class AuthService:
         sla_dias: int | None = None,
         localizacoes: list[str] | None = None,
         setores_ativos: dict[str, Any] | None = None,
+        exigir_mfa_equipe: bool | None = None,
     ) -> dict[str, Any]:
         if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
             raise AuthorizationError(
@@ -1187,6 +1533,9 @@ class AuthService:
 
         if setores_ativos is not None:
             updates["setores_ativos"] = _normalizar_setores_ativos(setores_ativos)
+
+        if exigir_mfa_equipe is not None:
+            updates["exigir_mfa_equipe"] = bool(exigir_mfa_equipe)
 
         if not updates:
             tenant = self.user_store.get_tenant(admin_ctx["tenant_id"])

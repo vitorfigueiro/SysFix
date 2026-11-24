@@ -147,3 +147,40 @@ html.dark .cyber-bots-track {
   from { background-position: 0 0; }
   to { background-position: 48px 0; }
 }
+
+/* ============================================================================
+   PAINEL INTERATIVO DE TI NA TELA DE LOGIN
+   ============================================================================ */
+.login-tech-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.tech-float {
+  animation: floatSlow 3.6s ease-in-out infinite;
+}
+
+.tech-pulse {
+  animation: techPulse 2.4s ease-in-out infinite;
+}
+
+.tech-packet-dash {
+  stroke-dasharray: 6 6;
+  animation: dashFlow 1.4s linear infinite;
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes techPulse {
+  0%, 100% { opacity: 0.65; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes dashFlow {
+  to { stroke-dashoffset: -24; }
+}

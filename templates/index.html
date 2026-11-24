@@ -47,7 +47,7 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/static/theme.css?v=2.3.0">
+  <link rel="stylesheet" href="/static/theme.css?v=2.4.0">
 </head>
 <body class="h-screen flex flex-col overflow-hidden relative bg-[#F6F4FC] dark:bg-[#0B0816] text-[#1C1635] dark:text-[#F4F1FF]">
 
@@ -60,52 +60,61 @@
     </button>
 
     <div class="w-full max-w-4xl grid md:grid-cols-2 bg-white dark:bg-[#141024] rounded-3xl shadow-2xl overflow-hidden border border-violet-200/80 dark:border-violet-900/70">
-      <!-- Lado esquerdo: Apresentação comercial -->
-      <div class="brand-gradient text-white p-8 flex flex-col justify-between space-y-6 relative overflow-hidden">
+      <!-- Lado esquerdo: Painel Interativo de Conteúdos de TI -->
+      <div id="loginTechPanel" class="brand-gradient login-tech-grid text-white p-7 flex flex-col justify-between space-y-5 relative overflow-hidden">
         <div class="absolute -right-12 -top-12 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
         <div class="absolute -left-10 -bottom-12 w-40 h-40 rounded-full bg-fuchsia-300/15 blur-xl pointer-events-none"></div>
 
-        <div class="space-y-4 relative z-10">
+        <div class="flex items-center justify-between gap-2 relative z-10">
           <div class="flex items-center gap-3">
-            <img src="/static/favicon.svg" alt="Logo SysFix" class="w-11 h-11 rounded-xl shadow-lg ring-2 ring-white/25">
+            <img src="/static/favicon.svg" alt="Logo SysFix" class="w-10 h-10 rounded-xl shadow-lg ring-2 ring-white/25">
             <div>
-              <h1 class="text-xl font-extrabold tracking-tight">SysFix <span class="text-amber-200">SaaS</span></h1>
-              <p class="text-xs text-violet-100/90">Controle de O.S., Manutenções e SLA</p>
+              <h1 class="text-lg font-extrabold tracking-tight leading-tight">SysFix</h1>
+              <p class="text-[11px] text-violet-100/90">Central Técnica &amp; Segurança TI</p>
             </div>
           </div>
-
-          <h2 class="text-2xl font-extrabold leading-snug pt-2">
-            Gerencie coletas, entregas e custos da sua assistência em um só lugar.
-          </h2>
-          <p class="text-xs text-violet-100/90 leading-relaxed">
-            Cada empresa possui ambiente isolado, painel de indicadores em tempo real, relatórios PDF com opção LGPD e controle de equipe por perfil.
-          </p>
-
-          <ul class="space-y-2 pt-2 text-xs text-white/95">
-            <li class="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
-              <span class="text-amber-300 font-bold">✓</span> Dashboard executivo com SLA, custos e produtividade
-            </li>
-            <li class="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
-              <span class="text-amber-300 font-bold">✓</span> Entrada em lote atômica e ficha técnica completa
-            </li>
-            <li class="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
-              <span class="text-amber-300 font-bold">✓</span> Importação JSON, CSV e Excel + Backup automático
-            </li>
-            <li class="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
-              <span class="text-amber-300 font-bold">✓</span> Firebase Auth &amp; Cloud Firestore multi-empresa
-            </li>
-          </ul>
+          <span class="px-2.5 py-1 rounded-full bg-black/20 border border-white/20 text-[10px] font-bold flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            Hub TI
+          </span>
         </div>
 
-        <div class="pt-4 border-t border-white/15 flex items-center justify-between text-[11px] text-violet-100 relative z-10">
-          <span class="font-semibold">SysFix v2.0</span>
-          <span id="badgeModoAuth" class="px-2.5 py-1 rounded-full bg-black/25 border border-white/20 text-white font-semibold">
-            Carregando modo...
-          </span>
+        <!-- Seletor interativo de tópicos de TI -->
+        <div class="space-y-3 relative z-10">
+          <div class="grid grid-cols-2 gap-1.5">
+            <button id="btnLoginTech_infra" type="button" onclick="selecionarTemaLoginTI('infra')" class="px-2.5 py-2 rounded-xl text-[11px] font-extrabold bg-white text-violet-800 shadow-md transition-all text-left flex items-center gap-1.5">
+              🖥️ Redes &amp; Servers
+            </button>
+            <button id="btnLoginTech_fibra" type="button" onclick="selecionarTemaLoginTI('fibra')" class="px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-white/10 hover:bg-white/20 text-white/95 border border-white/15 transition-all text-left flex items-center gap-1.5">
+              🌐 Fibra &amp; OLT
+            </button>
+            <button id="btnLoginTech_cyber" type="button" onclick="selecionarTemaLoginTI('cyber')" class="px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-white/10 hover:bg-white/20 text-white/95 border border-white/15 transition-all text-left flex items-center gap-1.5">
+              🛡️ Zero Trust &amp; 2FA
+            </button>
+            <button id="btnLoginTech_iot" type="button" onclick="selecionarTemaLoginTI('iot')" class="px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-white/10 hover:bg-white/20 text-white/95 border border-white/15 transition-all text-left flex items-center gap-1.5">
+              🤖 CFTV &amp; IoT
+            </button>
+          </div>
+
+          <div class="rounded-2xl bg-black/20 backdrop-blur-md border border-white/15 p-3.5 space-y-2.5">
+            <div id="loginTechStage" class="rounded-xl bg-white/5 border border-white/10 px-2 py-1 flex items-center justify-center"></div>
+            <div>
+              <h2 id="loginTechCardTitle" class="text-sm font-extrabold text-white"></h2>
+              <p id="loginTechCardDesc" class="text-[11px] text-violet-100/90 leading-relaxed mt-1"></p>
+            </div>
+            <div id="loginTechBadges" class="flex flex-wrap gap-1.5 pt-0.5"></div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-white/15 flex items-center justify-between gap-2 text-[11px] text-violet-100 relative z-10">
+          <p id="loginTechTipText" class="text-[10px] leading-snug text-violet-50/95 flex-1"></p>
+          <button type="button" onclick="proximaDicaLoginTI()" class="shrink-0 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 text-[10px] font-bold text-white transition-all">
+            Dica ↻
+          </button>
         </div>
       </div>
 
-      <!-- Lado direito: Formulários de Login e Cadastro -->
+      <!-- Lado direito: Autenticação Protegida -->
       <div class="p-8 flex flex-col justify-center bg-white dark:bg-[#141024]">
         <div id="cardLoginRegistro" class="space-y-5">
           <div class="grid grid-cols-2 p-1 bg-violet-50 dark:bg-[#1C1633] rounded-xl border border-violet-200/80 dark:border-violet-900/70">
@@ -129,11 +138,17 @@
                   Esqueci minha senha
                 </button>
               </div>
-              <input type="password" id="login_senha" required autocomplete="current-password" placeholder="••••••" class="w-full px-3.5 py-2.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
+              <div class="relative">
+                <input type="password" id="login_senha" required autocomplete="current-password" placeholder="••••••" class="w-full px-3.5 py-2.5 pr-10 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
+                <button type="button" onclick="toggleSenhaInput('login_senha', this)" title="Mostrar/Ocultar senha" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-violet-600">👁️</button>
+              </div>
             </div>
             <button id="btnEntrar" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
               Entrar no Sistema
             </button>
+            <p class="text-[10px] text-center text-slate-400 dark:text-violet-300/70 pt-1">
+              🔒 Login protegido contra força bruta • Suporte a 2FA TOTP
+            </p>
           </form>
 
           <form id="formRegister" onsubmit="enviarCadastroEmpresa(event)" class="space-y-3 hidden">
@@ -151,13 +166,43 @@
             </div>
             <div>
               <label for="reg_senha" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Senha (mínimo 6 caracteres) *</label>
-              <input type="password" id="reg_senha" required minlength="6" autocomplete="new-password" placeholder="••••••" class="w-full px-3.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
+              <div class="relative">
+                <input type="password" id="reg_senha" required minlength="6" autocomplete="new-password" oninput="atualizarForcaSenha(this.value)" placeholder="••••••" class="w-full px-3.5 py-2 pr-10 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
+                <button type="button" onclick="toggleSenhaInput('reg_senha', this)" title="Mostrar/Ocultar senha" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-violet-600">👁️</button>
+              </div>
+              <div class="w-full h-1.5 rounded-full bg-violet-100 dark:bg-[#1C1633] overflow-hidden mt-1.5">
+                <div id="regSenhaForcaBar" class="h-full w-0 transition-all duration-300 bg-rose-500"></div>
+              </div>
+              <p id="regSenhaForcaTexto" class="text-[10px] text-slate-400 dark:text-violet-300/70 mt-1">Mínimo 6 caracteres (use letras, números e símbolos)</p>
             </div>
             <button id="btnCadastrarEmpresa" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
               Criar Conta e Empresa
             </button>
           </form>
         </div>
+
+        <!-- Segundo Fator 2FA (TOTP ou Código de Recuperação) -->
+        <form id="cardMfaLogin" onsubmit="enviarVerificacaoMfaLogin(event)" class="space-y-4 hidden">
+          <div>
+            <span class="px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-950/60 border border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-300 text-[11px] font-bold">
+              🔐 Verificação em 2 Etapas
+            </span>
+            <h3 class="text-base font-extrabold text-slate-900 dark:text-white mt-2">Confirme seu Autenticador</h3>
+            <p id="mfaLoginInfo" class="text-xs text-slate-500 dark:text-violet-300 mt-1">Digite o código de 6 dígitos do seu aplicativo autenticador ou um código de recuperação.</p>
+          </div>
+          <div>
+            <label for="mfa_login_codigo" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Código 2FA ou Backup *</label>
+            <input type="text" id="mfa_login_codigo" required autocomplete="one-time-code" placeholder="000000 ou XXXX-XXXX" class="w-full px-3.5 py-2.5 text-sm font-mono tracking-widest text-center border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none uppercase">
+          </div>
+          <div class="flex gap-2">
+            <button id="btnConfirmarMfaLogin" type="submit" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
+              ✓ Validar e Entrar
+            </button>
+            <button type="button" onclick="cancelarMfaLogin()" class="px-4 py-2.5 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl">
+              Voltar
+            </button>
+          </div>
+        </form>
 
         <form id="cardOnboarding" onsubmit="concluirOnboardingFirebase(event)" class="space-y-4 hidden">
           <div>
@@ -249,6 +294,9 @@
             <div id="headerUsuarioNome" class="text-xs font-bold text-slate-900 dark:text-white">Usuário</div>
             <div id="headerUsuarioRole" class="text-[10px] font-semibold text-violet-600 dark:text-violet-300 uppercase">Técnico</div>
           </div>
+          <button id="btnMinhaSeguranca" type="button" onclick="abrirModalMinhaSeguranca()" title="Segurança da Conta e 2FA" class="px-2.5 py-1.5 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-bold rounded-xl border border-violet-200 dark:border-violet-800 transition-all">
+            🔓 2FA
+          </button>
           <button onclick="sairSistema()" class="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 text-xs font-semibold rounded-xl border border-rose-200 dark:border-rose-800/70 transition-all">
             Sair
           </button>
@@ -1455,6 +1503,10 @@
               <span>🛡️ Cibersegurança &amp; Auditoria</span>
             </label>
           </div>
+          <label class="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 cursor-pointer text-xs">
+            <input type="checkbox" id="emp_exigir_mfa" class="rounded border-amber-400 text-violet-600">
+            <span class="font-semibold text-amber-900 dark:text-amber-200">🔐 Recomendar/Exigir 2FA (TOTP) para toda a equipe</span>
+          </label>
           <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
             Salvar Configurações
           </button>
@@ -2016,8 +2068,103 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.3.0"></script>
-  <script src="/static/laudos_ops.js?v=2.3.0"></script>
-  <script src="/static/automation_cyber.js?v=2.3.0"></script>
+  <!-- MODAL: CENTRAL DE SEGURANÇA DA CONTA (2FA TOTP, SESSÕES & AUDITORIA) -->
+  <div id="modalMinhaSeguranca" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl space-y-4">
+      <div class="flex flex-wrap justify-between items-center gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
+        <div>
+          <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🛡️ Segurança da Conta &amp; Verificação 2FA</h3>
+          <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Proteja seu login com aplicativo autenticador (Google/Microsoft Authenticator, Authy) e gerencie sessões ativas.</p>
+        </div>
+        <button type="button" onclick="fecharModalMinhaSeguranca()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70">
+        <span class="text-xs font-bold text-slate-800 dark:text-white">Autenticação em Duas Etapas (TOTP)</span>
+        <span id="segMfaStatusBadge" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">Verificando...</span>
+      </div>
+
+      <!-- Ativar 2FA -->
+      <div id="segBlocoAtivarMfa" class="space-y-3 p-4 rounded-xl border border-violet-200 dark:border-violet-800 text-xs">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div class="font-bold text-slate-900 dark:text-white">Ativar 2FA no seu Autenticador</div>
+            <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Escaneie o QR Code no aplicativo e confirme com o código de 6 dígitos.</p>
+          </div>
+          <button type="button" onclick="iniciarAtivacaoMfa()" class="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-sm">
+            📷 Gerar QR Code 2FA
+          </button>
+        </div>
+
+        <div id="segQrBox" class="hidden pt-2 grid sm:grid-cols-2 gap-4 items-center">
+          <div class="flex flex-col items-center p-3 rounded-xl bg-white border border-violet-200">
+            <img id="mfaQrImg" alt="QR Code 2FA" class="w-40 h-40">
+            <div class="mt-2 flex items-center gap-1.5 text-[10px] text-slate-600">
+              <code id="mfaSecretText" class="font-mono font-bold text-violet-700"></code>
+              <button type="button" onclick="copiarChaveMfa()" class="px-2 py-0.5 rounded bg-violet-100 text-violet-800 font-bold">Copiar</button>
+            </div>
+          </div>
+          <form onsubmit="confirmarAtivacaoMfa(event)" class="space-y-2.5">
+            <label class="block text-[11px] font-semibold">Código de 6 dígitos do aplicativo *</label>
+            <input type="text" id="mfa_confirm_codigo" required maxlength="8" placeholder="000000" class="w-full px-3 py-2 text-sm font-mono tracking-widest text-center border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl">
+              ✓ Confirmar e Ativar 2FA
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Códigos de Recuperação Gerados -->
+      <div id="segRecoveryCodesBox" class="hidden p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 space-y-2.5 text-xs">
+        <div class="flex flex-wrap justify-between items-center gap-2">
+          <span class="font-extrabold text-amber-900 dark:text-amber-200">🔑 Códigos de Recuperação (uso único — salve agora!)</span>
+          <button type="button" onclick="copiarCodigosRecuperacao()" class="px-2.5 py-1 rounded-lg bg-amber-600 text-white text-[10px] font-bold">📋 Copiar Todos</button>
+        </div>
+        <div id="segRecoveryCodesList" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+      </div>
+
+      <!-- Desativar 2FA -->
+      <form id="segBlocoDesativarMfa" onsubmit="desativarMfaUsuario(event)" class="hidden p-4 rounded-xl border border-rose-200 dark:border-rose-800/70 bg-rose-50/40 dark:bg-rose-950/20 space-y-2.5 text-xs">
+        <div class="font-bold text-rose-800 dark:text-rose-200">Desativar 2FA</div>
+        <div class="flex flex-wrap gap-2">
+          <input type="text" id="mfa_disable_codigo" required placeholder="Código 2FA atual ou backup" class="flex-1 min-w-[180px] px-3 py-2 font-mono text-xs border border-rose-200 dark:border-rose-800 rounded-xl outline-none">
+          <button type="submit" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl">Desativar 2FA</button>
+        </div>
+      </form>
+
+      <!-- Alterar Senha Local -->
+      <div id="segBlocoAlterarSenhaLocal" class="p-4 rounded-xl border border-violet-200 dark:border-violet-800 space-y-2.5 text-xs">
+        <div class="font-bold text-slate-900 dark:text-white">🔑 Alterar Senha da Conta</div>
+        <form id="formAlterarSenhaLocal" onsubmit="enviarAlterarSenhaLocal(event)" class="grid sm:grid-cols-4 gap-2">
+          <input type="password" id="seg_senha_atual" required placeholder="Senha atual" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+          <input type="password" id="seg_nova_senha" required minlength="6" placeholder="Nova senha (min 6)" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+          <input type="password" id="seg_confirma_senha" required minlength="6" placeholder="Confirmar nova" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+          <button type="submit" class="py-2 px-3 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">Atualizar</button>
+        </form>
+      </div>
+
+      <!-- Sessões Ativas -->
+      <div class="p-4 rounded-xl border border-violet-200 dark:border-violet-800 flex flex-wrap justify-between items-center gap-3 text-xs">
+        <div>
+          <div class="font-bold text-slate-900 dark:text-white">🚪 Sessões Conectadas</div>
+          <p id="segSessoesInfo" class="text-[11px] text-slate-500 dark:text-violet-300/80">Revogue sessões antigas em outros navegadores ou dispositivos.</p>
+        </div>
+        <button type="button" onclick="revogarOutrasSessoes()" class="px-3.5 py-2 rounded-xl bg-violet-100 dark:bg-[#1C1633] hover:bg-violet-200 text-violet-800 dark:text-violet-200 font-bold border border-violet-200 dark:border-violet-700">
+          Revogar Sessões Antigas
+        </button>
+      </div>
+
+      <!-- Auditoria de Acessos -->
+      <div class="space-y-2 text-xs">
+        <div class="font-bold text-slate-900 dark:text-white">📜 Últimos Acessos Registrados</div>
+        <div id="listaUltimosAcessos" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=2.4.0"></script>
+  <script src="/static/laudos_ops.js?v=2.4.0"></script>
+  <script src="/static/automation_cyber.js?v=2.4.0"></script>
+  <script src="/static/auth_security_ui.js?v=2.4.0"></script>
 </body>
 </html>

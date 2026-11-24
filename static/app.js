@@ -1,6 +1,9 @@
 const API_BASE = '/api';
 const TOKEN_STORAGE_KEY = 'sysfix_auth_token';
+const MFA_TOKEN_STORAGE_KEY = 'sysfix_mfa_token';
 const THEME_STORAGE_KEY = 'sysfix_theme';
+
+let pendingMfaChallenge = null;
 
 let clientConfig = { auth_mode: 'local', storage_backend: 'local', firebase_web: null };
 let firebaseClient = null;
@@ -172,6 +175,10 @@ async function apiFetch(path, options = {}) {
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
+  const mfaToken = localStorage.getItem(MFA_TOKEN_STORAGE_KEY);
+  if (mfaToken && !headers.has('X-SysFix-MFA')) {
+    headers.set('X-SysFix-MFA', mfaToken);
+  }
   if (fetchOptions.body && !(fetchOptions.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
@@ -214,6 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (typeof fecharModalOrcamento === 'function') fecharModalOrcamento();
       if (typeof fecharModalMovEstoque === 'function') fecharModalMovEstoque();
       if (typeof fecharModalHistoricoEstoque === 'function') fecharModalHistoricoEstoque();
+      if (typeof fecharModalMinhaSeguranca === 'function') fecharModalMinhaSeguranca();
     }
   });
 
@@ -235,13 +243,10 @@ async function inicializarSistema() {
     console.error('Erro ao ler configuração:', e);
   }
 
-  const badgeModo = document.getElementById('badgeModoAuth');
   if (clientConfig.auth_mode === 'firebase' && clientConfig.firebase_web) {
-    badgeModo.textContent = '🔥 Firebase Cloud';
-    document.getElementById('btnEsqueciSenha').classList.remove('hidden');
+    document.getElementById('btnEsqueciSenha')?.classList.remove('hidden');
     await inicializarFirebaseSdk();
   } else {
-    badgeModo.textContent = '💻 Modo Local';
     const token = localStorage.getItem(TOKEN_STORAGE_KEY);
     if (token) {
       await carregarSessao();
@@ -293,7 +298,91 @@ function exibirTelaAuth() {
   document.getElementById('appShell').classList.add('hidden');
   document.getElementById('telaAuth').classList.remove('hidden');
   document.getElementById('cardOnboarding').classList.add('hidden');
+  document.getElementById('cardMfaLogin')?.classList.add('hidden');
   document.getElementById('cardLoginRegistro').classList.remove('hidden');
+}
+
+function exibirTelaMfaLogin(mode, email = '', challengeToken = '') {
+  pendingMfaChallenge = { mode, email, challengeToken };
+  document.getElementById('appShell').classList.add('hidden');
+  document.getElementById('telaAuth').classList.remove('hidden');
+  document.getElementById('cardLoginRegistro').classList.add('hidden');
+  document.getElementById('cardOnboarding').classList.add('hidden');
+  document.getElementById('cardMfaLogin')?.classList.remove('hidden');
+  const info = document.getElementById('mfaLoginInfo');
+  if (info) {
+    info.textContent = email
+      ? `Conta ${email}: informe o código de 6 dígitos do aplicativo autenticador ou um código de recuperação.`
+      : 'Informe o código de 6 dígitos do aplicativo autenticador ou um código de recuperação.';
+  }
+  const input = document.getElementById('mfa_login_codigo');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+}
+
+function cancelarMfaLogin() {
+  pendingMfaChallenge = null;
+  localStorage.removeItem(MFA_TOKEN_STORAGE_KEY);
+  exibirTelaAuth();
+}
+
+async function enviarVerificacaoMfaLogin(event) {
+  event.preventDefault();
+  if (!pendingMfaChallenge) {
+    exibirTelaAuth();
+    return;
+  }
+  const codigo = document.getElementById('mfa_login_codigo')?.value.trim() || '';
+  const btn = document.getElementById('btnConfirmarMfaLogin');
+  if (btn) btn.disabled = true;
+
+  try {
+    if (pendingMfaChallenge.mode === 'firebase') {
+      const idToken = await obterTokenAtivo(true);
+      const res = await fetch(`${API_BASE}/auth/mfa/verify-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ codigo })
+      });
+      if (!res.ok) {
+        mostrarToast(await extrairErroResposta(res, 'Código 2FA inválido.'), 'erro');
+        return;
+      }
+      const data = await res.json();
+      localStorage.setItem(MFA_TOKEN_STORAGE_KEY, data.mfa_token || '');
+      pendingMfaChallenge = null;
+      await carregarSessao(true);
+      mostrarToast('Verificação 2FA confirmada!', 'sucesso');
+      return;
+    }
+
+    const res = await fetch(`${API_BASE}/auth/mfa/verify-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        challenge_token: pendingMfaChallenge.challengeToken,
+        codigo
+      })
+    });
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Código 2FA inválido.'), 'erro');
+      return;
+    }
+    const data = await res.json();
+    localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+    pendingMfaChallenge = null;
+    await carregarSessao(true);
+    mostrarToast(`Bem-vindo(a), ${data.user.nome}!`, 'sucesso');
+  } catch (e) {
+    mostrarToast('Falha ao validar código 2FA.', 'erro');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function alternarAuthTab(tab) {
@@ -337,6 +426,16 @@ async function carregarSessao(exibirErro = false) {
     if (!res) {
       exibirTelaAuth();
       return false;
+    }
+
+    if (res.status === 428) {
+      const data = await res.json();
+      const detail = data.detail || {};
+      if (detail.codigo === 'MFA_REQUIRED') {
+        localStorage.removeItem(MFA_TOKEN_STORAGE_KEY);
+        exibirTelaMfaLogin(detail.mode || 'firebase', detail.email || '');
+        return false;
+      }
     }
 
     if (res.status === 409) {
@@ -567,13 +666,28 @@ function aplicarPermissoesNaUI() {
   }
 }
 
+function atualizarIndicadorSegurancaHeader() {
+  const btn = document.getElementById('btnMinhaSeguranca');
+  if (!btn || !sessaoAtual?.user) return;
+  const ativo = Boolean(sessaoAtual.user.mfa_enabled);
+  btn.textContent = ativo ? '🔐 2FA OK' : '🔓 Ativar 2FA';
+  btn.className = ativo
+    ? 'px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl border border-emerald-200 dark:border-emerald-800 transition-all'
+    : 'px-2.5 py-1.5 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-800 dark:text-amber-300 text-xs font-bold rounded-xl border border-amber-200 dark:border-amber-800 transition-all';
+}
+
 function aplicarSessaoNaUI() {
   const user = sessaoAtual.user;
   const tenant = sessaoAtual.tenant;
   const isAdmin = user.role === 'admin';
 
   document.getElementById('telaAuth').classList.add('hidden');
+  document.getElementById('cardMfaLogin')?.classList.add('hidden');
   document.getElementById('appShell').classList.remove('hidden');
+  atualizarIndicadorSegurancaHeader();
+  if (tenant?.exigir_mfa_equipe && !user?.mfa_enabled) {
+    mostrarToast('Sua empresa recomenda ativar 2FA na conta (botão "🔓 Ativar 2FA").', 'info');
+  }
 
   document.getElementById('headerEmpresaNome').textContent = tenant.nome || 'SysFix';
   document.getElementById('headerPlanoBadge').textContent = (tenant.plano || 'pro').toUpperCase();
@@ -662,10 +776,15 @@ async function enviarLogin(event) {
       return;
     }
     const data = await res.json();
+    if (data.mfa_required) {
+      exibirTelaMfaLogin('local', data.email || email, data.challenge_token || '');
+      mostrarToast('Informe o código 2FA do seu autenticador para concluir o login.', 'info');
+      return;
+    }
     localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
     sessaoAtual = { user: data.user, tenant: data.tenant };
     mostrarToast(`Bem-vindo(a), ${data.user.nome}!`, 'sucesso');
-    aplicarSessaoNaUI();
+    await carregarSessao(true);
   } catch (e) {
     const code = String(e?.code || '');
     if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
@@ -784,6 +903,8 @@ async function recuperarSenhaFirebase() {
 
 async function sairSistema(notificar = true) {
   localStorage.removeItem(TOKEN_STORAGE_KEY);
+  localStorage.removeItem(MFA_TOKEN_STORAGE_KEY);
+  pendingMfaChallenge = null;
   if (clientConfig.auth_mode === 'firebase' && firebaseSdk && firebaseAuth) {
     try {
       await firebaseSdk.signOut(firebaseAuth);
@@ -1764,6 +1885,9 @@ async function carregarTelaEmpresa() {
         document.getElementById('setor_ativo_ciberseguranca').checked = setores.ciberseguranca !== false;
       }
     }
+    if (document.getElementById('emp_exigir_mfa')) {
+      document.getElementById('emp_exigir_mfa').checked = Boolean(tenant.exigir_mfa_equipe);
+    }
     renderizarCheckboxesPermissoesNovoMembro();
     await carregarUsuariosEmpresa();
   }
@@ -1921,11 +2045,12 @@ async function salvarConfiguracoesEmpresa(event) {
     automacao: Boolean(document.getElementById('setor_ativo_automacao')?.checked),
     ciberseguranca: Boolean(document.getElementById('setor_ativo_ciberseguranca')?.checked),
   };
+  const exigirMfaEquipe = Boolean(document.getElementById('emp_exigir_mfa')?.checked);
 
   try {
     const res = await apiFetch('/empresa/configuracoes', {
       method: 'PUT',
-      body: JSON.stringify({ nome, sla_dias: slaDias, localizacoes, setores_ativos: setoresAtivos })
+      body: JSON.stringify({ nome, sla_dias: slaDias, localizacoes, setores_ativos: setoresAtivos, exigir_mfa_equipe: exigirMfaEquipe })
     });
     if (!res.ok) {
       mostrarToast(await extrairErroResposta(res, 'Erro ao salvar configurações.'), 'erro');

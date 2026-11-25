@@ -522,6 +522,14 @@ class CyberAchadoSchema(BaseModel):
     alvo: Optional[str] = ""
     status: Optional[str] = "Aberto"
     recomendacao: Optional[str] = ""
+    cve_cwe: Optional[str] = ""
+    cvss_score: Optional[float] = None
+    evidencia: Optional[str] = ""
+    impacto: Optional[str] = ""
+    responsavel: Optional[str] = ""
+    prazo_sla: Optional[str] = ""
+    notas_remediacao: Optional[str] = ""
+    origem: Optional[str] = ""
 
 
 class CyberChecklistSaveSchema(BaseModel):

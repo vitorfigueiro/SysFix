@@ -43,6 +43,399 @@ AUTOMACAO_STATUS = {"Conforme", "Alerta", "Crítico"}
 CYBER_SEVERIDADES = ("Crítica", "Alta", "Média", "Baixa", "Informativa")
 CYBER_ACHADO_STATUS = ("Aberto", "Em Mitigação", "Resolvido", "Risco Aceito")
 
+_PATCHBOT_SLA_POR_SEV: dict[str, tuple[str, float]] = {
+    "Crítica": ("24 horas (Emergencial)", 9.1),
+    "Alta": ("7 dias", 7.8),
+    "Média": ("30 dias", 5.8),
+    "Baixa": ("60 dias", 3.5),
+    "Informativa": ("90 dias (Melhoria contínua)", 2.0),
+}
+
+_PATCHBOT_KB_REGRAS: list[tuple[tuple[str, ...], dict[str, Any]]] = [
+    (
+        ("hsts", "strict-transport-security"),
+        {
+            "cve_cwe": "CWE-319 (Cleartext Transmission)",
+            "cvss_score": 6.5,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:L/A:N",
+            "owasp": "OWASP A02:2021 — Cryptographic Failures",
+            "cis_control": "CIS v8 3.10 (Encrypt Sensitive Data in Transit)",
+            "mitre_attack": "T1557 — Adversary-in-the-Middle (SSL Stripping)",
+            "descricao_tecnica": "O servidor não envia o cabeçalho HTTP Strict-Transport-Security (HSTS). Sem HSTS, o navegador permite a primeira conexão em HTTP puro, abrindo brecha para ataques de downgrade (SSL Stripping) em redes Wi-Fi públicas ou comprometidas.",
+            "impacto": "Interceptação de cookies de sessão, credenciais ou redirecionamento malicioso de usuários antes da negociação HTTPS.",
+            "passos_remediacao": [
+                "Garanta que todo o domínio e subdomínios possuam certificado HTTPS válido e redirecionamento 301 de HTTP para HTTPS.",
+                "Adicione o header no proxy/servidor web: Strict-Transport-Security: max-age=31536000; includeSubDomains; preload.",
+                "Teste inicialmente com max-age=300 e depois suba para 31536000 (1 ano).",
+                "Reexecute o Byte-Scanner para confirmar presença do header.",
+            ],
+            "comando_validacao": "curl -sI https://SEU_DOMINIO | findstr /I strict-transport-security",
+        },
+    ),
+    (
+        ("csp", "content-security-policy"),
+        {
+            "cve_cwe": "CWE-79 (XSS) / CWE-1021",
+            "cvss_score": 6.1,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+            "owasp": "OWASP A03:2021 — Injection / A05:2021 Security Misconfiguration",
+            "cis_control": "CIS v8 16.11 (Application Security Hardening)",
+            "mitre_attack": "T1059.007 — JavaScript Execution / Magecart",
+            "descricao_tecnica": "Ausência do cabeçalho Content-Security-Policy (CSP), responsável por restringir de quais origens o navegador pode carregar scripts, estilos, imagens e frames.",
+            "impacto": "Se existir qualquer ponto de injeção XSS ou script de terceiro comprometido, o navegador executará código malicioso sem barreira, permitindo roubo de tokens e alteração da página.",
+            "passos_remediacao": [
+                "Mapeie os domínios legítimos de scripts, fontes, estilos e APIs usados pelo sistema.",
+                "Ative inicialmente em modo monitoramento: Content-Security-Policy-Report-Only: default-src 'self'; object-src 'none'; frame-ancestors 'self'.",
+                "Após validar ausência de bloqueios legítimos, aplique o header Content-Security-Policy em modo enforce.",
+                "Evite 'unsafe-inline' e 'unsafe-eval' sempre que possível usando nonces/hashes.",
+            ],
+            "comando_validacao": "curl -sI https://SEU_DOMINIO | findstr /I content-security-policy",
+        },
+    ),
+    (
+        ("x-content-type-options", "nosniff"),
+        {
+            "cve_cwe": "CWE-16 (Configuration) / CWE-434",
+            "cvss_score": 4.3,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N",
+            "owasp": "OWASP A05:2021 — Security Misconfiguration",
+            "cis_control": "CIS v8 4.1 (Secure Configuration Process)",
+            "mitre_attack": "T1189 — Drive-by Compromise (MIME Sniffing)",
+            "descricao_tecnica": "O cabeçalho X-Content-Type-Options: nosniff não está configurado. Navegadores podem tentar adivinhar (MIME sniffing) o tipo de conteúdo e interpretar arquivos de texto/imagem como scripts executáveis.",
+            "impacto": "Facilita ataques de XSS via upload de arquivos ou respostas mal tipadas.",
+            "passos_remediacao": [
+                "Configure no Nginx: add_header X-Content-Type-Options \"nosniff\" always;",
+                "Ou no Apache: Header always set X-Content-Type-Options \"nosniff\"",
+                "Valide que arquivos estáticos (.js, .css, .png) sejam servidos com Content-Type correto.",
+            ],
+            "comando_validacao": "curl -sI https://SEU_DOMINIO | findstr /I x-content-type-options",
+        },
+    ),
+    (
+        ("x-frame-options", "clickjacking"),
+        {
+            "cve_cwe": "CWE-1021 (Improper Restriction of Rendered UI Layers)",
+            "cvss_score": 4.7,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:N/I:L/A:N",
+            "owasp": "OWASP A05:2021 — Security Misconfiguration",
+            "cis_control": "CIS v8 16.11 (Application Hardening)",
+            "mitre_attack": "T1185 — Browser Session Hijacking (Clickjacking)",
+            "descricao_tecnica": "Sem X-Frame-Options (ou diretiva CSP frame-ancestors), a aplicação pode ser embutida em um <iframe> invisível dentro de um site malicioso.",
+            "impacto": "Usuários autenticados podem ser induzidos a clicar em botões sensíveis (ex.: aprovar acessos, alterar senha ou excluir dados) sem perceber (Clickjacking).",
+            "passos_remediacao": [
+                "Adicione o header X-Frame-Options: DENY (ou SAMEORIGIN se usar iframes internos).",
+                "Em conjunto, adicione frame-ancestors 'none' (ou 'self') na Content-Security-Policy.",
+                "Verifique se o login e páginas administrativas não carregam dentro de frames externos.",
+            ],
+            "comando_validacao": "curl -sI https://SEU_DOMINIO | findstr /I x-frame-options",
+        },
+    ),
+    (
+        ("referrer-policy",),
+        {
+            "cve_cwe": "CWE-200 (Exposure of Sensitive Information)",
+            "cvss_score": 3.1,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N",
+            "owasp": "OWASP A05:2021 — Security Misconfiguration",
+            "cis_control": "CIS v8 3.3 (Configure Data Access Control Lists)",
+            "mitre_attack": "T1592 — Gather Victim Host Information",
+            "descricao_tecnica": "Ausência de Referrer-Policy explícita permite que URLs internas, IDs de chamados ou parâmetros de consulta vazem no cabeçalho Referer ao clicar em links externos.",
+            "impacto": "Vazamento acidental de caminhos internos, tokens em URL ou dados operacionais para servidores de terceiros.",
+            "passos_remediacao": [
+                "Adicione o header: Referrer-Policy: strict-origin-when-cross-origin (ou no-referrer).",
+                "Evite trafegar tokens ou dados sensíveis na query string da URL.",
+            ],
+            "comando_validacao": "curl -sI https://SEU_DOMINIO | findstr /I referrer-policy",
+        },
+    ),
+    (
+        ("permissions-policy",),
+        {
+            "cve_cwe": "CWE-16 (Configuration)",
+            "cvss_score": 2.6,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N",
+            "owasp": "OWASP A05:2021 — Security Misconfiguration",
+            "cis_control": "CIS v8 4.1 (Secure Configuration Process)",
+            "mitre_attack": "T1123 / T1125 — Audio/Video Capture",
+            "descricao_tecnica": "Sem Permissions-Policy, o navegador não restringe explicitamente recursos como câmera, microfone, geolocalização e USB para iframes ou scripts carregados.",
+            "impacto": "Aumenta a superfície caso scripts externos ou embeds tentem requisitar APIs sensíveis do navegador.",
+            "passos_remediacao": [
+                "Adicione o header: Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=().",
+                "Libere apenas recursos realmente usados pela aplicação (ex.: camera=(self)).",
+            ],
+            "comando_validacao": "curl -sI https://SEU_DOMINIO | findstr /I permissions-policy",
+        },
+    ),
+    (
+        ("certificado tls", "ssl/tls", "tls/https", "expirado", "expira em"),
+        {
+            "cve_cwe": "CWE-295 (Improper Certificate Validation)",
+            "cvss_score": 8.1,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:L",
+            "owasp": "OWASP A02:2021 — Cryptographic Failures",
+            "cis_control": "CIS v8 3.10 (Encrypt Sensitive Data in Transit)",
+            "mitre_attack": "T1557 — Adversary-in-the-Middle",
+            "descricao_tecnica": "Certificado SSL/TLS expirado, próximo do vencimento, autoassinado ou com cadeia incompleta na porta 443.",
+            "impacto": "Bloqueio de acesso pelos navegadores, perda de confiança, falha em integrações API/webhooks e exposição a ataques Man-in-the-Middle.",
+            "passos_remediacao": [
+                "Renove o certificado imediatamente via Certbot/ACME (Let's Encrypt) ou sua Autoridade Certificadora.",
+                "Verifique se o fullchain (certificado + intermediários) está instalado corretamente no servidor web/proxy.",
+                "Desative TLS 1.0 e TLS 1.1; mantenha apenas TLS 1.2 e TLS 1.3 com cifras AEAD.",
+                "Configure renovação automática e alerta 30 dias antes do vencimento no Auto-Shield.",
+            ],
+            "comando_validacao": "openssl s_client -connect SEU_DOMINIO:443 -servername SEU_DOMINIO </dev/null 2>/dev/null | openssl x509 -noout -dates -issuer -subject",
+        },
+    ),
+    (
+        ("telnet", "porta 23"),
+        {
+            "cve_cwe": "CWE-319 (Cleartext Transmission of Sensitive Information)",
+            "cvss_score": 9.8,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "owasp": "OWASP A02:2021 — Cryptographic Failures",
+            "cis_control": "CIS v8 4.8 (Uninstall or Disable Unnecessary Services)",
+            "mitre_attack": "T1021 — Remote Services / T1040 — Network Sniffing",
+            "descricao_tecnica": "Serviço Telnet (TCP/23) detectado ativo. Todo o tráfego, incluindo usuário e senha administrativa, trafega em texto plano sem qualquer criptografia.",
+            "impacto": "Captura imediata de credenciais na rede local, tomada de controle de switches/roteadores/impressoras e propagação de botnets (ex.: Mirai).",
+            "passos_remediacao": [
+                "Desabilite imediatamente o serviço Telnet no equipamento (switch, roteador, Linux ou IoT).",
+                "Habilite SSHv2 com autenticação por chave pública e desative login root direto.",
+                "Crie regra de firewall bloqueando TCP/23 em todas as interfaces.",
+                "Troque todas as senhas que já foram digitadas via Telnet.",
+            ],
+            "comando_validacao": "Test-NetConnection -ComputerName IP_ALVO -Port 23",
+        },
+    ),
+    (
+        ("smb", "445"),
+        {
+            "cve_cwe": "CWE-284 (Improper Access Control)",
+            "cvss_score": 8.8,
+            "cvss_vetor": "CVSS:3.1/AV:A/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "owasp": "OWASP A01:2021 — Broken Access Control",
+            "cis_control": "CIS v8 12.2 (Establish and Maintain a Secure Network Architecture)",
+            "mitre_attack": "T1021.002 — SMB/Windows Admin Shares",
+            "descricao_tecnica": "Serviço SMB/CIFS (TCP/445) exposto na rede. É o principal vetor de movimentação lateral de ransomware, roubo de arquivos compartilhados e exploração de SMBv1.",
+            "impacto": "Criptografia em massa de servidores/estações por ransomware, enumeração de compartilhamentos e comprometimento do domínio.",
+            "passos_remediacao": [
+                "Desative SMBv1 imediatamente em todos os servidores e estações Windows.",
+                "Ative assinatura SMB (SMB Signing) obrigatória via GPO.",
+                "Restrinja TCP/445 no firewall apenas às sub-redes internas que realmente precisam acessar arquivos; jamais exponha na WAN.",
+                "Revise permissões NTFS e remova compartilhamentos abertos para 'Todos (Everyone)'.",
+            ],
+            "comando_validacao": "Get-SmbServerConfiguration | Select EnableSMB1Protocol, RequireSecuritySignature, EncryptData",
+        },
+    ),
+    (
+        ("rdp", "3389"),
+        {
+            "cve_cwe": "CWE-284 / CWE-307 (Brute Force)",
+            "cvss_score": 8.6,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+            "owasp": "OWASP A07:2021 — Identification and Authentication Failures",
+            "cis_control": "CIS v8 6.4 (Require MFA for Remote Network Access)",
+            "mitre_attack": "T1021.001 — Remote Desktop Protocol / T1110 — Brute Force",
+            "descricao_tecnica": "Porta RDP (TCP/3389) acessível diretamente. Serviços RDP expostos são alvo constante de ataques automatizados de força bruta, credential stuffing e invasão por ransomware.",
+            "impacto": "Acesso interativo completo ao servidor/estação, elevação de privilégios e comprometimento total do ambiente.",
+            "passos_remediacao": [
+                "Bloqueie RDP direto na borda/firewall e permita acesso exclusivamente via VPN corporativa com MFA.",
+                "Ative NLA (Network Level Authentication) nas propriedades de Área de Trabalho Remota.",
+                "Configure política de bloqueio de conta após tentativas inválidas (Account Lockout) e limite quem pertence ao grupo Remote Desktop Users.",
+                "Monitore eventos Windows ID 4625 (falha de logon) e 4624 tipo 10.",
+            ],
+            "comando_validacao": "Get-NetFirewallRule -DisplayGroup 'Remote Desktop' | Select DisplayName, Enabled, Profile",
+        },
+    ),
+    (
+        ("rtsp", "554", "cftv", "câmera", "camera"),
+        {
+            "cve_cwe": "CWE-306 (Missing Authentication) / CWE-798 (Default Credentials)",
+            "cvss_score": 8.2,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:L",
+            "owasp": "OWASP IoT Top 10 — I1/I2 (Weak Passwords & Insecure Network Services)",
+            "cis_control": "CIS v8 12.2 (Network Segmentation — VLAN CFTV)",
+            "mitre_attack": "T1125 — Video Capture / T1190 — Exploit Public-Facing Application",
+            "descricao_tecnica": "Serviço RTSP (TCP/554) de câmeras IP ou DVR/NVR acessível fora de uma VLAN isolada ou com risco de credenciais padrão/UPnP ativo.",
+            "impacto": "Visualização indevida de câmeras de segurança, violação de privacidade (LGPD) e uso do DVR/câmera como pivô para invadir a rede corporativa.",
+            "passos_remediacao": [
+                "Isole todas as câmeras IP e NVRs em uma VLAN dedicada de CFTV sem acesso direto à internet.",
+                "Troque 100% das senhas de fábrica por senhas únicas de 14+ caracteres e desative usuários convidados/RTSP anônimo.",
+                "Desative UPnP e redirecionamentos de porta manuais no roteador; acesse via VPN corporativa.",
+                "Atualize o firmware do DVR/NVR e das câmeras para a versão mais recente do fabricante.",
+            ],
+            "comando_validacao": "Test-NetConnection -ComputerName IP_CAMERA -Port 554",
+        },
+    ),
+    (
+        ("winbox", "8291", "mikrotik"),
+        {
+            "cve_cwe": "CWE-284 (Improper Access Control)",
+            "cvss_score": 8.5,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:L",
+            "owasp": "OWASP A01:2021 — Broken Access Control",
+            "cis_control": "CIS v8 12.3 (Securely Manage Network Infrastructure)",
+            "mitre_attack": "T1190 — Exploit Public-Facing Application",
+            "descricao_tecnica": "Serviço Winbox (TCP/8291) do MikroTik RouterOS detectado aberto. Portas de gerência expostas permitem ataques de força bruta e exploração de versões desatualizadas do RouterOS.",
+            "impacto": "Sequestro do roteador de borda, alteração de DNS/rotas, abertura de túneis maliciosos e indisponibilidade da rede.",
+            "passos_remediacao": [
+                "Restrinja o serviço Winbox apenas à VLAN/IP de gerência em IP > Services > winbox (Available From).",
+                "Crie regra no firewall Filter (chain=input) bloqueando TCP/8291 vindo da WAN e de VLANs não autorizadas.",
+                "Atualize o RouterOS para a branch Stable/Long-Term mais recente e desative Telnet/FTP/API não utilizados.",
+            ],
+            "comando_validacao": "/ip service print; /ip firewall filter print where dst-port=8291",
+        },
+    ),
+    (
+        ("mqtt", "1883"),
+        {
+            "cve_cwe": "CWE-306 / CWE-319 (Cleartext IoT Broker)",
+            "cvss_score": 7.8,
+            "cvss_vetor": "CVSS:3.1/AV:A/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+            "owasp": "OWASP IoT Top 10 — I7 (Insecure Data Transfer)",
+            "cis_control": "CIS v8 12.2 (IoT Network Segmentation)",
+            "mitre_attack": "T1040 — Network Sniffing / T1565 — Data Manipulation",
+            "descricao_tecnica": "Broker MQTT na porta 1883 sem criptografia TLS. Permite leitura e publicação de tópicos de sensores/automação por qualquer dispositivo na mesma rede.",
+            "impacto": "Acionamento indevido de relés/alarmes, leitura de telemetria e sabotagem de automação.",
+            "passos_remediacao": [
+                "Migre o broker para MQTTS (porta 8883 com TLS 1.2+).",
+                "Desative acesso anônimo (allow_anonymous false) e configure usuário/senha ou certificado por dispositivo.",
+                "Isole dispositivos IoT em VLAN própria com ACLs restritas ao IP do broker.",
+            ],
+            "comando_validacao": "Test-NetConnection -ComputerName IP_BROKER -Port 1883",
+        },
+    ),
+    (
+        ("ssh", "porta 22"),
+        {
+            "cve_cwe": "CWE-287 (Improper Authentication)",
+            "cvss_score": 4.3,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "owasp": "OWASP A07:2021 — Identification and Authentication Failures",
+            "cis_control": "CIS v8 4.1 (Secure Configuration)",
+            "mitre_attack": "T1021.004 — SSH / T1110 — Brute Force",
+            "descricao_tecnica": "Serviço SSH (TCP/22) acessível. Embora criptografado, precisa estar protegido contra força bruta e login root por senha.",
+            "impacto": "Acesso administrativo caso existam senhas fracas ou contas padrão habilitadas.",
+            "passos_remediacao": [
+                "Em /etc/ssh/sshd_config defina: PermitRootLogin no e PasswordAuthentication no (use chaves Ed25519/RSA).",
+                "Restrinja TCP/22 por firewall/ACL apenas aos IPs de gerência ou VPN.",
+                "Ative Fail2ban ou rate-limit para bloquear tentativas repetidas.",
+            ],
+            "comando_validacao": "sshd -T | grep -E 'permitrootlogin|passwordauthentication'",
+        },
+    ),
+    (
+        ("backup", "ransomware", "3-2-1-1-0"),
+        {
+            "cve_cwe": "CWE-693 (Protection Mechanism Failure)",
+            "cvss_score": 9.0,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:N/I:H/A:H",
+            "owasp": "NIST CSF 2.0 — Recover (RC.RP)",
+            "cis_control": "CIS v8 11.4 (Establish and Maintain an Isolated Instance of Recovery Data)",
+            "mitre_attack": "T1486 — Data Encrypted for Impact / T1490 — Inhibit System Recovery",
+            "descricao_tecnica": "Ausência de validação de backup imutável/offline seguindo a regra 3-2-1-1-0.",
+            "impacto": "Em caso de ransomware ou falha crítica de storage, a empresa pode perder dados permanentemente ou ficar dias parada.",
+            "passos_remediacao": [
+                "Configure 3 cópias dos dados em 2 mídias diferentes, sendo 1 offsite e 1 imutável (Object Lock/WORM ou offline).",
+                "Use credenciais dedicadas e isoladas do Active Directory para o servidor de backup.",
+                "Execute teste real de restauração mensalmente e registre evidência no checklist CIS.",
+            ],
+            "comando_validacao": "Verificar último job de backup imutável e registrar log do teste de restore mensal.",
+        },
+    ),
+    (
+        ("2fa", "mfa", "credenciais", "força bruta", "iam"),
+        {
+            "cve_cwe": "CWE-308 (Use of Single-factor Authentication)",
+            "cvss_score": 8.0,
+            "cvss_vetor": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:L",
+            "owasp": "OWASP A07:2021 — Identification and Authentication Failures",
+            "cis_control": "CIS v8 6.3 / 6.5 (Require MFA for Externally-Exposed & Admin Accounts)",
+            "mitre_attack": "T1078 — Valid Accounts / T1110.004 — Credential Stuffing",
+            "descricao_tecnica": "Contas ativas sem autenticação em dois fatores (2FA/TOTP) habilitada.",
+            "impacto": "Se uma senha vazar em phishing ou reutilização, o invasor entra diretamente na conta sem nenhuma barreira adicional.",
+            "passos_remediacao": [
+                "Ative a exigência de 2FA (TOTP) na política de segurança da empresa.",
+                "Oriente cada colaborador a configurar o autenticador no ícone de cadeado do sistema.",
+                "Revogue sessões antigas e troque senhas provisórias ou compartilhadas.",
+            ],
+            "comando_validacao": "Conferir na aba Gov-Key e Gestão de Equipe se 100% dos usuários estão com selo '2FA Ativo'.",
+        },
+    ),
+]
+
+
+def _enriquecer_achado_patchbot(item: dict[str, Any]) -> dict[str, Any]:
+    """Enriquece um achado com dossiê técnico completo do Patch-Bot (CVSS, CWE, OWASP, CIS, MITRE, SLA, passos e comando)."""
+    enr = dict(item)
+    sev = str(enr.get("severidade") or "Média")
+    sla_padrao, cvss_padrao = _PATCHBOT_SLA_POR_SEV.get(sev, ("30 dias", 5.0))
+    texto_busca = " ".join([
+        str(enr.get("titulo") or ""),
+        str(enr.get("categoria") or ""),
+        str(enr.get("recomendacao") or ""),
+        str(enr.get("evidencia") or ""),
+    ]).lower()
+
+    kb_match: dict[str, Any] | None = None
+    for keywords, meta in _PATCHBOT_KB_REGRAS:
+        if any(k in texto_busca for k in keywords):
+            kb_match = meta
+            break
+
+    alvo_txt = str(enr.get("alvo") or "alvo-afetado").strip()
+    if kb_match:
+        enr.setdefault("cve_cwe", "")
+        if not enr["cve_cwe"]:
+            enr["cve_cwe"] = kb_match["cve_cwe"]
+        if not enr.get("cvss_score"):
+            enr["cvss_score"] = kb_match["cvss_score"]
+        enr["cvss_vetor"] = enr.get("cvss_vetor") or kb_match["cvss_vetor"]
+        enr["owasp"] = enr.get("owasp") or kb_match["owasp"]
+        enr["cis_control"] = enr.get("cis_control") or kb_match["cis_control"]
+        enr["mitre_attack"] = enr.get("mitre_attack") or kb_match["mitre_attack"]
+        enr["descricao_tecnica"] = enr.get("descricao_tecnica") or kb_match["descricao_tecnica"]
+        enr["impacto"] = enr.get("impacto") or kb_match["impacto"]
+        enr["passos_remediacao"] = enr.get("passos_remediacao") or list(kb_match["passos_remediacao"])
+        cmd = str(enr.get("comando_validacao") or kb_match["comando_validacao"])
+        if alvo_txt and alvo_txt not in {"-", "Ambiente Interno", "Ambiente da Empresa", "Verificar Parque / Rede"}:
+            alvo_host = _normalizar_dominio_escopo(alvo_txt) or alvo_txt
+            cmd = cmd.replace("SEU_DOMINIO", alvo_host).replace("IP_ALVO", alvo_host).replace("IP_CAMERA", alvo_host).replace("IP_BROKER", alvo_host)
+        enr["comando_validacao"] = cmd
+    else:
+        enr["cve_cwe"] = enr.get("cve_cwe") or "CWE-693 (Revisão de Segurança)"
+        enr["cvss_score"] = enr.get("cvss_score") or cvss_padrao
+        enr["cvss_vetor"] = enr.get("cvss_vetor") or "Estimativa baseada na severidade classificada"
+        enr["owasp"] = enr.get("owasp") or "OWASP / Boas Práticas de Hardening"
+        enr["cis_control"] = enr.get("cis_control") or "CIS v8 7.1 (Continuous Vulnerability Management)"
+        enr["mitre_attack"] = enr.get("mitre_attack") or "Superfície de Ataque / Gestão de Exposição"
+        enr["descricao_tecnica"] = enr.get("descricao_tecnica") or (
+            f"Achado de severidade {sev} identificado na categoria '{enr.get('categoria') or 'Geral'}' afetando '{alvo_txt}'."
+        )
+        enr["impacto"] = enr.get("impacto") or (
+            "Exposição operacional ou de segurança que pode comprometer confidencialidade, integridade ou disponibilidade caso não seja tratada dentro do SLA."
+        )
+        rec = str(enr.get("recomendacao") or "").strip()
+        enr["passos_remediacao"] = enr.get("passos_remediacao") or [
+            rec or "Avaliar o ativo afetado e aplicar a correção/patch recomendado pelo fabricante.",
+            "Validar que não houve impacto colateral após aplicar a mitigação.",
+            "Reexecutar a auditoria no Byte-Scanner ou Auto-Shield e anexar evidência nas notas de correção.",
+        ]
+        enr["comando_validacao"] = enr.get("comando_validacao") or f"Reauditar alvo '{alvo_txt}' no Byte-Scanner após aplicar a mitigação."
+
+    enr["sla_recomendado"] = enr.get("prazo_sla") or enr.get("sla_recomendado") or sla_padrao
+    enr["origem"] = enr.get("origem") or (
+        "Byte-Scanner / Varredura" if enr.get("auditoria_id") else (
+            "Purple-Bot (Simulação)" if "[Simulação" in str(enr.get("titulo") or "") else (
+                "Wiki-Core (Threat Intel)" if "[Radar Cyber]" in str(enr.get("titulo") or "") else "Registro Manual"
+            )
+        )
+    )
+    enr.setdefault("evidencia", "")
+    enr.setdefault("responsavel", "")
+    enr.setdefault("prazo_sla", "")
+    enr.setdefault("notas_remediacao", "")
+    return enr
+
 # Portas avaliadas em auditorias defensivas internas (somente detecção de exposição de serviços)
 _PORTAS_AUDITORIA_DEFENSIVA: dict[int, tuple[str, str, str]] = {
     22: ("SSH", "Baixa", "Manter autenticação por chave SSH e desabilitar login root por senha."),
@@ -640,6 +1033,7 @@ class NetworkAuditEngine:
                                 "titulo": f"Certificado TLS expirado em {host}",
                                 "severidade": "Crítica",
                                 "categoria": "TLS / Criptografia",
+                                "evidencia": f"Host: {host} • Válido até: {not_after} ({dias_rest} dia(s)) • Emissor: {detalhes['tls'].get('emissor') or '-'} • Protocolo: {versao_tls or '-'}",
                                 "recomendacao": "Renovar imediatamente o certificado SSL/TLS no servidor ou proxy reverso.",
                             })
                         elif dias_rest <= 15:
@@ -648,6 +1042,7 @@ class NetworkAuditEngine:
                                 "titulo": f"Certificado TLS expira em {dias_rest} dia(s)",
                                 "severidade": "Alta",
                                 "categoria": "TLS / Criptografia",
+                                "evidencia": f"Host: {host} • Válido até: {not_after} ({dias_rest} dia(s) restantes) • Emissor: {detalhes['tls'].get('emissor') or '-'} • Protocolo: {versao_tls or '-'}",
                                 "recomendacao": "Verificar automação ACME / Let's Encrypt antes do vencimento.",
                             })
         except Exception as exc:
@@ -657,6 +1052,7 @@ class NetworkAuditEngine:
                 "titulo": f"Falha ao validar TLS/HTTPS em {host}",
                 "severidade": "Alta",
                 "categoria": "TLS / Criptografia",
+                "evidencia": f"Host: {host}:443 • IPs: {', '.join(ips_resolvidos[:3]) or '-'} • Erro TLS: {str(exc)[:140]}",
                 "recomendacao": "Confirmar porta 443 ativa e cadeia de certificação válida.",
             })
 
@@ -695,6 +1091,7 @@ class NetworkAuditEngine:
                             "titulo": f"{msg} em {host}",
                             "severidade": sev,
                             "categoria": "Headers Web / OWASP",
+                            "evidencia": f"URL: {detalhes.get('url_final') or url} • HTTP {detalhes.get('http_status')} ({detalhes.get('tempo_resposta_ms', 0)} ms) • Header '{h_key}' ausente na resposta • Server: {detalhes.get('servidor') or 'Oculto'}",
                             "recomendacao": rec,
                         })
         except Exception as exc:
@@ -704,6 +1101,7 @@ class NetworkAuditEngine:
                 "titulo": f"Endpoint HTTP/HTTPS inacessível em {host}",
                 "severidade": "Média",
                 "categoria": "Disponibilidade / Web",
+                "evidencia": f"URL: {url} • IPs DNS: {', '.join(ips_resolvidos[:3]) or '-'} • Erro HTTP: {str(exc)[:140]}",
                 "recomendacao": "Verificar se o site está online e acessível publicamente.",
             })
 
@@ -804,10 +1202,13 @@ class NetworkAuditEngine:
                 servico, sev, rec = _PORTAS_AUDITORIA_DEFENSIVA[porta]
                 if sev in {"Crítica", "Alta", "Média"}:
                     penalidade += 20 if sev == "Crítica" else (12 if sev == "Alta" else 5)
+                    hn = f" ({host_info['hostname']})" if host_info.get("hostname") else ""
+                    bn = f" • Banner: {p_info['banner']}" if p_info.get("banner") else ""
                     achados.append({
                         "titulo": f"Serviço {servico} (porta {porta}) exposto em {host_info['ip']}",
                         "severidade": sev,
                         "categoria": "Superfície de Ataque / Rede",
+                        "evidencia": f"Host: {host_info['ip']}{hn} • Porta TCP/{porta} ({servico}) aberta • Latência: {p_info.get('latencia_ms', 0)} ms{bn}",
                         "recomendacao": rec,
                     })
 
@@ -1084,6 +1485,8 @@ class AutomationCyberService:
                         "categoria": item["categoria"],
                         "alvo": alvo_norm,
                         "status": "Aberto",
+                        "evidencia": item.get("evidencia", ""),
+                        "origem": f"Byte-Scanner ({tipo_norm})",
                         "recomendacao": item["recomendacao"],
                         "auditoria_id": salva["id"],
                     },
@@ -1159,7 +1562,7 @@ class AutomationCyberService:
     def listar_achados(self, tenant_id: str) -> list[dict]:
         sev_order = {s: idx for idx, s in enumerate(CYBER_SEVERIDADES)}
         rows = self.store.list_items("cyber_achados", tenant_id)
-        return sorted(
+        ordenados = sorted(
             rows,
             key=lambda r: (
                 1 if r.get("status") == "Resolvido" else 0,
@@ -1167,6 +1570,7 @@ class AutomationCyberService:
                 str(r.get("criado_em") or ""),
             ),
         )
+        return [_enriquecer_achado_patchbot(r) for r in ordenados]
 
     def criar_achado(self, tenant_id: str, payload: dict, actor: str = "") -> dict:
         titulo = SecurityValidator.sanitizar_texto(payload.get("titulo"))
@@ -1178,6 +1582,12 @@ class AutomationCyberService:
         st = SecurityValidator.sanitizar_texto(payload.get("status"))
         if st not in CYBER_ACHADO_STATUS:
             st = "Aberto"
+        cvss_val = None
+        if payload.get("cvss_score") not in (None, ""):
+            try:
+                cvss_val = round(max(0.0, min(10.0, float(payload.get("cvss_score")))), 1)
+            except (TypeError, ValueError):
+                cvss_val = None
         agora = _now_iso()
         item = {
             "id": f"ach_{uuid.uuid4().hex[:10]}",
@@ -1188,12 +1598,21 @@ class AutomationCyberService:
             "alvo": SecurityValidator.sanitizar_texto(payload.get("alvo"))[:120],
             "status": st,
             "recomendacao": SecurityValidator.sanitizar_texto(payload.get("recomendacao"))[:600],
+            "cve_cwe": SecurityValidator.sanitizar_texto(payload.get("cve_cwe"))[:100],
+            "cvss_score": cvss_val,
+            "evidencia": SecurityValidator.sanitizar_texto(payload.get("evidencia"))[:800],
+            "impacto": SecurityValidator.sanitizar_texto(payload.get("impacto"))[:500],
+            "responsavel": SecurityValidator.sanitizar_texto(payload.get("responsavel"))[:80],
+            "prazo_sla": SecurityValidator.sanitizar_texto(payload.get("prazo_sla"))[:40],
+            "notas_remediacao": SecurityValidator.sanitizar_texto(payload.get("notas_remediacao"))[:800],
+            "origem": SecurityValidator.sanitizar_texto(payload.get("origem"))[:80],
             "auditoria_id": SecurityValidator.sanitizar_texto(payload.get("auditoria_id"))[:40],
             "criado_por": SecurityValidator.sanitizar_texto(actor) or "Sistema",
             "criado_em": agora,
             "atualizado_em": agora,
         }
-        return self.store.upsert_item("cyber_achados", item, tenant_id)
+        salvo = self.store.upsert_item("cyber_achados", item, tenant_id)
+        return _enriquecer_achado_patchbot(salvo)
 
     def atualizar_achado(self, tenant_id: str, item_id: str, payload: dict) -> dict | None:
         existente = self.store.get_item("cyber_achados", item_id, tenant_id)
@@ -1210,9 +1629,24 @@ class AutomationCyberService:
             if sev not in CYBER_SEVERIDADES:
                 raise ValueError("Severidade inválida.")
             updates["severidade"] = sev
-        if "recomendacao" in payload and payload["recomendacao"] is not None:
-            updates["recomendacao"] = SecurityValidator.sanitizar_texto(payload["recomendacao"])[:600]
-        return self.store.update_item("cyber_achados", item_id, updates, tenant_id)
+        if "cvss_score" in payload and payload["cvss_score"] not in (None, ""):
+            try:
+                updates["cvss_score"] = round(max(0.0, min(10.0, float(payload["cvss_score"]))), 1)
+            except (TypeError, ValueError):
+                pass
+        for campo, limite in (
+            ("recomendacao", 600),
+            ("cve_cwe", 100),
+            ("evidencia", 800),
+            ("impacto", 500),
+            ("responsavel", 80),
+            ("prazo_sla", 40),
+            ("notas_remediacao", 800),
+        ):
+            if campo in payload and payload[campo] is not None:
+                updates[campo] = SecurityValidator.sanitizar_texto(payload[campo])[:limite]
+        atualizado = self.store.update_item("cyber_achados", item_id, updates, tenant_id)
+        return _enriquecer_achado_patchbot(atualizado) if atualizado else None
 
     def excluir_achado(self, tenant_id: str, item_id: str) -> bool:
         return self.store.delete_item("cyber_achados", item_id, tenant_id)

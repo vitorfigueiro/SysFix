@@ -1002,40 +1002,275 @@ async function carregarAchadosCyber() {
   const res = await apiFetch('/cyber/achados');
   if (!res.ok) return;
   cyberAchadosCache = await res.json();
+  renderizarAchadosCyber();
+}
+
+function renderizarAchadosCyber() {
   const box = document.getElementById('listaAchadosCyber');
+  const kpiBox = document.getElementById('patchBotKpis');
   if (!box) return;
   const podeGerir = temPermissao('gerenciar_auditoria_cyber');
 
-  if (!cyberAchadosCache.length) {
-    box.innerHTML = '<p class="text-slate-400">Nenhum achado ou vulnerabilidade registrada.</p>';
+  const todos = Array.isArray(cyberAchadosCache) ? cyberAchadosCache : [];
+  if (kpiBox) {
+    const total = todos.length;
+    const crit = todos.filter(a => a.severidade === 'Crítica' && a.status !== 'Resolvido').length;
+    const altas = todos.filter(a => a.severidade === 'Alta' && a.status !== 'Resolvido').length;
+    const mitig = todos.filter(a => a.status === 'Em Mitigação').length;
+    const resolv = todos.filter(a => a.status === 'Resolvido').length;
+    kpiBox.innerHTML = `
+      <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/70 dark:border-violet-800/70">
+        <div class="text-[10px] font-bold text-slate-400 uppercase">Total</div>
+        <div class="text-base font-extrabold text-slate-900 dark:text-white">${total}</div>
+      </div>
+      <div class="p-2.5 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/60">
+        <div class="text-[10px] font-bold text-rose-600 uppercase">Críticas</div>
+        <div class="text-base font-extrabold text-rose-700 dark:text-rose-400">${crit}</div>
+      </div>
+      <div class="p-2.5 rounded-xl bg-orange-50/80 dark:bg-orange-950/30 border border-orange-200/80 dark:border-orange-900/60">
+        <div class="text-[10px] font-bold text-orange-600 uppercase">Altas</div>
+        <div class="text-base font-extrabold text-orange-700 dark:text-orange-400">${altas}</div>
+      </div>
+      <div class="p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/60">
+        <div class="text-[10px] font-bold text-amber-700 uppercase">Em Mitigação</div>
+        <div class="text-base font-extrabold text-amber-800 dark:text-amber-300">${mitig}</div>
+      </div>
+      <div class="p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/60">
+        <div class="text-[10px] font-bold text-emerald-700 uppercase">Resolvidas</div>
+        <div class="text-base font-extrabold text-emerald-700 dark:text-emerald-300">${resolv}</div>
+      </div>
+    `;
+  }
+
+  const busca = (document.getElementById('ach_filtro_busca')?.value || '').trim().toLowerCase();
+  const fSev = document.getElementById('ach_filtro_sev')?.value || '';
+  const fStatus = document.getElementById('ach_filtro_status')?.value || '';
+
+  const filtrados = todos.filter(a => {
+    if (fSev && a.severidade !== fSev) return false;
+    if (fStatus && a.status !== fStatus) return false;
+    if (busca) {
+      const hay = [
+        a.titulo, a.alvo, a.categoria, a.cve_cwe, a.owasp, a.cis_control,
+        a.mitre_attack, a.evidencia, a.descricao_tecnica, a.recomendacao, a.responsavel, a.origem,
+      ].join(' ').toLowerCase();
+      if (!hay.includes(busca)) return false;
+    }
+    return true;
+  });
+
+  if (!filtrados.length) {
+    box.innerHTML = '<p class="text-slate-400">Nenhuma vulnerabilidade encontrada para os filtros atuais.</p>';
     return;
   }
 
-  box.innerHTML = cyberAchadosCache.map(a => {
+  box.innerHTML = filtrados.map(a => {
     const sevCls = a.severidade === 'Crítica'
       ? 'bg-rose-600 text-white'
-      : (a.severidade === 'Alta' ? 'bg-orange-500 text-white' : (a.severidade === 'Média' ? 'bg-amber-400 text-slate-900' : 'bg-violet-100 text-violet-800'));
+      : (a.severidade === 'Alta'
+        ? 'bg-orange-500 text-white'
+        : (a.severidade === 'Média'
+          ? 'bg-amber-400 text-slate-900'
+          : (a.severidade === 'Baixa' ? 'bg-sky-100 text-sky-800' : 'bg-violet-100 text-violet-800')));
+    const stCls = a.status === 'Resolvido'
+      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+      : (a.status === 'Em Mitigação'
+        ? 'bg-amber-100 text-amber-800 border-amber-200'
+        : (a.status === 'Risco Aceito'
+          ? 'bg-slate-200 text-slate-700 border-slate-300'
+          : 'bg-rose-100 text-rose-800 border-rose-200'));
+    const passos = Array.isArray(a.passos_remediacao) ? a.passos_remediacao : [];
+    const safeId = escapeHtml(a.id);
+
     return `
-      <div class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-1.5">
-        <div class="flex flex-wrap justify-between items-center gap-2">
-          <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${sevCls}">${escapeHtml(a.severidade)}</span>
-            <span class="font-bold text-xs text-slate-900 dark:text-white">${escapeHtml(a.titulo)}</span>
+      <div class="p-4 rounded-2xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/90 dark:border-violet-800/80 space-y-2.5">
+        <div class="flex flex-wrap justify-between items-start gap-2">
+          <div class="space-y-1 flex-1 min-w-[220px]">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${sevCls}">${escapeHtml(a.severidade)}</span>
+              ${a.cvss_score !== undefined && a.cvss_score !== null ? `<span class="px-2 py-0.5 rounded bg-slate-900 text-amber-300 text-[10px] font-mono font-bold">CVSS ${escapeHtml(String(a.cvss_score))}</span>` : ''}
+              ${a.cve_cwe ? `<span class="px-2 py-0.5 rounded bg-violet-100 dark:bg-violet-900/70 text-violet-800 dark:text-violet-200 text-[10px] font-bold">${escapeHtml(a.cve_cwe)}</span>` : ''}
+              <span class="px-2 py-0.5 rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-[10px] font-semibold text-slate-600 dark:text-violet-200">⏱️ SLA: ${escapeHtml(a.sla_recomendado || '30 dias')}</span>
+            </div>
+            <div class="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white">${escapeHtml(a.titulo)}</div>
+            <div class="text-[11px] text-slate-500 dark:text-violet-300/80 flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>📂 <b>${escapeHtml(a.categoria || 'Geral')}</b></span>
+              <span>🎯 Alvo: <b>${escapeHtml(a.alvo || '-')}</b></span>
+              <span>🛰️ Origem: <b>${escapeHtml(a.origem || 'Sistema')}</b></span>
+              ${a.responsavel ? `<span>👤 Resp.: <b>${escapeHtml(a.responsavel)}</b></span>` : ''}
+              <span>🕒 ${formatarDataBR(a.criado_em)}</span>
+            </div>
           </div>
-          <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300">${escapeHtml(a.status)}</span>
+          <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${stCls}">${escapeHtml(a.status)}</span>
         </div>
-        <div class="text-[11px] text-slate-500 dark:text-violet-300/80">${escapeHtml(a.categoria)} • Alvo: <b>${escapeHtml(a.alvo || '-')}</b></div>
-        ${a.recomendacao ? `<div class="text-[11px] text-slate-700 dark:text-violet-100">💡 ${escapeHtml(a.recomendacao)}</div>` : ''}
-        ${podeGerir ? `
-          <div class="flex flex-wrap gap-1.5 pt-1">
-            <button onclick="atualizarStatusAchadoCyber('${escapeHtml(a.id)}', 'Em Mitigação')" class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">Em Mitigação</button>
-            <button onclick="atualizarStatusAchadoCyber('${escapeHtml(a.id)}', 'Resolvido')" class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">✓ Resolvido</button>
-            <button onclick="excluirAchadoCyber('${escapeHtml(a.id)}')" class="px-2 py-0.5 rounded bg-rose-50 text-rose-600 text-[10px] font-semibold">✕</button>
+
+        <div class="grid sm:grid-cols-3 gap-1.5 text-[10px]">
+          <div class="px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#141024] border border-violet-200/60 dark:border-violet-800/70">
+            <span class="font-bold text-violet-700 dark:text-violet-300 block">OWASP / Norma</span>
+            <span class="text-slate-700 dark:text-violet-100">${escapeHtml(a.owasp || '-')}</span>
+          </div>
+          <div class="px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#141024] border border-violet-200/60 dark:border-violet-800/70">
+            <span class="font-bold text-emerald-700 dark:text-emerald-300 block">CIS Control</span>
+            <span class="text-slate-700 dark:text-violet-100">${escapeHtml(a.cis_control || '-')}</span>
+          </div>
+          <div class="px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#141024] border border-violet-200/60 dark:border-violet-800/70">
+            <span class="font-bold text-rose-700 dark:text-rose-300 block">MITRE ATT&amp;CK</span>
+            <span class="text-slate-700 dark:text-violet-100">${escapeHtml(a.mitre_attack || '-')}</span>
+          </div>
+        </div>
+
+        ${a.evidencia ? `
+          <div class="p-2.5 rounded-xl bg-slate-900 text-emerald-300 font-mono text-[10px] break-all">
+            <span class="text-slate-400 font-sans font-bold uppercase mr-1">Evidência:</span>${escapeHtml(a.evidencia)}
           </div>
         ` : ''}
+
+        <details class="rounded-xl bg-white/90 dark:bg-[#141024] border border-violet-200/80 dark:border-violet-800/80 p-3 space-y-2.5">
+          <summary class="cursor-pointer font-extrabold text-violet-700 dark:text-violet-300 text-[11px] select-none">
+            🔎 Ver Dossiê Técnico Completo, Impacto, Passo a Passo &amp; Comando de Validação
+          </summary>
+
+          <div class="pt-2 space-y-2.5 border-t border-violet-100 dark:border-violet-900/60 text-[11px]">
+            <div class="grid md:grid-cols-2 gap-2.5">
+              <div class="p-2.5 rounded-lg bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/60 dark:border-violet-800/60">
+                <div class="font-extrabold text-violet-900 dark:text-violet-200 mb-1">📘 Descrição Técnica &amp; Causa Raiz</div>
+                <p class="text-slate-700 dark:text-violet-100 leading-relaxed">${escapeHtml(a.descricao_tecnica || '-')}</p>
+              </div>
+              <div class="p-2.5 rounded-lg bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/70 dark:border-rose-900/50">
+                <div class="font-extrabold text-rose-800 dark:text-rose-300 mb-1">⚠️ Impacto no Negócio &amp; Segurança</div>
+                <p class="text-slate-700 dark:text-rose-100/90 leading-relaxed">${escapeHtml(a.impacto || '-')}</p>
+              </div>
+            </div>
+
+            ${a.recomendacao ? `
+              <div class="p-2.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/50">
+                <span class="font-extrabold text-amber-800 dark:text-amber-300">💡 Recomendação Direta:</span>
+                <span class="text-slate-700 dark:text-amber-100/90"> ${escapeHtml(a.recomendacao)}</span>
+              </div>
+            ` : ''}
+
+            ${passos.length ? `
+              <div class="p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/50 space-y-1">
+                <div class="font-extrabold text-emerald-800 dark:text-emerald-300">🛠️ Plano de Remediação Passo a Passo (Patch-Bot)</div>
+                <ol class="list-decimal pl-5 space-y-1 text-slate-700 dark:text-emerald-100/90">
+                  ${passos.map(p => `<li>${escapeHtml(p)}</li>`).join('')}
+                </ol>
+              </div>
+            ` : ''}
+
+            ${a.comando_validacao ? `
+              <div class="space-y-1">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-[10px] font-bold uppercase text-slate-500 dark:text-violet-300">💻 Comando / Verificação Defensiva</span>
+                  <button type="button" onclick="copiarTextoPatchBot('${safeId}', 'comando')" class="px-2 py-0.5 rounded bg-violet-100 dark:bg-violet-900/60 text-violet-800 dark:text-violet-200 text-[10px] font-bold">📋 Copiar Comando</button>
+                </div>
+                <code class="block px-3 py-2 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[10px] overflow-x-auto">${escapeHtml(a.comando_validacao)}</code>
+              </div>
+            ` : ''}
+
+            <div class="text-[10px] text-slate-500 dark:text-violet-300/80 flex flex-wrap gap-x-4 gap-y-1">
+              <span><b>Vetor CVSS:</b> <span class="font-mono">${escapeHtml(a.cvss_vetor || '-')}</span></span>
+              <span><b>Criado por:</b> ${escapeHtml(a.criado_por || 'Sistema')}</span>
+              <span><b>Atualizado:</b> ${formatarDataBR(a.atualizado_em)}</span>
+              ${a.auditoria_id ? `<span><b>ID Varredura:</b> <span class="font-mono">${escapeHtml(a.auditoria_id)}</span></span>` : ''}
+            </div>
+
+            ${podeGerir ? `
+              <div class="pt-2 border-t border-violet-100 dark:border-violet-900/60 space-y-2">
+                <div class="font-extrabold text-slate-800 dark:text-white text-[11px]">📝 Gestão da Correção (Responsável, SLA &amp; Notas de Patch)</div>
+                <div class="grid sm:grid-cols-2 gap-2">
+                  <input type="text" id="ach_edit_resp_${safeId}" value="${escapeHtml(a.responsavel || '')}" placeholder="Responsável pela correção" class="px-2.5 py-1.5 rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-[#1C1633] text-[11px] outline-none">
+                  <input type="text" id="ach_edit_prazo_${safeId}" value="${escapeHtml(a.prazo_sla || a.sla_recomendado || '')}" placeholder="Prazo / SLA" class="px-2.5 py-1.5 rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-[#1C1633] text-[11px] outline-none">
+                </div>
+                <textarea id="ach_edit_notas_${safeId}" rows="2" placeholder="Registre aqui o que foi feito no patch, número da O.S., evidência pós-correção..." class="w-full px-2.5 py-1.5 rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-[#1C1633] text-[11px] outline-none resize-none">${escapeHtml(a.notas_remediacao || '')}</textarea>
+                <button type="button" onclick="salvarDetalhesAchadoCyber('${safeId}')" class="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">💾 Salvar Responsável &amp; Notas</button>
+              </div>
+            ` : (a.notas_remediacao ? `<div class="p-2 rounded-lg bg-slate-50 dark:bg-[#1C1633] text-[11px]"><b>Notas de Patch:</b> ${escapeHtml(a.notas_remediacao)}</div>` : '')}
+          </div>
+        </details>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <button type="button" onclick="copiarTextoPatchBot('${safeId}', 'dossie')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-200 text-[10px] font-bold">📋 Copiar Dossiê</button>
+          ${podeGerir ? `
+            <div class="flex flex-wrap gap-1.5">
+              <button onclick="atualizarStatusAchadoCyber('${safeId}', 'Aberto')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-bold border border-rose-200">Aberto</button>
+              <button onclick="atualizarStatusAchadoCyber('${safeId}', 'Em Mitigação')" class="px-2 py-1 rounded-lg bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">Em Mitigação</button>
+              <button onclick="atualizarStatusAchadoCyber('${safeId}', 'Resolvido')" class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">✓ Resolvido</button>
+              <button onclick="atualizarStatusAchadoCyber('${safeId}', 'Risco Aceito')" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">Risco Aceito</button>
+              <button onclick="excluirAchadoCyber('${safeId}')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 text-[10px] font-semibold">✕</button>
+            </div>
+          ` : ''}
+        </div>
       </div>
     `;
   }).join('');
+}
+
+function formatarDossieAchadoTexto(a) {
+  const passos = (Array.isArray(a.passos_remediacao) ? a.passos_remediacao : [])
+    .map((p, i) => `  ${i + 1}. ${p}`).join('\n');
+  return [
+    `=== DOSSIÊ PATCH-BOT (SYSFIX) ===`,
+    `Título: ${a.titulo || '-'}`,
+    `Severidade: ${a.severidade || '-'} | CVSS: ${a.cvss_score ?? '-'} (${a.cvss_vetor || '-'})`,
+    `Status: ${a.status || '-'} | SLA: ${a.sla_recomendado || '-'}`,
+    `Alvo: ${a.alvo || '-'} | Categoria: ${a.categoria || '-'} | Origem: ${a.origem || '-'}`,
+    `CWE/CVE: ${a.cve_cwe || '-'}`,
+    `OWASP: ${a.owasp || '-'}`,
+    `CIS Control: ${a.cis_control || '-'}`,
+    `MITRE ATT&CK: ${a.mitre_attack || '-'}`,
+    `Responsável: ${a.responsavel || 'Não atribuído'}`,
+    `Evidência: ${a.evidencia || '-'}`,
+    `Descrição Técnica: ${a.descricao_tecnica || '-'}`,
+    `Impacto: ${a.impacto || '-'}`,
+    `Recomendação: ${a.recomendacao || '-'}`,
+    `Passo a Passo de Remediação:\n${passos || '  -'}`,
+    `Comando de Validação: ${a.comando_validacao || '-'}`,
+    a.notas_remediacao ? `Notas de Patch: ${a.notas_remediacao}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+async function copiarTextoPatchBot(id, modo) {
+  const a = (cyberAchadosCache || []).find(x => x.id === id);
+  if (!a) return;
+  const txt = modo === 'comando' ? (a.comando_validacao || '') : formatarDossieAchadoTexto(a);
+  try {
+    await navigator.clipboard.writeText(txt);
+    mostrarToast(modo === 'comando' ? 'Comando copiado!' : 'Dossiê completo do achado copiado!', 'sucesso');
+  } catch (e) {
+    mostrarToast('Não foi possível copiar automaticamente.', 'erro');
+  }
+}
+
+async function copiarTodosAchadosPatchBot() {
+  const todos = Array.isArray(cyberAchadosCache) ? cyberAchadosCache : [];
+  if (!todos.length) {
+    mostrarToast('Nenhum achado na fila para copiar.', 'info');
+    return;
+  }
+  const txt = todos.map(formatarDossieAchadoTexto).join('\n\n----------------------------------------\n\n');
+  try {
+    await navigator.clipboard.writeText(txt);
+    mostrarToast(`Relatório completo com ${todos.length} achado(s) copiado!`, 'sucesso');
+  } catch (e) {
+    mostrarToast('Não foi possível copiar automaticamente.', 'erro');
+  }
+}
+
+async function salvarDetalhesAchadoCyber(id) {
+  const responsavel = document.getElementById(`ach_edit_resp_${id}`)?.value?.trim() || '';
+  const prazo_sla = document.getElementById(`ach_edit_prazo_${id}`)?.value?.trim() || '';
+  const notas_remediacao = document.getElementById(`ach_edit_notas_${id}`)?.value?.trim() || '';
+  const res = await apiFetch(`/cyber/achados/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ responsavel, prazo_sla, notas_remediacao }),
+  });
+  if (!res.ok) {
+    mostrarToast(await extrairErroResposta(res, 'Erro ao salvar detalhes do achado.'), 'erro');
+    return;
+  }
+  mostrarToast('Detalhes e notas de correção salvos!', 'sucesso');
+  await carregarAchadosCyber();
 }
 
 async function criarAchadoCyber(event) {
@@ -1045,7 +1280,13 @@ async function criarAchadoCyber(event) {
     severidade: document.getElementById('ach_sev').value,
     categoria: document.getElementById('ach_cat').value.trim(),
     alvo: document.getElementById('ach_alvo').value.trim(),
+    cve_cwe: document.getElementById('ach_cve_cwe')?.value.trim() || '',
+    responsavel: document.getElementById('ach_resp')?.value.trim() || '',
+    prazo_sla: document.getElementById('ach_prazo')?.value.trim() || '',
+    evidencia: document.getElementById('ach_evidencia')?.value.trim() || '',
+    impacto: document.getElementById('ach_impacto')?.value.trim() || '',
     recomendacao: document.getElementById('ach_rec').value.trim(),
+    origem: 'Registro Manual',
   };
   const res = await apiFetch('/cyber/achados', { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) {
@@ -1053,7 +1294,7 @@ async function criarAchadoCyber(event) {
     return;
   }
   event.target.reset();
-  mostrarToast('Achado registrado!', 'sucesso');
+  mostrarToast('Achado registrado e enriquecido pelo Patch-Bot!', 'sucesso');
   await Promise.all([carregarAchadosCyber(), carregarResumoCyber()]);
 }
 

@@ -739,20 +739,28 @@ class PDFReportGenerator:
         laudo: dict,
         tenant: dict | None = None,
     ) -> io.BytesIO:
-        """Gera Laudo ou Parecer Técnico no formato carta padrão oficial (A4)."""
+        """Gera Laudo ou Parecer Técnico em PDF (A4) com o design oficial (cabeçalho, logo, cores e rodapé idênticos ao DOCX)."""
+        from pathlib import Path
+
         buffer = io.BytesIO()
+        page_w, page_h = A4
+        assets_dir = Path(__file__).resolve().parent / "static" / "laudo_assets"
+        header_bg_path = assets_dir / "header_bg.png"
+        logo_path = assets_dir / "logo_central.png"
+        footer_bg_path = assets_dir / "footer_bg.png"
+
         doc = SimpleDocTemplate(
             buffer,
             pagesize=A4,
-            rightMargin=52,
-            leftMargin=52,
-            topMargin=44,
-            bottomMargin=44,
+            rightMargin=68,
+            leftMargin=68,
+            topMargin=132,
+            bottomMargin=72,
         )
         styles = getSampleStyleSheet()
-        cor_hex = cls._cor_tema_hex(tenant)
-        cor_clara = colors.HexColor("#F5F3FF")
-        cor_borda = colors.HexColor("#DDD6FE")
+        cor_vermelha = colors.HexColor("#C81018")
+        cor_clara = colors.HexColor("#FEF2F2")
+        cor_borda = colors.HexColor("#FECACA")
 
         meses_pt = [
             "",
@@ -802,32 +810,33 @@ class PDFReportGenerator:
         data_style = ParagraphStyle(
             "CartaData",
             parent=styles["Normal"],
-            fontSize=10.5,
-            leading=15,
+            fontSize=11,
+            leading=15.5,
             fontName="Helvetica",
             textColor=colors.HexColor("#1E293B"),
         )
         campo_style = ParagraphStyle(
             "CartaCampo",
             parent=styles["Normal"],
-            fontSize=10.5,
-            leading=15.5,
+            fontSize=11,
+            leading=16,
             fontName="Helvetica",
             textColor=colors.HexColor("#0F172A"),
         )
         secao_titulo_style = ParagraphStyle(
             "CartaSecTitulo",
             parent=styles["Normal"],
-            fontSize=10.5,
-            leading=15,
+            fontSize=11,
+            leading=15.5,
             fontName="Helvetica-Bold",
             textColor=colors.HexColor("#0F172A"),
         )
-        assin_style = ParagraphStyle(
-            "CartaAssin",
+        assin_center_style = ParagraphStyle(
+            "CartaAssinCenter",
             parent=styles["Normal"],
             fontSize=10,
             leading=14,
+            alignment=1,
             fontName="Helvetica",
             textColor=colors.HexColor("#1E293B"),
         )
@@ -847,18 +856,71 @@ class PDFReportGenerator:
             textColor=colors.HexColor("#0F172A"),
         )
 
+        def _desenhar_timbre_oficial(canvas_obj, _doc_obj):
+            canvas_obj.saveState()
+            # 1. Faixa diagonal vermelha + grafite do cabeçalho (idêntica ao DOCX)
+            if header_bg_path.exists():
+                canvas_obj.drawImage(
+                    str(header_bg_path),
+                    0,
+                    page_h - 244,
+                    width=page_w,
+                    height=244,
+                    mask="auto",
+                )
+            else:
+                canvas_obj.setFillColor(cor_vermelha)
+                canvas_obj.rect(0, page_h - 102, page_w, 102, fill=1, stroke=0)
+
+            # 2. Textos brancos do cabeçalho sobre a faixa vermelha
+            canvas_obj.setFillColor(colors.white)
+            canvas_obj.setFont("Helvetica-Bold", 19.5)
+            canvas_obj.drawString(28, page_h - 46, "CENTRAL INFORMÁTICA")
+            canvas_obj.setFont("Helvetica", 13.5)
+            canvas_obj.drawString(28, page_h - 68, "H & F SOLUÇÕES TECNOLÓGICAS LTDA EPP")
+
+            # 3. Logo oficial Central Informática no canto superior direito
+            if logo_path.exists():
+                canvas_obj.drawImage(
+                    str(logo_path),
+                    page_w - 76,
+                    page_h - 105,
+                    width=45,
+                    height=85,
+                    preserveAspectRatio=True,
+                    mask="auto",
+                )
+
+            # 4. Faixa diagonal grafite + vermelha do rodapé (idêntica ao DOCX)
+            if footer_bg_path.exists():
+                canvas_obj.drawImage(
+                    str(footer_bg_path),
+                    0,
+                    0,
+                    width=page_w,
+                    height=44,
+                    mask="auto",
+                )
+            else:
+                canvas_obj.setFillColor(cor_vermelha)
+                canvas_obj.rect(0, 0, page_w, 44, fill=1, stroke=0)
+
+            # 5. Textos brancos do rodapé sobre a faixa vermelha inferior
+            canvas_obj.setFillColor(colors.white)
+            canvas_obj.setFont("Helvetica", 9.5)
+            canvas_obj.drawRightString(
+                page_w - 28, 25, "Rua: Paraná, 2509 - Centro – Espigão do Oeste– RO"
+            )
+            canvas_obj.drawRightString(
+                page_w - 28, 11, "Fone: (69) 3481-2185 ou 3481-2828"
+            )
+            canvas_obj.restoreState()
+
         elements: list[Any] = []
-
-        # Logo opcional da empresa no topo (se cadastrada)
-        logo_b64 = (tenant or {}).get("logo_base64")
-        img_logo = cls._decode_rl_image(logo_b64, 130, 46) if logo_b64 else None
-        if img_logo is not None:
-            elements.extend([img_logo, Spacer(1, 10)])
-
         elements.append(Paragraph(f"Laudo {data_hifen} {seq_num}", titulo_top_style))
-        elements.append(Spacer(1, 4))
+        elements.append(Spacer(1, 6))
         elements.append(Paragraph(f"Espigão do Oeste, {data_extenso}.", data_style))
-        elements.append(Spacer(1, 16))
+        elements.append(Spacer(1, 18))
 
         cliente_para = (
             str(laudo.get("cliente_para") or "").strip()
@@ -882,11 +944,11 @@ class PDFReportGenerator:
             equipamento_linha = equipamento_txt
 
         elements.append(Paragraph(f"<b>Para:</b> {html.escape(cliente_para)}", campo_style))
-        elements.append(Spacer(1, 4))
+        elements.append(Spacer(1, 5))
         elements.append(Paragraph(f"<b>Assunto:</b> {html.escape(assunto)}", campo_style))
-        elements.append(Spacer(1, 4))
+        elements.append(Spacer(1, 5))
         elements.append(Paragraph(f"<b>Equipamento:</b> {html.escape(equipamento_linha)}", campo_style))
-        elements.append(Spacer(1, 14))
+        elements.append(Spacer(1, 16))
 
         prob_relatado = (
             str(laudo.get("diagnostico") or "").strip()
@@ -901,24 +963,24 @@ class PDFReportGenerator:
         )
 
         elements.append(Paragraph("Problema Relatado:", secao_titulo_style))
-        elements.append(Spacer(1, 3))
+        elements.append(Spacer(1, 4))
         elements.append(cls._safe_multiline_paragraph(prob_relatado, campo_style))
-        elements.append(Spacer(1, 12))
+        elements.append(Spacer(1, 14))
 
         elements.append(Paragraph("Problema Identificado:", secao_titulo_style))
-        elements.append(Spacer(1, 3))
+        elements.append(Spacer(1, 4))
         elements.append(cls._safe_multiline_paragraph(prob_identificado, campo_style))
-        elements.append(Spacer(1, 12))
+        elements.append(Spacer(1, 14))
 
         elements.append(Paragraph("Conclusão e Recomendação:", secao_titulo_style))
-        elements.append(Spacer(1, 3))
+        elements.append(Spacer(1, 4))
         elements.append(cls._safe_multiline_paragraph(conc_rec, campo_style))
-        elements.append(Spacer(1, 20))
+        elements.append(Spacer(1, 24))
 
         elements.append(Paragraph("Estamos à disposição para sanar qualquer dúvida.", campo_style))
-        elements.append(Spacer(1, 12))
+        elements.append(Spacer(1, 14))
         elements.append(Paragraph("Atenciosamente,", campo_style))
-        elements.append(Spacer(1, 18))
+        elements.append(Spacer(1, 34))
 
         tec_nome = str(laudo.get("tecnico_responsavel") or "").strip() or "Vitor Figueiró da Silva"
         tec_cargo = str(laudo.get("registro_profissional") or "").strip() or "T.I"
@@ -926,9 +988,7 @@ class PDFReportGenerator:
             str(laudo.get("email_tecnico") or "").strip()
             or "vitor.figueiro@centralinformatica.com.br"
         )
-        tec_fone = str((tenant or {}).get("telefone") or "").strip() or "Fone: 69 3481-2185 | Cel.: 69 9926-2829"
-        if not tec_fone.lower().startswith("fone"):
-            tec_fone = f"Fone: {tec_fone}"
+        tec_fone = "Fone: 69 3481-2185 | Cel.: 69 9926-2829"
 
         assin_html = (
             f"<b>{html.escape(tec_nome)}</b><br/>"
@@ -936,11 +996,25 @@ class PDFReportGenerator:
             f"E-mail: {html.escape(tec_email)}<br/>"
             f"{html.escape(tec_fone)}"
         )
-        elements.append(Paragraph(assin_html, assin_style))
+        t_assin = Table(
+            [[Paragraph(assin_html, assin_center_style)]],
+            colWidths=[284],
+            hAlign="CENTER",
+        )
+        t_assin.setStyle(
+            TableStyle(
+                [
+                    ("LINEABOVE", (0, 0), (-1, 0), 0.9, colors.HexColor("#1E293B")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ]
+            )
+        )
+        elements.append(t_assin)
 
         checklist = record.get("checklist") or []
         if laudo.get("incluir_checklist", False) and checklist:
-            elements.append(Spacer(1, 18))
+            elements.append(Spacer(1, 20))
             chk_rows = [[Paragraph("CHECKLIST DE BANCADA", sec_chk_style), Paragraph("RESULTADO", sec_chk_style)]]
             for item in checklist:
                 chk_rows.append(
@@ -949,11 +1023,11 @@ class PDFReportGenerator:
                         cls._safe_paragraph("OK" if item.get("concluido") else "Não marcado", body_chk_style),
                     ]
                 )
-            t_chk = Table(chk_rows, colWidths=[390, 100])
+            t_chk = Table(chk_rows, colWidths=[360, 99])
             t_chk.setStyle(
                 TableStyle(
                     [
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                        ("BACKGROUND", (0, 0), (-1, 0), cor_vermelha),
                         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, cor_clara]),
                         ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
                         ("TOPPADDING", (0, 0), (-1, -1), 4),
@@ -964,7 +1038,11 @@ class PDFReportGenerator:
             )
             elements.append(t_chk)
 
-        doc.build(elements)
+        doc.build(
+            elements,
+            onFirstPage=_desenhar_timbre_oficial,
+            onLaterPages=_desenhar_timbre_oficial,
+        )
         buffer.seek(0)
         return buffer
 

@@ -1327,42 +1327,60 @@ function atualizarPreviewCriadorLaudo() {
   const foneLinha = foneRaw ? (foneRaw.toLowerCase().startsWith('fone') ? foneRaw : `Fone: ${foneRaw}`) : 'Fone: 69 3481-2185 | Cel.: 69 9926-2829';
 
   box.innerHTML = `
-    <div class="space-y-3 text-slate-900 font-sans leading-relaxed">
-      <div>
-        <div class="text-sm font-extrabold">Laudo ${escapeHtml(dtInfo.hifen)} 01</div>
-        <div class="text-xs text-slate-700">Espigão do Oeste, ${escapeHtml(dtInfo.extenso)}.</div>
+    <div class="-m-5 rounded-xl overflow-hidden bg-white text-slate-900 flex flex-col justify-between min-h-[540px] relative">
+      <!-- Cabeçalho oficial idêntico ao DOCX -->
+      <div class="relative w-full overflow-hidden" style="min-height: 92px; background: url('/static/laudo_assets/header_bg.png?v=1') top left / 100% auto no-repeat;">
+        <div class="px-4 pt-3 pb-4 pr-16 text-white">
+          <div class="text-sm font-extrabold tracking-wide leading-tight">CENTRAL INFORMÁTICA</div>
+          <div class="text-[9.5px] font-medium opacity-95 leading-tight mt-0.5">H &amp; F SOLUÇÕES TECNOLÓGICAS LTDA EPP</div>
+        </div>
+        <img src="/static/laudo_assets/logo_central.png?v=1" alt="Central Informática" class="absolute top-2 right-3 h-16 w-auto object-contain">
       </div>
 
-      <div class="space-y-1 text-xs pt-1">
-        <div><b>Para:</b> ${escapeHtml(cliente)}</div>
-        <div><b>Assunto:</b> ${escapeHtml(assunto)}</div>
-        <div><b>Equipamento:</b> ${escapeHtml(equipLinha)}</div>
+      <!-- Corpo do documento -->
+      <div class="px-6 py-4 space-y-2.5 text-[11px] font-sans leading-relaxed flex-1">
+        <div>
+          <div class="text-xs font-extrabold">Laudo ${escapeHtml(dtInfo.hifen)} 01</div>
+          <div class="text-[11px] text-slate-700">Espigão do Oeste, ${escapeHtml(dtInfo.extenso)}.</div>
+        </div>
+
+        <div class="space-y-0.5 pt-1">
+          <div><b>Para:</b> ${escapeHtml(cliente)}</div>
+          <div><b>Assunto:</b> ${escapeHtml(assunto)}</div>
+          <div><b>Equipamento:</b> ${escapeHtml(equipLinha)}</div>
+        </div>
+
+        <div class="space-y-2 pt-1">
+          <div>
+            <div class="font-bold">Problema Relatado:</div>
+            <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(probRel || '...')}</div>
+          </div>
+          <div>
+            <div class="font-bold">Problema Identificado:</div>
+            <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(probId || '...')}</div>
+          </div>
+          <div>
+            <div class="font-bold">Conclusão e Recomendação:</div>
+            <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(concRec || '...')}</div>
+          </div>
+        </div>
+
+        <div class="pt-3 space-y-1.5 text-slate-800">
+          <div>Estamos à disposição para sanar qualquer dúvida.</div>
+          <div>Atenciosamente,</div>
+          <div class="pt-4 mx-auto max-w-[230px] border-t border-slate-700 text-center text-[10px] leading-snug">
+            <div class="font-bold">${escapeHtml(tec)}</div>
+            <div>${escapeHtml(cargo)}</div>
+            <div>E-mail: ${escapeHtml(emailTec)}</div>
+            <div>Fone: 69 3481-2185 | Cel.: 69 9926-2829</div>
+          </div>
+        </div>
       </div>
 
-      <div class="space-y-2.5 text-xs pt-1">
-        <div>
-          <div class="font-bold">Problema Relatado:</div>
-          <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(probRel || '...')}</div>
-        </div>
-        <div>
-          <div class="font-bold">Problema Identificado:</div>
-          <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(probId || '...')}</div>
-        </div>
-        <div>
-          <div class="font-bold">Conclusão e Recomendação:</div>
-          <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(concRec || '...')}</div>
-        </div>
-      </div>
-
-      <div class="pt-3 space-y-2 text-xs text-slate-800">
-        <div>Estamos à disposição para sanar qualquer dúvida.</div>
-        <div>Atenciosamente,</div>
-        <div class="pt-2">
-          <div class="font-bold">${escapeHtml(tec)}</div>
-          <div>${escapeHtml(cargo)}</div>
-          <div>E-mail: ${escapeHtml(emailTec)}</div>
-          <div>${escapeHtml(foneLinha)}</div>
-        </div>
+      <!-- Rodapé oficial idêntico ao DOCX -->
+      <div class="w-full px-4 py-2 text-right text-white text-[9px] leading-tight" style="min-height: 34px; background: url('/static/laudo_assets/footer_bg.png?v=1') bottom left / 100% 100% no-repeat;">
+        <div>Rua: Paraná, 2509 - Centro – Espigão do Oeste– RO</div>
+        <div>Fone: (69) 3481-2185 ou 3481-2828</div>
       </div>
     </div>
   `;

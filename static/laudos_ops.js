@@ -662,8 +662,8 @@ function renderizarListaModelosEmpresa() {
   if (!box) return;
   box.innerHTML = modelosEmpresaDraft.map((m, idx) => `
     <button type="button" onclick="selecionarModeloEmpresa(${idx})" class="w-full text-left p-2.5 rounded-xl border ${idx === modeloIndiceEmEdicao ? 'bg-violet-600 text-white border-violet-600' : 'bg-violet-50/70 dark:bg-[#1C1633] text-slate-800 dark:text-white border-violet-200 dark:border-violet-800'} transition-all">
-      <div class="font-bold text-xs truncate">${escapeHtml(m.nome)}</div>
-      <div class="text-[10px] opacity-80 truncate">${escapeHtml(m.conclusao_padrao || '')}</div>
+      <div class="font-bold text-xs truncate">${m.tem_design_docx || m.docx_base64 ? '📄 ' : ''}${escapeHtml(m.nome)}</div>
+      <div class="text-[10px] opacity-80 truncate">${m.tem_design_docx || m.docx_base64 ? `Design Word (.docx): ${escapeHtml(m.docx_filename || 'anexado')}` : escapeHtml(m.conclusao_padrao || '')}</div>
     </button>
   `).join('');
 }
@@ -679,6 +679,15 @@ function selecionarModeloEmpresa(idx) {
   document.getElementById('tpl_diagnostico').value = m.diagnostico || '';
   document.getElementById('tpl_corpo').value = m.corpo || '';
   document.getElementById('tpl_recomendacoes').value = m.recomendacoes || '';
+  const badge = document.getElementById('tpl_docx_badge');
+  if (badge) {
+    if (m.docx_base64 || m.tem_design_docx) {
+      badge.textContent = `✅ Design original Word (.docx) preservado: ${m.docx_filename || 'modelo.docx'} — Ao gerar o Word no Criador de Laudos, o layout deste arquivo será mantido 100% igual!`;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
   renderizarListaModelosEmpresa();
 }
 
@@ -691,6 +700,7 @@ function novoModeloLaudoEmpresa() {
   document.getElementById('tpl_diagnostico').value = '';
   document.getElementById('tpl_corpo').value = '';
   document.getElementById('tpl_recomendacoes').value = '';
+  document.getElementById('tpl_docx_badge')?.classList.add('hidden');
   renderizarListaModelosEmpresa();
 }
 
@@ -710,8 +720,9 @@ function aplicarEdicaoModeloNaLista() {
     mostrarToast('Informe o nome e o texto do parecer do modelo.', 'erro');
     return;
   }
+  const atual = modeloIndiceEmEdicao >= 0 ? modelosEmpresaDraft[modeloIndiceEmEdicao] : null;
   const obj = {
-    id: modeloIndiceEmEdicao >= 0 ? modelosEmpresaDraft[modeloIndiceEmEdicao].id : `tpl_${Date.now()}`,
+    id: atual ? atual.id : `tpl_${Date.now()}`,
     nome,
     categoria_sugerida: 'Geral',
     titulo: document.getElementById('tpl_titulo').value.trim() || nome.toUpperCase(),
@@ -719,6 +730,9 @@ function aplicarEdicaoModeloNaLista() {
     diagnostico: document.getElementById('tpl_diagnostico').value.trim(),
     corpo,
     recomendacoes: document.getElementById('tpl_recomendacoes').value.trim(),
+    docx_base64: atual?.docx_base64 || '',
+    docx_filename: atual?.docx_filename || '',
+    tem_design_docx: Boolean(atual?.docx_base64 || atual?.tem_design_docx),
   };
   if (modeloIndiceEmEdicao >= 0) {
     modelosEmpresaDraft[modeloIndiceEmEdicao] = obj;
@@ -982,6 +996,28 @@ let laudosEmitidosCache = [];
 let laudosEquipamentosCache = [];
 let criadorLaudoEditando = null;
 let laudoViewTabAtual = 'criar';
+let criadorDocxBase64 = '';
+let criadorDocxFilename = '';
+let criadorModeloIdAtivo = '';
+
+function atualizarBannerDesignDocxCriador() {
+  const banner = document.getElementById('cl_docx_design_banner');
+  const lbl = document.getElementById('cl_docx_design_nome');
+  if (!banner) return;
+  if (criadorDocxBase64 || criadorDocxFilename) {
+    if (lbl) lbl.textContent = criadorDocxFilename || 'modelo_word.docx';
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+function limparDesignDocxCriador() {
+  criadorDocxBase64 = '';
+  criadorDocxFilename = '';
+  criadorModeloIdAtivo = '';
+  atualizarBannerDesignDocxCriador();
+}
 
 function alternarLaudoViewTab(tab) {
   laudoViewTabAtual = tab;
@@ -1105,6 +1141,25 @@ function aplicarModeloNoCriadorLaudo() {
     mostrarToast('Nenhum modelo disponível.', 'erro');
     return;
   }
+  criadorModeloIdAtivo = modelo.id || '';
+  if (modelo.docx_base64 || modelo.tem_design_docx) {
+    criadorDocxBase64 = modelo.docx_base64 || '';
+    criadorDocxFilename = modelo.docx_filename || `${modelo.nome || 'modelo'}.docx`;
+    atualizarBannerDesignDocxCriador();
+    const reg = _obterEquipamentoSelecionadoCriador() || {};
+    if (!document.getElementById('cl_diagnostico').value.trim() && reg.problema) {
+      document.getElementById('cl_diagnostico').value = reg.problema;
+    }
+    if (!document.getElementById('cl_parecer').value.trim() && reg.resolucao) {
+      document.getElementById('cl_parecer').value = reg.resolucao;
+    }
+    atualizarPreviewCriadorLaudo();
+    mostrarToast(`Design Word "${criadorDocxFilename}" ativo! Preencha os 3 campos e clique em Baixar Word (.docx).`, 'sucesso');
+    return;
+  }
+  criadorDocxBase64 = '';
+  criadorDocxFilename = '';
+  atualizarBannerDesignDocxCriador();
   _aplicarModeloObjetoNoCriador(modelo);
   mostrarToast(`Modelo "${modelo.nome}" aplicado!`, 'sucesso');
 }
@@ -1119,6 +1174,7 @@ async function importarModeloNoCriadorLaudo(event) {
   }
   try {
     const b64 = await lerArquivoBase64(file);
+    const isDocx = file.name.toLowerCase().endsWith('.docx');
     const res = await apiFetch('/laudos/importar-modelo', {
       method: 'POST',
       body: JSON.stringify({ filename: file.name, conteudo_base64: b64 })
@@ -1128,12 +1184,94 @@ async function importarModeloNoCriadorLaudo(event) {
       return;
     }
     const data = await res.json();
-    _aplicarModeloObjetoNoCriador(data.modelo);
-    mostrarToast(`Modelo "${data.modelo.nome}" carregado!`, 'sucesso');
+    if (isDocx) {
+      criadorDocxBase64 = b64;
+      criadorDocxFilename = file.name;
+      criadorModeloIdAtivo = '';
+      atualizarBannerDesignDocxCriador();
+      const reg = _obterEquipamentoSelecionadoCriador() || {};
+      if (!document.getElementById('cl_diagnostico').value.trim() && reg.problema) {
+        document.getElementById('cl_diagnostico').value = reg.problema;
+      }
+      if (!document.getElementById('cl_parecer').value.trim() && reg.resolucao) {
+        document.getElementById('cl_parecer').value = reg.resolucao;
+      }
+      atualizarPreviewCriadorLaudo();
+      mostrarToast(`Design Word "${file.name}" carregado! Preencha os 3 campos e clique em "Baixar Word (.docx)".`, 'sucesso');
+    } else {
+      criadorDocxBase64 = '';
+      criadorDocxFilename = '';
+      atualizarBannerDesignDocxCriador();
+      _aplicarModeloObjetoNoCriador(data.modelo);
+      mostrarToast(`Modelo "${data.modelo.nome}" carregado!`, 'sucesso');
+    }
   } catch (e) {
     mostrarToast('Falha ao importar arquivo de modelo.', 'erro');
   } finally {
     event.target.value = '';
+  }
+}
+
+async function baixarLaudoDocxCriador() {
+  const reg = _obterEquipamentoSelecionadoCriador();
+  const idSel = criadorModeloIdAtivo || document.getElementById('cl_modelo_select')?.value || '';
+  const payload = {
+    registro_id: reg ? Number(reg.id) : null,
+    modelo_id: idSel,
+    docx_base64: criadorDocxBase64 || '',
+    docx_filename: criadorDocxFilename || (reg ? `Laudo_OS_${reg.id}.docx` : 'Laudo_Preenchido.docx'),
+    para: reg?.origem || '',
+    assunto: document.getElementById('cl_titulo')?.value.trim() || 'Parecer Técnico',
+    diagnostico: document.getElementById('cl_diagnostico')?.value.trim() || '',
+    parecer: document.getElementById('cl_parecer')?.value.trim() || '',
+    recomendacoes: document.getElementById('cl_recomendacoes')?.value.trim() || '',
+    conclusao: document.getElementById('cl_conclusao')?.value || '',
+    tecnico_responsavel: document.getElementById('cl_tecnico')?.value.trim() || '',
+    numero_laudo: criadorLaudoEditando?.numero || (reg ? `OS${reg.id}` : '01'),
+  };
+  try {
+    const res = await apiFetch('/laudos/gerar-docx', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Anexe seu arquivo .docx primeiro para baixar com o design original.'), 'erro');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = payload.docx_filename.toLowerCase().endsWith('.docx') ? payload.docx_filename : `${payload.docx_filename}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+    mostrarToast('Documento Word (.docx) gerado mantendo 100% do design original!', 'sucesso');
+  } catch (e) {
+    mostrarToast('Falha ao gerar documento Word (.docx).', 'erro');
+  }
+}
+
+async function baixarLaudoDocxSalvo(registroId, laudoId, numero) {
+  try {
+    const res = await apiFetch(`/equipamentos/${registroId}/laudos/${encodeURIComponent(laudoId)}/docx`);
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Nenhum design Word (.docx) vinculado a este laudo.'), 'erro');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Laudo_${numero || laudoId}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+    mostrarToast('Word (.docx) baixado com o design original!', 'sucesso');
+  } catch (e) {
+    mostrarToast('Falha ao baixar Word (.docx).', 'erro');
   }
 }
 
@@ -1216,6 +1354,7 @@ async function salvarLaudoCriador(abrirPdfDepois = false) {
     registro_profissional: document.getElementById('cl_reg_prof').value.trim(),
     incluir_checklist: document.getElementById('cl_inc_checklist').checked,
     visivel_cliente: document.getElementById('cl_visivel_cliente').checked,
+    modelo_id: criadorModeloIdAtivo || document.getElementById('cl_modelo_select')?.value || '',
   };
   if (!payload.titulo || !payload.parecer) {
     mostrarToast('Informe o título e o parecer técnico do laudo.', 'erro');
@@ -1278,6 +1417,7 @@ function renderizarListaLaudosEmitidos() {
       <p class="text-[11px] text-slate-700 dark:text-violet-100 line-clamp-2 whitespace-pre-line">${escapeHtml(l.parecer)}</p>
       <div class="flex flex-wrap gap-1.5 pt-1">
         <button type="button" onclick="abrirLaudoPdfDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">🖨️ Imprimir / PDF</button>
+        <button type="button" onclick="baixarLaudoDocxSalvo(${l.registro_id}, '${escapeHtml(l.id)}', '${escapeHtml(l.numero || '')}')" class="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold">📄 Word (.docx)</button>
         ${podeCriar ? `<button type="button" onclick="editarLaudoNoCriador(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-violet-800 dark:text-violet-200 text-[11px] font-semibold">✏️ Editar no Criador</button>` : ''}
         <button type="button" onclick="excluirLaudoDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold">🗑️ Excluir</button>
       </div>

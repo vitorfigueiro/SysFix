@@ -15,6 +15,7 @@ from PIL import Image
 from security import SecurityValidator
 
 MAX_TEMPLATE_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
+MAX_STORED_DOCX_BYTES = 650 * 1024  # 650 KB (seguro para persistência no Firestore)
 MAX_IMAGE_BYTES = 300 * 1024  # 300 KB
 
 CATEGORIAS_EQUIPAMENTO = [
@@ -317,6 +318,24 @@ def normalizar_modelos_laudo(modelos: list[dict] | None) -> list[dict[str, Any]]
         conclusao = SecurityValidator.sanitizar_texto(item.get("conclusao_padrao"))
         if conclusao not in CONCLUSOES_LAUDO:
             conclusao = CONCLUSOES_LAUDO[0]
+        docx_b64 = ""
+        docx_fname = SecurityValidator.sanitizar_texto(item.get("docx_filename"))[:120]
+        raw_docx_b64 = str(item.get("docx_base64") or "").strip()
+        if raw_docx_b64:
+            if "," in raw_docx_b64 and raw_docx_b64.startswith("data:"):
+                raw_docx_b64 = raw_docx_b64.split(",", 1)[1].strip()
+            try:
+                docx_bytes = base64.b64decode(raw_docx_b64, validate=True)
+                if len(docx_bytes) <= MAX_STORED_DOCX_BYTES:
+                    with zipfile.ZipFile(io.BytesIO(docx_bytes)) as zf_chk:
+                        if "word/document.xml" in zf_chk.namelist():
+                            docx_b64 = raw_docx_b64
+                            if not docx_fname:
+                                docx_fname = f"{tpl_id}.docx"
+            except Exception:
+                docx_b64 = ""
+                docx_fname = ""
+
         limpos.append(
             {
                 "id": tpl_id,
@@ -327,6 +346,9 @@ def normalizar_modelos_laudo(modelos: list[dict] | None) -> list[dict[str, Any]]
                 "diagnostico": str(item.get("diagnostico") or "").strip()[:2000],
                 "corpo": corpo[:8000],
                 "recomendacoes": str(item.get("recomendacoes") or "").strip()[:2000],
+                "docx_base64": docx_b64,
+                "docx_filename": docx_fname if docx_b64 else "",
+                "tem_design_docx": bool(docx_b64),
             }
         )
 
@@ -575,7 +597,13 @@ def parse_uploaded_laudo_template(filename: str, raw_bytes: bytes) -> dict[str, 
         raise ValueError("Não foi possível extrair texto do modelo enviado.")
 
     nome_modelo = SecurityValidator.sanitizar_texto(stem.replace("_", " ").replace("-", " ")) or "Modelo Importado"
-    return normalizar_modelos_laudo(
+    docx_b64_saved = ""
+    docx_fname_saved = ""
+    if ext == "docx" and len(raw_bytes) <= MAX_STORED_DOCX_BYTES:
+        docx_b64_saved = base64.b64encode(raw_bytes).decode("ascii")
+        docx_fname_saved = base_name[:120]
+
+    modelo_obj = normalizar_modelos_laudo(
         [
             {
                 "id": f"tpl_imp_{re.sub(r'[^a-zA-Z0-9]+', '_', stem.lower())[:24]}",
@@ -586,9 +614,223 @@ def parse_uploaded_laudo_template(filename: str, raw_bytes: bytes) -> dict[str, 
                 "diagnostico": "",
                 "corpo": corpo_limpo[:8000],
                 "recomendacoes": "",
+                "docx_base64": docx_b64_saved,
+                "docx_filename": docx_fname_saved,
             }
         ]
     )[0]
+    if ext == "docx" and not docx_b64_saved:
+        modelo_obj["aviso_tamanho_docx"] = (
+            "Arquivo .docx acima de 650 KB: o texto foi importado, mas para salvar o design original como modelo fixo reduza imagens do documento para até 650 KB."
+        )
+    return modelo_obj
+
+
+_MESES_PT = [
+    "",
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+]
+_W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+
+
+def _normalizar_rotulo_docx(texto: str) -> str:
+    sem_acento = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"\s+", " ", sem_acento).strip().lower()
+
+
+def _clonar_rpr_sem_negrito(p_elem: ET.Element) -> ET.Element | None:
+    """Clona o estilo de fonte/tamanho/cor do parágrafo removendo negrito para o valor inserido."""
+    rpr_src = None
+    for child in p_elem:
+        if child.tag.rsplit("}", 1)[-1] == "r":
+            for sub in child:
+                if sub.tag.rsplit("}", 1)[-1] == "rPr":
+                    rpr_src = sub
+                    break
+            if rpr_src is not None:
+                break
+    if rpr_src is None:
+        return None
+    cloned = ET.fromstring(ET.tostring(rpr_src, encoding="utf-8"))
+    for tag_rm in ("b", "bCs"):
+        for node in list(cloned):
+            if node.tag.rsplit("}", 1)[-1] == tag_rm:
+                cloned.remove(node)
+    return cloned
+
+
+def _criar_run_texto_docx(texto: str, rpr: ET.Element | None = None, prefixo_espaco: bool = True) -> ET.Element:
+    run = ET.Element(f"{{{_W_NS}}}r")
+    if rpr is not None:
+        run.append(ET.fromstring(ET.tostring(rpr, encoding="utf-8")))
+    linhas = str(texto or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    for idx, ln in enumerate(linhas):
+        if idx > 0:
+            ET.SubElement(run, f"{{{_W_NS}}}br")
+        t_el = ET.SubElement(run, f"{{{_W_NS}}}t")
+        t_el.set(_XML_SPACE, "preserve")
+        t_el.text = (f" {ln}" if (idx == 0 and prefixo_espaco and ln and not ln.startswith(" ")) else ln)
+    return run
+
+
+def _substituir_texto_paragrafo_docx(p_elem: ET.Element, novo_texto: str) -> None:
+    """Substitui o texto de um parágrafo preservando o estilo (<w:pPr> e <w:rPr> do primeiro run)."""
+    t_nodes = [el for el in p_elem.iter() if el.tag.rsplit("}", 1)[-1] == "t"]
+    if not t_nodes:
+        p_elem.append(_criar_run_texto_docx(novo_texto, _clonar_rpr_sem_negrito(p_elem), prefixo_espaco=False))
+        return
+    linhas = str(novo_texto or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    t_nodes[0].set(_XML_SPACE, "preserve")
+    t_nodes[0].text = linhas[0]
+    for extra in t_nodes[1:]:
+        extra.text = ""
+    if len(linhas) > 1:
+        rpr = _clonar_rpr_sem_negrito(p_elem)
+        extra_run = ET.Element(f"{{{_W_NS}}}r")
+        if rpr is not None:
+            extra_run.append(rpr)
+        for ln in linhas[1:]:
+            ET.SubElement(extra_run, f"{{{_W_NS}}}br")
+            t_el = ET.SubElement(extra_run, f"{{{_W_NS}}}t")
+            t_el.set(_XML_SPACE, "preserve")
+            t_el.text = ln
+        p_elem.append(extra_run)
+
+
+def _processar_xml_docx(xml_bytes: bytes, campos: dict[str, str]) -> bytes:
+    """Atualiza placeholders {{...}} e rótulos padrão (Para, Assunto, Equipamento, Problema Relatado/Identificado, Conclusão) preservando todo o XML/design."""
+    ns_map: dict[str, str] = {}
+    for _, (prefix, uri) in ET.iterparse(io.BytesIO(xml_bytes), events=("start-ns",)):
+        ns_map[prefix] = uri
+    for prefix, uri in ns_map.items():
+        ET.register_namespace(prefix, uri)
+
+    root = ET.fromstring(xml_bytes)
+
+    agora = datetime.now()
+    data_hifen = agora.strftime("%d-%m-%Y")
+    data_barra = agora.strftime("%d/%m/%Y")
+    data_extenso = f"{agora.day:02d} de {_MESES_PT[agora.month]} de {agora.year}"
+
+    mapa_vars: dict[str, str] = {
+        "para": campos.get("para", ""),
+        "origem": campos.get("para", ""),
+        "cliente": campos.get("para", ""),
+        "assunto": campos.get("assunto", ""),
+        "titulo": campos.get("assunto", ""),
+        "equipamento": campos.get("equipamento", ""),
+        "tombamento": campos.get("tombamento", ""),
+        "serial_mac": campos.get("serial_mac", ""),
+        "problema_relatado": campos.get("problema_relatado", ""),
+        "problema": campos.get("problema_relatado", ""),
+        "diagnostico": campos.get("problema_relatado", ""),
+        "problema_identificado": campos.get("problema_identificado", ""),
+        "parecer": campos.get("problema_identificado", ""),
+        "resolucao": campos.get("problema_identificado", ""),
+        "conclusao_recomendacao": campos.get("conclusao_recomendacao", ""),
+        "recomendacoes": campos.get("conclusao_recomendacao", ""),
+        "conclusao": campos.get("conclusao", ""),
+        "tecnico": campos.get("tecnico", ""),
+        "empresa": campos.get("empresa", ""),
+        "id": campos.get("id", ""),
+        "numero_laudo": campos.get("numero_laudo", ""),
+        "data_atual": data_barra,
+        "data_extenso": data_extenso,
+    }
+
+    rotulos_mapa: list[tuple[tuple[str, ...], str]] = [
+        (("para:",), campos.get("para", "")),
+        (("assunto:",), campos.get("assunto", "")),
+        (("equipamento:",), campos.get("equipamento", "")),
+        (("problema relatado:", "defeito relatado:", "sintoma relatado:", "diagnostico:"), campos.get("problema_relatado", "")),
+        (("problema identificado:", "analise tecnica:", "parecer tecnico:", "parecer:"), campos.get("problema_identificado", "")),
+        (("conclusao e recomendacao:", "conclusao e recomendacoes:", "conclusao:", "recomendacoes:", "recomendacao:"), campos.get("conclusao_recomendacao", "")),
+    ]
+
+    for p_elem in root.iter():
+        if p_elem.tag.rsplit("}", 1)[-1] != "p":
+            continue
+        t_nodes = [el for el in p_elem.iter() if el.tag.rsplit("}", 1)[-1] == "t"]
+        if not t_nodes:
+            continue
+        texto_p = "".join(el.text or "" for el in t_nodes)
+        texto_strip = texto_p.strip()
+        if not texto_strip:
+            continue
+
+        # 1. Substituição de placeholders {{variavel}} mesmo quando fragmentados em vários runs
+        if "{{" in texto_p and "}}" in texto_p:
+            substituido = _PLACEHOLDER_RE.sub(
+                lambda m: mapa_vars.get(m.group(1).strip().lower(), m.group(0)),
+                texto_p,
+            )
+            if substituido != texto_p:
+                _substituir_texto_paragrafo_docx(p_elem, substituido)
+                continue
+
+        # 2. Atualização automática de cabeçalho "Laudo DD-MM-YYYY 01"
+        if re.match(r"^laudo\s+\d{1,2}[-/]\d{1,2}[-/]\d{2,4}(?:\s+\S+)?$", texto_strip, flags=re.IGNORECASE):
+            sufixo = campos.get("numero_laudo") or "01"
+            _substituir_texto_paragrafo_docx(p_elem, f"Laudo {data_hifen} {sufixo}")
+            continue
+
+        # 3. Atualização automática de data por extenso "Cidade, DD de Mês de AAAA."
+        m_data = re.match(r"^([^,\n]{2,50}),\s*\d{1,2}\s+de\s+[A-Za-zÀ-ÿ]+\s+de\s+\d{4}(\.?)$", texto_strip, flags=re.IGNORECASE)
+        if m_data:
+            cidade = m_data.group(1).strip()
+            ponto = m_data.group(2) or "."
+            _substituir_texto_paragrafo_docx(p_elem, f"{cidade}, {data_extenso}{ponto}")
+            continue
+
+        # 4. Inserção automática após rótulos (Para:, Assunto:, Equipamento:, Problema Relatado:, Problema Identificado:, Conclusão e Recomendação:)
+        norm_p = _normalizar_rotulo_docx(texto_strip)
+        for prefixos, valor in rotulos_mapa:
+            if not valor:
+                continue
+            if any(norm_p == pref or norm_p.startswith(pref + " ") for pref in prefixos):
+                # Só insere se o campo no documento estiver em branco após o ":"
+                pos_colon = texto_strip.find(":")
+                resto = texto_strip[pos_colon + 1:].strip() if pos_colon >= 0 else ""
+                if not resto:
+                    rpr = _clonar_rpr_sem_negrito(p_elem)
+                    p_elem.append(_criar_run_texto_docx(valor, rpr=rpr, prefixo_espaco=True))
+                break
+
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def preencher_modelo_docx(docx_bytes: bytes, campos: dict[str, Any]) -> bytes:
+    """Preserva 100% do design original do .docx enviado e insere os campos preenchidos."""
+    if not docx_bytes:
+        raise ValueError("Arquivo .docx de modelo não informado.")
+    try:
+        zf_in = zipfile.ZipFile(io.BytesIO(docx_bytes), "r")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Arquivo .docx de modelo inválido ou corrompido.") from exc
+
+    campos_limpos = {k: str(v or "").strip() for k, v in (campos or {}).items()}
+    out_buf = io.BytesIO()
+    with zf_in, zipfile.ZipFile(out_buf, "w", compression=zipfile.ZIP_DEFLATED) as zf_out:
+        if "word/document.xml" not in zf_in.namelist():
+            raise ValueError("Arquivo .docx inválido (word/document.xml ausente).")
+        for item in zf_in.infolist():
+            data = zf_in.read(item.filename)
+            if item.filename == "word/document.xml" or re.match(r"^word/(header|footer)\d*\.xml$", item.filename):
+                data = _processar_xml_docx(data, campos_limpos)
+            zf_out.writestr(item, data)
+    return out_buf.getvalue()
 
 
 # ==============================================================================

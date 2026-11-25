@@ -898,6 +898,7 @@ class ColetaModel:
         incluir_checklist = bool(dados_laudo.get("incluir_checklist", True))
         visivel_cliente = bool(dados_laudo.get("visivel_cliente", True))
         modelo_origem = SecurityValidator.sanitizar_texto(dados_laudo.get("modelo_nome"))[:100]
+        modelo_id = SecurityValidator.sanitizar_texto(dados_laudo.get("modelo_id"))[:60]
 
         agora = _now_iso()
         laudos = list(reg.get("laudos") or [])
@@ -918,6 +919,7 @@ class ColetaModel:
                         "incluir_checklist": incluir_checklist,
                         "visivel_cliente": visivel_cliente,
                         "modelo_nome": modelo_origem or item.get("modelo_nome", ""),
+                        "modelo_id": modelo_id or item.get("modelo_id", ""),
                         "atualizado_em": agora,
                         "atualizado_por": SecurityValidator.sanitizar_texto(actor),
                     }
@@ -942,6 +944,7 @@ class ColetaModel:
                 "incluir_checklist": incluir_checklist,
                 "visivel_cliente": visivel_cliente,
                 "modelo_nome": modelo_origem,
+                "modelo_id": modelo_id,
                 "emitido_em": agora,
                 "atualizado_em": agora,
                 "criado_por": SecurityValidator.sanitizar_texto(actor),

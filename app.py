@@ -55,6 +55,7 @@ from templates_laudo import (
     gerar_resumo_lote_coleta,
     gerar_resumo_os_texto,
     parse_uploaded_laudo_template,
+    preencher_modelo_docx,
 )
 import uvicorn
 
@@ -402,6 +403,23 @@ class LaudoSchema(BaseModel):
     incluir_checklist: bool = True
     visivel_cliente: bool = True
     modelo_nome: Optional[str] = ""
+    modelo_id: Optional[str] = ""
+
+
+class GerarLaudoDocxSchema(BaseModel):
+    registro_id: Optional[int] = None
+    modelo_id: Optional[str] = ""
+    docx_base64: Optional[str] = ""
+    docx_filename: Optional[str] = ""
+    para: Optional[str] = ""
+    assunto: Optional[str] = ""
+    equipamento: Optional[str] = ""
+    diagnostico: Optional[str] = ""
+    parecer: Optional[str] = ""
+    recomendacoes: Optional[str] = ""
+    conclusao: Optional[str] = ""
+    tecnico_responsavel: Optional[str] = ""
+    numero_laudo: Optional[str] = ""
 
 
 class OrcamentoSchema(BaseModel):
@@ -1644,6 +1662,155 @@ def importar_arquivo_modelo_laudo(
     except Exception:
         logger.exception("Erro ao importar arquivo de modelo de laudo")
         raise HTTPException(status_code=500, detail="Erro ao processar modelo enviado.")
+
+
+def _resolver_docx_modelo(tenant: dict[str, Any], modelo_id: str = "", docx_base64: str = "") -> tuple[bytes, str]:
+    raw_b64 = (docx_base64 or "").strip()
+    fname = "laudo_preenchido.docx"
+    if not raw_b64 and modelo_id:
+        for m in tenant.get("modelos_laudo") or []:
+            if m.get("id") == modelo_id and m.get("docx_base64"):
+                raw_b64 = str(m.get("docx_base64") or "").strip()
+                fname = str(m.get("docx_filename") or f"{modelo_id}.docx")
+                break
+    if not raw_b64:
+        for m in tenant.get("modelos_laudo") or []:
+            if m.get("docx_base64"):
+                raw_b64 = str(m.get("docx_base64") or "").strip()
+                fname = str(m.get("docx_filename") or "laudo_modelo.docx")
+                break
+    if not raw_b64:
+        raise ValueError(
+            "Nenhum arquivo Word (.docx) de design está vinculado a este modelo. Anexe o seu .docx em Modelos & Timbre ou no Criador de Laudos."
+        )
+    if "," in raw_b64 and raw_b64.startswith("data:"):
+        raw_b64 = raw_b64.split(",", 1)[1].strip()
+    try:
+        docx_bytes = base64.b64decode(raw_b64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("Conteúdo do arquivo .docx em base64 inválido.") from exc
+    if len(docx_bytes) > MAX_TEMPLATE_UPLOAD_BYTES:
+        raise ValueError("O arquivo .docx excede o limite de 5 MB.")
+    return docx_bytes, fname
+
+
+@app.post("/api/laudos/gerar-docx")
+def gerar_laudo_docx_personalizado(
+    payload: GerarLaudoDocxSchema,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_laudos", "acessar_criador_laudos", "gerenciar_modelos")
+    ),
+):
+    try:
+        tenant = _get_auth_service().get_tenant(current_user["tenant_id"]) or {"nome": "SysFix"}
+        docx_bytes, base_fname = _resolver_docx_modelo(
+            tenant,
+            modelo_id=payload.modelo_id or "",
+            docx_base64=payload.docx_base64 or "",
+        )
+        reg = None
+        if payload.registro_id:
+            reg = ColetaModel.buscar_por_id(int(payload.registro_id), tenant_id=current_user["tenant_id"])
+
+        equip_txt = (payload.equipamento or "").strip()
+        if not equip_txt and reg:
+            partes_eq = [str(reg.get("equipamento") or "").strip()]
+            if reg.get("tombamento"):
+                partes_eq.append(f"Tomb.: {reg.get('tombamento')}")
+            if reg.get("serial_mac"):
+                partes_eq.append(f"S/N: {reg.get('serial_mac')}")
+            equip_txt = " | ".join(p for p in partes_eq if p)
+
+        rec_txt = (payload.recomendacoes or "").strip()
+        if not rec_txt and payload.conclusao:
+            rec_txt = str(payload.conclusao).strip()
+
+        campos = {
+            "para": (payload.para or (reg.get("origem") if reg else "") or "").strip(),
+            "assunto": (payload.assunto or "Parecer Técnico").strip(),
+            "equipamento": equip_txt,
+            "tombamento": str(reg.get("tombamento") or "") if reg else "",
+            "serial_mac": str(reg.get("serial_mac") or "") if reg else "",
+            "problema_relatado": (payload.diagnostico or (reg.get("problema") if reg else "") or "").strip(),
+            "problema_identificado": (payload.parecer or (reg.get("resolucao") if reg else "") or "").strip(),
+            "conclusao_recomendacao": rec_txt,
+            "conclusao": (payload.conclusao or "").strip(),
+            "tecnico": (payload.tecnico_responsavel or current_user.get("nome") or "").strip(),
+            "empresa": str(tenant.get("nome") or "SysFix"),
+            "id": str(reg.get("id") or "") if reg else "",
+            "numero_laudo": (payload.numero_laudo or (f"OS{reg.get('id')}" if reg else "01")).strip(),
+        }
+        out_bytes = preencher_modelo_docx(docx_bytes, campos)
+        out_name = SecurityValidator.sanitizar_texto(payload.docx_filename or base_fname) or "laudo_preenchido.docx"
+        if not out_name.lower().endswith(".docx"):
+            out_name += ".docx"
+        out_name = re.sub(r"[^a-zA-Z0-9._-]+", "_", out_name)
+        return Response(
+            content=out_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao gerar laudo DOCX preservando design")
+        raise HTTPException(status_code=500, detail="Erro ao gerar documento Word (.docx).")
+
+
+@app.get("/api/equipamentos/{registro_id}/laudos/{laudo_id}/docx")
+def baixar_laudo_docx_salvo(
+    registro_id: int,
+    laudo_id: str,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_laudos", "acessar_criador_laudos")
+    ),
+):
+    try:
+        reg = ColetaModel.buscar_por_id(registro_id, tenant_id=current_user["tenant_id"])
+        if not reg:
+            raise HTTPException(status_code=404, detail=obter_mensagem_erro("NOT_FOUND"))
+        laudo = next((item for item in (reg.get("laudos") or []) if item.get("id") == laudo_id), None)
+        if not laudo:
+            raise HTTPException(status_code=404, detail="Laudo técnico não encontrado.")
+        tenant = _get_auth_service().get_tenant(current_user["tenant_id"]) or {"nome": "SysFix"}
+        docx_bytes, _ = _resolver_docx_modelo(tenant, modelo_id=str(laudo.get("modelo_id") or ""))
+
+        partes_eq = [str(reg.get("equipamento") or "").strip()]
+        if reg.get("tombamento"):
+            partes_eq.append(f"Tomb.: {reg.get('tombamento')}")
+        if reg.get("serial_mac"):
+            partes_eq.append(f"S/N: {reg.get('serial_mac')}")
+
+        rec_txt = str(laudo.get("recomendacoes") or "").strip() or str(laudo.get("conclusao") or "").strip()
+        campos = {
+            "para": str(reg.get("origem") or "").strip(),
+            "assunto": str(laudo.get("titulo") or "Parecer Técnico").strip(),
+            "equipamento": " | ".join(p for p in partes_eq if p),
+            "tombamento": str(reg.get("tombamento") or ""),
+            "serial_mac": str(reg.get("serial_mac") or ""),
+            "problema_relatado": str(laudo.get("diagnostico") or reg.get("problema") or "").strip(),
+            "problema_identificado": str(laudo.get("parecer") or reg.get("resolucao") or "").strip(),
+            "conclusao_recomendacao": rec_txt,
+            "conclusao": str(laudo.get("conclusao") or "").strip(),
+            "tecnico": str(laudo.get("tecnico_responsavel") or current_user.get("nome") or "").strip(),
+            "empresa": str(tenant.get("nome") or "SysFix"),
+            "id": str(reg.get("id") or ""),
+            "numero_laudo": str(laudo.get("numero") or "01"),
+        }
+        out_bytes = preencher_modelo_docx(docx_bytes, campos)
+        fname = f"laudo_{re.sub(r'[^a-zA-Z0-9_-]+', '_', str(laudo.get('numero') or laudo_id))}.docx"
+        return Response(
+            content=out_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        )
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao baixar DOCX do laudo %s da O.S. %s", laudo_id, registro_id)
+        raise HTTPException(status_code=500, detail="Erro ao gerar arquivo Word (.docx) do laudo.")
 
 
 @app.get("/api/equipamentos/{registro_id}/historico")

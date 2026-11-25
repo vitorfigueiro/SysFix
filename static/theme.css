@@ -196,10 +196,12 @@ html.dark .cyber-bots-track {
    PAINEL INTERATIVO DE TI NA TELA DE LOGIN
    ============================================================================ */
 .login-tech-grid {
+  background-color: #6d28d9;
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 22px 22px;
+    linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(135deg, #6d28d9 0%, #7c3aed 52%, #4338ca 100%);
+  background-size: 22px 22px, 22px 22px, 100% 100%;
 }
 
 .tech-float {

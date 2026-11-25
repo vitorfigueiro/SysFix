@@ -1516,7 +1516,7 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
             sector_keys,
             [
                 "ti",
-                "loja",
+                "provedor",
                 "estoque",
                 "automacao",
                 "ciberseguranca",
@@ -1526,19 +1526,18 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
             ],
         )
         self.assertIn("estoquista", me["role_presets"])
-        self.assertIn("vendedor_loja", me["role_presets"])
-        self.assertIn("gerente_loja", me["role_presets"])
+        self.assertIn("tecnico_isp", me["role_presets"])
         self.assertIn("tecnico_ti", me["role_presets"])
         self.assertIn("tecnico_automacao", me["role_presets"])
         self.assertIn("analista_cyber", me["role_presets"])
 
-        # Configurar setores ativos da empresa (desabilita tudo -> deve falhar; desabilita só loja -> aceita)
+        # Configurar setores ativos da empresa (desabilita tudo -> deve falhar; desabilita só provedor -> aceita)
         with self.assertRaises(HTTPException) as ctx_empty_sec:
             app_module.atualizar_configuracoes_empresa(
                 app_module.TenantSettingsSchema(
                     setores_ativos={
                         "ti": False,
-                        "loja": False,
+                        "provedor": False,
                         "estoque": False,
                         "automacao": False,
                         "ciberseguranca": False,
@@ -1550,21 +1549,20 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
 
         upd_sec = app_module.atualizar_configuracoes_empresa(
             app_module.TenantSettingsSchema(
-                setores_ativos={"ti": True, "loja": False, "estoque": True}
+                setores_ativos={"ti": True, "provedor": False, "estoque": True}
             ),
             current_user=admin,
         )
-        self.assertFalse(upd_sec["tenant"]["setores_ativos"]["loja"])
+        self.assertFalse(upd_sec["tenant"]["setores_ativos"]["provedor"])
         self.assertTrue(upd_sec["tenant"]["setores_ativos"]["estoque"])
 
         # Alias legado 'gerenciar_operacoes_ti' expande corretamente sem quebrar
         expanded = auth_module.normalizar_permissoes_input({"gerenciar_operacoes_ti": False})
-        self.assertFalse(expanded["ver_loja"])
-        self.assertFalse(expanded["gerenciar_clientes_loja"])
+        self.assertFalse(expanded["ver_provedor"])
         self.assertFalse(expanded["ver_estoque"])
         self.assertFalse(expanded["movimentar_estoque"])
 
-        # 1. Estoquista puro: cria item com almoxarifado/unidade, movimenta e vê histórico; bloqueado em TI, Loja e Custos
+        # 1. Estoquista puro: cria item com almoxarifado/unidade, movimenta e vê histórico; bloqueado em TI, Provedor e Custos
         estoquista_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
         estoquista_perms.update(auth_module.ROLE_PRESETS["estoquista"]["permissoes"])
         app_module.criar_usuario_empresa(
@@ -1584,23 +1582,19 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
 
         item_resp = app_module.criar_item_estoque_ops(
             app_module.EstoqueItemSchema(
-                nome="SSD NVMe 1TB PCIe 4.0",
-                codigo="SSD-1TB",
-                marca="Kingston",
-                categoria="Hardware TI",
+                nome="Conector APC Verde",
+                codigo="APC-01",
+                categoria="Fibra / Conectores",
                 almoxarifado="Almoxarifado Central",
-                unidade="un",
+                unidade="cx",
                 quantidade=10,
                 estoque_minimo=2,
-                custo_unitario=290.0,
-                preco_venda=450.0,
-                preco_atacado_b2b=390.0,
-                garantia_meses=12,
+                custo_unitario=99.9,
             ),
             current_user=app_module.require_permission("gerenciar_estoque")(est_user),
         )
         self.assertEqual(item_resp["item"]["almoxarifado"], "Almoxarifado Central")
-        self.assertEqual(item_resp["item"]["unidade"], "un")
+        self.assertEqual(item_resp["item"]["unidade"], "cx")
         self.assertNotIn("custo_unitario", item_resp["item"])
 
         mov_resp = app_module.movimentar_estoque_ops(
@@ -1619,44 +1613,43 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
         self.assertEqual(resumo_est["total_unidades"], 7)
         self.assertNotIn("valor_total_estoque", resumo_est)
 
-        for perm_bloqueada in ("ver_ti", "ver_loja", "operar_pdv_vendas", "gerenciar_laudos", "ver_dashboard", "ver_custos"):
+        for perm_bloqueada in ("ver_ti", "ver_provedor", "gerenciar_preventivas", "gerenciar_laudos", "ver_dashboard", "ver_custos"):
             with self.assertRaises(HTTPException) as ctx_b:
                 app_module.require_permission(perm_bloqueada)(est_user)
             self.assertEqual(ctx_b.exception.status_code, 403)
 
-        # 2. Vendedor Loja: acessa garantias/RMA, PDV e consulta estoque, mas não cadastra/exclui itens nem vê custos
-        vend_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
-        vend_perms.update(auth_module.ROLE_PRESETS["vendedor_loja"]["permissoes"])
+        # 2. Técnico ISP: acessa preventivas, clientes/POPs e dá baixa no estoque, mas não cadastra/exclui itens do almoxarifado
+        isp_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        isp_perms.update(auth_module.ROLE_PRESETS["tecnico_isp"]["permissoes"])
         app_module.criar_usuario_empresa(
             app_module.TeamMemberCreateSchema(
-                nome="Rafael Vendedor",
-                email="vendedor@multisetor.com",
+                nome="Rafael ISP",
+                email="isp@multisetor.com",
                 senha="secret123",
                 role="tecnico",
-                permissoes=vend_perms,
+                permissoes=isp_perms,
             ),
             current_user=admin,
         )
-        tok_vend = app_module.login_usuario(
-            app_module.LoginSchema(email="vendedor@multisetor.com", senha="secret123")
+        tok_isp = app_module.login_usuario(
+            app_module.LoginSchema(email="isp@multisetor.com", senha="secret123")
         )["token"]
-        vend_user = app_module.get_current_user(f"Bearer {tok_vend}")
+        isp_user = app_module.get_current_user(f"Bearer {tok_isp}")
 
-        rma_vend = app_module.criar_rma_loja_api(
-            app_module.LojaRmaSchema(
-                tipo="RMA Cliente",
-                produto="Fonte 650W 80 Plus",
-                serial_imei="PSU-889900",
-                cliente_fornecedor="João Silva",
-                defeito="Não liga",
+        prv = app_module.criar_preventiva_ops(
+            app_module.PreventivaSchema(
+                titulo="OLT POP Sul",
+                local_pop="POP Sul",
+                periodicidade_dias=15,
+                proxima_execucao="2026-12-01",
             ),
-            current_user=app_module.require_permission("gerenciar_garantias_rma")(vend_user),
+            current_user=app_module.require_permission("gerenciar_preventivas")(isp_user),
         )
-        self.assertEqual(rma_vend["item"]["produto"], "Fonte 650W 80 Plus")
+        self.assertEqual(prv["item"]["local_pop"], "POP Sul")
 
-        with self.assertRaises(HTTPException) as ctx_vend_est:
-            app_module.require_permission("gerenciar_estoque")(vend_user)
-        self.assertEqual(ctx_vend_est.exception.status_code, 403)
+        with self.assertRaises(HTTPException) as ctx_isp_est:
+            app_module.require_permission("gerenciar_estoque")(isp_user)
+        self.assertEqual(ctx_isp_est.exception.status_code, 403)
 
     def test_criador_de_laudos_separado_e_permissao_tecnico(self):
         reg = app_module.registrar_empresa(
@@ -2417,735 +2410,175 @@ class AuthHardeningAnd2FATests(unittest.TestCase):
         self.assertEqual(user_ok["uid"], "fb_uid_sec_1")
         self.assertTrue(user_ok["mfa_enabled"])
 
-
-class BancadaCustomFieldsAndSummariesTests(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
-        self.original_backend = os.environ.get("SYSFIX_BACKEND")
-        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
-
-        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
-        os.environ["SYSFIX_BACKEND"] = "local"
-        os.environ["SYSFIX_SECRET_KEY"] = "bancada-custom-secret-2026"
-
-        self.original_store = models._store
-        self.original_get_auth_service = app_module._get_auth_service
-
-        models._store = JsonStore(Path(self.temp_dir.name) / "coletas.json")
-        models._store.ensure()
-        self.user_store = LocalTenantUserStore(Path(self.temp_dir.name) / "auth_db.json")
-        self.user_store.ensure()
-        self.auth_service = AuthService(user_store=self.user_store, backend_override="local")
-        app_module._get_auth_service = lambda: self.auth_service
-
-    def tearDown(self):
-        models._store = self.original_store
-        app_module._get_auth_service = self.original_get_auth_service
-        for key, old in (
-            ("SYSFIX_DATA_DIR", self.original_data_dir),
-            ("SYSFIX_BACKEND", self.original_backend),
-            ("SYSFIX_SECRET_KEY", self.original_secret),
-        ):
-            if old is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = old
-        self.temp_dir.cleanup()
-
-    def test_tombamento_opcoes_resumos_e_campos_editaveis(self):
+    def test_tombamento_modes_campos_customizados_e_resumo_os(self):
         reg = app_module.registrar_empresa(
             app_module.RegisterSchema(
-                nome_empresa="Bancada Flex TI",
-                nome_usuario="Gestor Admin",
-                email="gestor@bancadaflex.com",
-                senha="secret123",
+                nome_empresa="Bancada Custom TI",
+                nome_usuario="Admin Custom",
+                email="admin@customti.com",
+                senha="SenhaSegura123",
             )
         )
-        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+        admin_token = reg["token"]
+        ctx_admin = app_module.get_current_user(f"Bearer {admin_token}")
 
-        # 1. Admin personaliza campos padrão (torna os_coleta opcional/oculto) e cria campos personalizados obrigatórios
-        cfg_campos = {
-            "padrao": {
-                **auth_module.DEFAULT_BANCADA_FIELDS["padrao"],
-                "os_coleta": {"label": "O.S Coleta", "visivel": False, "obrigatorio": False},
-            },
-            "personalizados": [
+        # Admin configura campos da bancada: desabilita 'origem' e adiciona campos customizados
+        campos_editados = [
+            dict(c)
+            for c in ctx_admin["tenant"]["config_campos_bancada"]
+        ]
+        for c in campos_editados:
+            if c["id"] == "origem":
+                c["ativo"] = False
+                c["obrigatorio"] = False
+        campos_editados.extend(
+            [
                 {
                     "id": "acessorios",
-                    "label": "Acessórios Recebidos",
-                    "secao": "entrada",
-                    "tipo": "texto",
+                    "label": "Acessórios Recolhidos",
+                    "tipo": "selecao",
+                    "secao": "item",
+                    "ativo": True,
                     "obrigatorio": True,
+                    "sistema": False,
+                    "opcoes": ["Fonte 12V", "Caixa Original"],
                 },
                 {
-                    "id": "nota_fiscal",
-                    "label": "Nota Fiscal",
-                    "secao": "saida",
+                    "id": "obs_entrega",
+                    "label": "Observação de Entrega",
                     "tipo": "texto",
-                    "obrigatorio": True,
+                    "secao": "saida",
+                    "ativo": True,
+                    "obrigatorio": False,
+                    "sistema": False,
+                    "opcoes": [],
                 },
-            ],
-        }
-        upd = app_module.atualizar_configuracoes_empresa(
-            app_module.TenantSettingsSchema(campos_bancada=cfg_campos),
-            current_user=admin,
+            ]
         )
-        self.assertFalse(upd["tenant"]["campos_bancada"]["padrao"]["os_coleta"]["obrigatorio"])
-        self.assertEqual(len(upd["tenant"]["campos_bancada"]["personalizados"]), 2)
+        cfg_resp = app_module.atualizar_configuracoes_empresa(
+            app_module.TenantSettingsSchema(config_campos_bancada=campos_editados),
+            current_user=ctx_admin,
+        )
+        self.assertTrue(cfg_resp["sucesso"])
+        ctx_admin = app_module.get_current_user(f"Bearer {admin_token}")
 
-        admin = app_module.get_current_user(f"Bearer {reg['token']}")
+        # Cria técnico sem permissão de custos para validar mascaramento no resumo
+        tec_res = app_module.criar_usuario_empresa(
+            app_module.TeamMemberCreateSchema(
+                nome="Técnico Resumo",
+                email="tecresumo@customti.com",
+                senha="SenhaTec123",
+                role="tecnico",
+                permissoes={
+                    "ver_ti": True,
+                    "registrar_entrada": True,
+                    "registrar_saida": True,
+                    "ver_custos": False,
+                },
+            ),
+            current_user=ctx_admin,
+        )
+        self.assertTrue(tec_res["sucesso"])
+        tec_login = app_module.login_usuario(
+            app_module.LoginSchema(email="tecresumo@customti.com", senha="SenhaTec123")
+        )
+        ctx_tec = app_module.get_current_user(f"Bearer {tec_login['token']}")
 
-        # 2. Campo personalizado obrigatório faltando -> HTTP 400
-        with self.assertRaises(HTTPException) as ctx_miss:
+        # Falha se campo customizado obrigatório não for enviado
+        with self.assertRaises(HTTPException) as ctx_400:
             app_module.criar_entrada(
                 app_module.EntradaSchema(
-                    equipamento="Notebook Dell Inspiron",
-                    tipo_tombamento="Sem tombamento",
+                    equipamento="Notebook Dell",
                     tombamento="",
-                    tecnico="Gestor Admin",
-                    data_coleta="24/11/2026",
-                    origem="Cliente Loja",
-                    os_coleta="",
+                    tombamento_tipo="sem_tombamento",
+                    tecnico_coleta="Técnico Resumo",
+                    data_coleta="2026-11-25",
+                    origem="",
+                    os_coleta="OS-500",
                     localizacao="Bancada TI",
+                    campos_customizados={},
                 ),
-                current_user=admin,
+                current_user=ctx_tec,
             )
-        self.assertEqual(ctx_miss.exception.status_code, 400)
+        self.assertEqual(ctx_400.exception.status_code, 400)
 
-        # 3. Entrada com "Sem tombamento", os_coleta oculto/vazio e campo personalizado preenchido gera resumo_coleta
-        ent = app_module.criar_entrada(
-            app_module.EntradaSchema(
-                equipamento="Notebook Dell Inspiron",
-                tipo_tombamento="Sem tombamento",
-                tombamento="",
-                tecnico="Gestor Admin",
-                data_coleta="24/11/2026",
-                origem="Cliente Loja",
-                os_coleta="",
-                localizacao="Bancada TI",
-                problema="Não liga",
-                campos_personalizados={"acessorios": "Carregador original + mouse"},
-            ),
-            current_user=admin,
-        )
-        os_id = ent["id"]
-        self.assertIn("Identificação (Sem tombamento): Sem tombamento", ent["resumo_coleta"])
-        self.assertIn("Acessórios Recebidos: Carregador original + mouse", ent["resumo_coleta"])
-
-        # 4. Entrada por Serial aproveitando serial_mac quando tombamento vazio
-        ent_serial = app_module.criar_entrada(
+        # Entrada em lote: item sem tombamento + item por serial, sem 'origem' (desabilitado)
+        lote_resp = app_module.criar_entrada(
             [
                 app_module.EntradaSchema(
-                    equipamento="ONU Huawei",
-                    tipo_tombamento="Serial",
+                    equipamento="Notebook Dell Latitude",
                     tombamento="",
-                    serial_mac="48575443AABBCC",
-                    tecnico="Gestor Admin",
-                    data_coleta="24/11/2026",
-                    origem="Assinante",
+                    tombamento_tipo="sem_tombamento",
+                    tecnico_coleta="Técnico Resumo",
+                    data_coleta="2026-11-25",
+                    origem="",
+                    os_coleta="OS-500",
                     localizacao="Bancada TI",
-                    campos_personalizados={"acessorios": "Fonte 12V"},
-                )
-            ],
-            current_user=admin,
-        )
-        self.assertIn("Identificação (Serial): 48575443AABBCC", ent_serial["resumo_coleta"])
-
-        # 5. Saída gera resumo_entrega com campos personalizados e oculta custos para técnico sem ver_custos
-        with self.assertRaises(HTTPException) as ctx_out_req:
-            app_module.registrar_saida(
-                os_id,
-                app_module.SaidaSchema(
-                    tecnico_entrega="Gestor Admin",
-                    data_entrega="24/11/2026",
-                    os_entrega="OS-DEL-1",
-                    status_custo="Com Custo",
-                    valor_custo=180.0,
-                    resolucao="Troca de DC Jack",
+                    problema="Não liga",
+                    campos_customizados={"acessorios": "Fonte 12V"},
                 ),
-                current_user=admin,
-            )
-        self.assertEqual(ctx_out_req.exception.status_code, 400)
+                app_module.EntradaSchema(
+                    equipamento="ONU Huawei",
+                    tombamento="SN99887766",
+                    tombamento_tipo="serial",
+                    tecnico_coleta="Técnico Resumo",
+                    data_coleta="2026-11-25",
+                    origem="",
+                    os_coleta="OS-500",
+                    localizacao="Bancada TI",
+                    problema="LOS vermelho",
+                    campos_customizados={"acessorios": "Caixa Original"},
+                ),
+            ],
+            current_user=ctx_tec,
+        )
+        self.assertEqual(len(lote_resp["ids"]), 2)
+        id_sem_tomb, id_serial = lote_resp["ids"]
 
-        sai = app_module.registrar_saida(
-            os_id,
+        item1 = app_module.obter_equipamento(id_sem_tomb, current_user=ctx_tec)
+        item2 = app_module.obter_equipamento(id_serial, current_user=ctx_tec)
+        self.assertEqual(item1["tombamento"], "Sem Tombamento")
+        self.assertEqual(item1["tombamento_tipo"], "sem_tombamento")
+        self.assertEqual(item2["tombamento"], "SN99887766")
+        self.assertEqual(item2["tombamento_tipo"], "serial")
+
+        # Saída como admin (com custo) preservando campos customizados de entrada
+        app_module.registrar_saida(
+            id_serial,
             app_module.SaidaSchema(
-                tecnico_entrega="Gestor Admin",
-                data_entrega="24/11/2026",
-                os_entrega="OS-DEL-1",
+                tecnico_entrega="Admin Custom",
+                data_entrega="2026-11-26",
+                os_entrega="OS-500-S",
                 status_custo="Com Custo",
                 valor_custo=180.0,
-                resolucao="Troca de DC Jack",
-                campos_personalizados={"nota_fiscal": "NF-4410"},
+                resolucao="Troca de conector APC",
+                laudado="Sim",
+                garantia_dias=90,
+                campos_customizados={"obs_entrega": "Cliente retirou no balcão"},
             ),
-            current_user=admin,
-        )
-        self.assertIn("Nota Fiscal: NF-4410", sai["resumo_entrega"])
-        self.assertIn("180.00", sai["resumo_entrega"])
-
-        # Técnico sem ver_custos consulta GET /api/equipamentos/{id}/resumo sem vazar valores
-        perms_sem_custo = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
-        perms_sem_custo["ver_ti"] = True
-        app_module.criar_usuario_empresa(
-            app_module.TeamMemberCreateSchema(
-                nome="Técnico Operacional",
-                email="op@bancadaflex.com",
-                senha="secret123",
-                role="tecnico",
-                permissoes=perms_sem_custo,
-            ),
-            current_user=admin,
-        )
-        tok_op = app_module.login_usuario(
-            app_module.LoginSchema(email="op@bancadaflex.com", senha="secret123")
-        )["token"]
-        tec_op = app_module.get_current_user(f"Bearer {tok_op}")
-
-        resumo_tec = app_module.obter_resumo_os_api(os_id, current_user=tec_op)
-        self.assertIn("Nota Fiscal: NF-4410", resumo_tec["resumo_entrega"])
-        self.assertNotIn("180.00", resumo_tec["resumo_entrega"])
-
-
-class LojaTIAndFirstLoginAndSectorDashTests(unittest.TestCase):
-    def setUp(self):
-        from loja_ti import LocalLojaStore, LojaTIService
-        from ops_modules import LocalOpsStore, OpsModulesService
-
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.original_data_dir = os.environ.get("SYSFIX_DATA_DIR")
-        self.original_backend = os.environ.get("SYSFIX_BACKEND")
-        self.original_secret = os.environ.get("SYSFIX_SECRET_KEY")
-
-        os.environ["SYSFIX_DATA_DIR"] = self.temp_dir.name
-        os.environ["SYSFIX_BACKEND"] = "local"
-        os.environ["SYSFIX_SECRET_KEY"] = "test-secret-key"
-
-        self.original_store = models._store
-        self.original_get_auth_service = app_module._get_auth_service
-        self.original_get_ops_service = app_module._get_ops_service
-        self.original_get_loja_service = app_module._get_loja_service
-        self.original_get_sec_service = app_module._get_security_ops_service
-
-        models._store = JsonStore(Path(self.temp_dir.name) / "coletas.json")
-        models._store.ensure()
-        self.user_store = LocalTenantUserStore(Path(self.temp_dir.name) / "auth_db.json")
-        self.user_store.ensure()
-        self.auth_service = AuthService(user_store=self.user_store, backend_override="local")
-        self.ops_store = LocalOpsStore(Path(self.temp_dir.name) / "ops_db.json")
-        self.ops_store.ensure()
-        self.ops_service = OpsModulesService(store=self.ops_store)
-        self.loja_store = LocalLojaStore(Path(self.temp_dir.name) / "loja_db.json")
-        self.loja_service = LojaTIService(store=self.loja_store, ops_service=self.ops_service)
-        self.sec_store = automation_cyber.LocalSecurityOpsStore(Path(self.temp_dir.name) / "sec_db.json")
-        self.sec_service = automation_cyber.AutomationCyberService(store=self.sec_store)
-
-        app_module._get_auth_service = lambda: self.auth_service
-        app_module._get_ops_service = lambda: self.ops_service
-        app_module._get_loja_service = lambda: self.loja_service
-        app_module._get_security_ops_service = lambda: self.sec_service
-
-    def tearDown(self):
-        models._store = self.original_store
-        app_module._get_auth_service = self.original_get_auth_service
-        app_module._get_ops_service = self.original_get_ops_service
-        app_module._get_loja_service = self.original_get_loja_service
-        app_module._get_security_ops_service = self.original_get_sec_service
-        for var, orig in (
-            ("SYSFIX_DATA_DIR", self.original_data_dir),
-            ("SYSFIX_BACKEND", self.original_backend),
-            ("SYSFIX_SECRET_KEY", self.original_secret),
-        ):
-            if orig is None:
-                os.environ.pop(var, None)
-            else:
-                os.environ[var] = orig
-        self.temp_dir.cleanup()
-
-    def test_permissoes_dashboards_por_setor_e_laudos_apenas_emitir_exportar(self):
-        reg = app_module.registrar_empresa(
-            app_module.RegisterSchema(
-                nome_empresa="SetorDash TI",
-                nome_usuario="Gestor Admin",
-                email="admin@setordash.com",
-                senha="secret123",
-            )
-        )
-        admin = app_module.get_current_user(f"Bearer {reg['token']}")
-        me = app_module.obter_sessao_atual(admin)
-        cat_keys = {c["key"]: c for c in me["permissions_catalog"]}
-
-        esperados_dash = {
-            "ver_dashboard_entradas": "ti",
-            "ver_dashboard_loja": "loja",
-            "ver_dashboard_estoque": "estoque",
-            "ver_dashboard_automacao": "automacao",
-            "ver_dashboard_cyber": "ciberseguranca",
-            "ver_dashboard_laudos": "laudos",
-            "ver_dashboard": "financeiro",
-        }
-        for key, setor in esperados_dash.items():
-            self.assertIn(key, cat_keys)
-            self.assertEqual(cat_keys[key]["setor"], setor)
-            self.assertTrue(len(cat_keys[key]["descricao"]) >= 30)
-
-        # Técnico apenas com emitir laudo e exportar PDF (sem ver_dashboard_laudos nem gerenciar_modelos)
-        perms_tec = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
-        perms_tec["gerenciar_laudos"] = True
-        perms_tec["exportar_pdf"] = True
-        app_module.criar_usuario_empresa(
-            app_module.TeamMemberCreateSchema(
-                nome="Técnico Só Laudo",
-                email="solaudo@setordash.com",
-                senha="secret123",
-                role="tecnico",
-                permissoes=perms_tec,
-            ),
-            current_user=admin,
-        )
-        tok = app_module.login_usuario(
-            app_module.LoginSchema(email="solaudo@setordash.com", senha="secret123")
-        )["token"]
-        tec = app_module.get_current_user(f"Bearer {tok}")
-        painel = app_module.listar_laudos_criador_api(
-            current_user=app_module.require_any_permission("acessar_criador_laudos", "gerenciar_laudos")(tec)
-        )
-        self.assertFalse(painel["mostrar_dashboard"])
-
-    def test_primeiro_login_troca_senha_obrigatoria_e_middleware_http(self):
-        from starlette.requests import Request
-        from starlette.responses import JSONResponse
-
-        def _drive_coro(coro):
-            try:
-                coro.send(None)
-                raise AssertionError("Coroutine inesperadamente suspensa.")
-            except StopIteration as stop:
-                return stop.value
-            finally:
-                coro.close()
-
-        def _make_req(path: str, token: str = "") -> Request:
-            headers = []
-            if token:
-                headers.append((b"authorization", f"Bearer {token}".encode("latin-1")))
-            scope = {
-                "type": "http",
-                "http_version": "1.1",
-                "method": "GET",
-                "path": path,
-                "raw_path": path.encode("ascii"),
-                "query_string": b"",
-                "headers": headers,
-                "client": ("127.0.0.1", 50000),
-                "server": ("testserver", 80),
-                "scheme": "http",
-            }
-            return Request(scope)
-
-        async def _ok_next(_req):
-            return JSONResponse({"ok": True}, status_code=200)
-
-        reg = app_module.registrar_empresa(
-            app_module.RegisterSchema(
-                nome_empresa="FirstLogin Corp",
-                nome_usuario="Admin",
-                email="admin@firstlogin.com",
-                senha="secret123",
-            )
-        )
-        admin = app_module.get_current_user(f"Bearer {reg['token']}")
-        self.assertFalse(admin["must_change_password"])
-
-        membro = app_module.criar_usuario_empresa(
-            app_module.TeamMemberCreateSchema(
-                nome="Novo Técnico",
-                email="novo@firstlogin.com",
-                senha="temp123",
-                role="tecnico",
-            ),
-            current_user=admin,
-        )
-        self.assertTrue(membro["usuario"]["must_change_password"])
-
-        login_data = app_module.login_usuario(
-            app_module.LoginSchema(email="novo@firstlogin.com", senha="temp123")
-        )
-        tok_temp = login_data["token"]
-        self.assertTrue(login_data["user"]["must_change_password"])
-
-        # Rotas de negócio bloqueadas pelo middleware (428 PASSWORD_CHANGE_REQUIRED) até definir senha própria
-        blocked_res = _drive_coro(
-            app_module.enforce_first_login_password_change(
-                _make_req("/api/equipamentos", tok_temp), _ok_next
-            )
-        )
-        self.assertEqual(blocked_res.status_code, 428)
-        self.assertEqual(
-            json.loads(blocked_res.body.decode("utf-8"))["detail"]["codigo"],
-            "PASSWORD_CHANGE_REQUIRED",
+            current_user=ctx_admin,
         )
 
-        # Rota de troca de primeiro acesso é permitida pelo middleware
-        allow_change_res = _drive_coro(
-            app_module.enforce_first_login_password_change(
-                _make_req("/api/auth/primeiro-acesso-senha", tok_temp), _ok_next
-            )
+        # Admin vê custo no resumo, e campo 'origem' desativado não aparece
+        resumo_admin = app_module.obter_resumo_equipamento(id_serial, current_user=ctx_admin)
+        self.assertIn("Serial: SN99887766", resumo_admin["coleta_texto"])
+        self.assertIn("Acessórios Recolhidos: Caixa Original", resumo_admin["coleta_texto"])
+        self.assertNotIn("Origem", resumo_admin["coleta_texto"])
+        self.assertIn("Observação de Entrega: Cliente retirou no balcão", resumo_admin["entrega_texto"])
+        self.assertIn("Com Custo (R$ 180,00)", resumo_admin["entrega_texto"])
+
+        # Técnico sem permissão de custos NÃO vê valor de custo no resumo
+        resumo_tec = app_module.obter_resumo_equipamento(id_serial, current_user=ctx_tec)
+        self.assertNotIn("180,00", resumo_tec["entrega_texto"])
+        self.assertNotIn("180,00", resumo_tec["completo_texto"])
+
+        # Resumo em lote da coleta cobre os dois itens
+        resumo_lote = app_module.obter_resumo_lote_equipamentos(
+            app_module.ResumoLoteSchema(ids=[id_sem_tomb, id_serial]),
+            current_user=ctx_tec,
         )
-        self.assertEqual(allow_change_res.status_code, 200)
-
-        tec_temp_ctx = app_module.get_current_user(f"Bearer {tok_temp}")
-
-        # Não aceita repetir a senha temporária
-        with self.assertRaises(HTTPException) as ctx_same:
-            app_module.primeiro_acesso_definir_senha_api(
-                app_module.FirstAccessPasswordSchema(
-                    nova_senha="temp123", confirmar_senha="temp123"
-                ),
-                current_user=tec_temp_ctx,
-            )
-        self.assertEqual(ctx_same.exception.status_code, 400)
-
-        # Define senha pessoal com sucesso e revoga token antigo
-        body_ok = app_module.primeiro_acesso_definir_senha_api(
-            app_module.FirstAccessPasswordSchema(
-                nova_senha="MinhaSenha@2026", confirmar_senha="MinhaSenha@2026"
-            ),
-            current_user=tec_temp_ctx,
-        )
-        self.assertFalse(body_ok["user"]["must_change_password"])
-        tok_novo = body_ok["token"]
-
-        # Token antigo revogado (401); token novo liberado no middleware (200)
-        with self.assertRaises(HTTPException) as ctx_revoked:
-            app_module.get_current_user(f"Bearer {tok_temp}")
-        self.assertEqual(ctx_revoked.exception.status_code, 401)
-
-        unlocked_res = _drive_coro(
-            app_module.enforce_first_login_password_change(
-                _make_req("/api/equipamentos", tok_novo), _ok_next
-            )
-        )
-        self.assertEqual(unlocked_res.status_code, 200)
-
-    def test_loja_ti_pdv_orcamentos_caixa_garantia_rma_e_isolamento_custos(self):
-        reg = app_module.registrar_empresa(
-            app_module.RegisterSchema(
-                nome_empresa="MegaTech Store & Assistência",
-                nome_usuario="Diretor Loja",
-                email="diretor@megatech.com",
-                senha="secret123",
-            )
-        )
-        admin = app_module.get_current_user(f"Bearer {reg['token']}")
-
-        # 1. Cadastrar cliente PJ (B2B) e produto com preço varejo/B2B e garantia
-        cli = app_module.criar_cliente_loja_api(
-            app_module.LojaClienteSchema(
-                nome="Empresa Alfa Ltda",
-                tipo="Cliente PJ (B2B)",
-                documento="12.345.678/0001-90",
-                tabela_preco="b2b",
-                telefone="11999998888",
-            ),
-            current_user=admin,
-        )["item"]
-        prod = app_module.criar_item_estoque_ops(
-            app_module.EstoqueItemSchema(
-                nome="Placa de Vídeo RTX 4060 8GB",
-                codigo="GPU-4060",
-                marca="ASUS",
-                categoria="Hardware TI",
-                quantidade=5,
-                estoque_minimo=1,
-                custo_unitario=1400.0,
-                preco_venda=2100.0,
-                preco_atacado_b2b=1950.0,
-                garantia_meses=12,
-                controlar_serial=True,
-            ),
-            current_user=admin,
-        )["item"]
-
-        # 2. Abrir Caixa PDV
-        cx_open = app_module.abrir_caixa_loja_api(
-            app_module.LojaCaixaAbrirSchema(valor_abertura=200.0, filial="Matriz"),
-            current_user=admin,
-        )["turno"]
-        self.assertEqual(cx_open["valor_abertura"], 200.0)
-
-        # 3. Registrar Venda PDV (tabela B2B + serial + baixa automática em estoque)
-        venda = app_module.registrar_venda_loja_api(
-            app_module.LojaVendaSchema(
-                cliente_id=cli["id"],
-                cliente_nome=cli["nome"],
-                tabela_preco="b2b",
-                forma_pagamento="Dinheiro",
-                tipo_documento="NF-e (CNPJ)",
-                numero_nf="000512",
-                vendedor="Diretor Loja",
-                comissao_percent=2.0,
-                itens=[
-                    {
-                        "estoque_item_id": prod["id"],
-                        "quantidade": 1,
-                        "serial_imei": "SN-RTX4060-991",
-                    }
-                ],
-            ),
-            current_user=admin,
-        )["venda"]
-        self.assertEqual(venda["total"], 1950.0)
-        self.assertEqual(venda["lucro_estimado"], 550.0)
-
-        # Estoque caiu de 5 para 4
-        est_atual = app_module.listar_estoque_ops(admin)[0]
-        self.assertEqual(est_atual["quantidade"], 4)
-
-        # Recibo PDF da venda
-        recibo_pdf = app_module.baixar_recibo_venda_pdf_api(venda["id"], current_user=admin)
-        self.assertTrue(recibo_pdf.body.startswith(b"%PDF"))
-
-        # 4. Consulta antifraude de garantia por Serial
-        gar = app_module.consultar_garantia_serial_api(termo="SN-RTX4060-991", current_user=admin)
-        self.assertEqual(len(gar), 1)
-        self.assertTrue(gar[0]["em_garantia"])
-        self.assertEqual(gar[0]["cliente_nome"], "Empresa Alfa Ltda")
-
-        # 5. Fechar Caixa (200 abertura + 1950 dinheiro = 2150)
-        cx_close = app_module.fechar_caixa_loja_api(
-            app_module.LojaCaixaFecharSchema(saldo_informado=2150.0, observacao="Caixa batido"),
-            current_user=admin,
-        )["turno"]
-        self.assertEqual(cx_close["diferenca"], 0.0)
-
-        # 6. Criar Orçamento + PDF + Converter em O.S. + Converter outro Orçamento em Venda
-        orc = app_module.criar_orcamento_loja_api(
-            app_module.LojaOrcamentoSchema(
-                titulo="Workstation Engenharia",
-                cliente_nome="Empresa Alfa Ltda",
-                itens=[{"estoque_item_id": prod["id"], "nome": prod["nome"], "quantidade": 1, "preco_unitario": 2000.0}],
-            ),
-            current_user=admin,
-        )["orcamento"]
-        orc_pdf = app_module.baixar_orcamento_loja_pdf_api(orc["id"], current_user=admin)
-        self.assertTrue(orc_pdf.body.startswith(b"%PDF"))
-
-        conv_os = app_module.converter_orcamento_em_os_api(
-            orc["id"],
-            app_module.LojaOrcamentoConverterOsSchema(localizacao="Bancada TI"),
-            current_user=admin,
-        )
-        self.assertEqual(conv_os["registro"]["tipo_fluxo"], "Montagem / Upgrade PC")
-
-        # 7. Cancelar a primeira venda devolve o item ao estoque (4 -> 5)
-        canc = app_module.cancelar_venda_loja_api(
-            venda["id"],
-            app_module.LojaVendaCancelarSchema(motivo="Cliente alterou pedido"),
-            current_user=admin,
-        )["venda"]
-        self.assertEqual(canc["status"], "Cancelada")
-        self.assertEqual(app_module.listar_estoque_ops(admin)[0]["quantidade"], 5)
-
-        # 8. Vendedor sem ver_custos e sem gerenciar_caixa_loja não vê lucros nem abre caixa
-        perms_vend = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
-        perms_vend.update(auth_module.ROLE_PRESETS["vendedor_loja"]["permissoes"])
-        app_module.criar_usuario_empresa(
-            app_module.TeamMemberCreateSchema(
-                nome="Vendedor Balcão",
-                email="balcao@megatech.com",
-                senha="secret123",
-                role="tecnico",
-                permissoes=perms_vend,
-            ),
-            current_user=admin,
-        )
-        tok_v = app_module.login_usuario(
-            app_module.LoginSchema(email="balcao@megatech.com", senha="secret123")
-        )["token"]
-        vend = app_module.get_current_user(f"Bearer {tok_v}")
-
-        vendas_vend = app_module.listar_vendas_loja_api(current_user=vend)
-        self.assertNotIn("lucro_estimado", vendas_vend[0])
-        self.assertNotIn("custo_total", vendas_vend[0])
-
-        resumo_vend = app_module.obter_resumo_loja_api(current_user=vend)
-        self.assertTrue(resumo_vend["ocultar_custos"])
-        self.assertNotIn("lucro_mes", resumo_vend)
-
-        with self.assertRaises(HTTPException) as ctx_cx:
-            app_module.require_permission("gerenciar_caixa_loja")(vend)
-        self.assertEqual(ctx_cx.exception.status_code, 403)
-
-        rel_loja = app_module.baixar_relatorio_loja_pdf_api(current_user=admin)
-        self.assertTrue(rel_loja.body.startswith(b"%PDF"))
-
-    def test_wiki_noticias_separadas_govkey_operadores_byte_scanner_url_e_automacoes_defesa(self):
-        reg = app_module.registrar_empresa(
-            app_module.RegisterSchema(
-                nome_empresa="CyberOps 2.9",
-                nome_usuario="Gestor Sec",
-                email="gestor@cyber29.com",
-                senha="secret123",
-            )
-        )
-        admin = app_module.get_current_user(f"Bearer {reg['token']}")
-
-        cyb_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
-        cyb_perms.update(auth_module.ROLE_PRESETS["analista_cyber"]["permissoes"])
-
-        for nome, email in (("Analista Autorizado", "autorizado@cyber29.com"), ("Analista NãoListado", "bloqueado@cyber29.com")):
-            app_module.criar_usuario_empresa(
-                app_module.TeamMemberCreateSchema(
-                    nome=nome,
-                    email=email,
-                    senha="secret123",
-                    role="tecnico",
-                    permissoes=cyb_perms,
-                    exigir_troca_senha=False,
-                ),
-                current_user=admin,
-            )
-
-        tok_aut = app_module.login_usuario(app_module.LoginSchema(email="autorizado@cyber29.com", senha="secret123"))["token"]
-        tok_blq = app_module.login_usuario(app_module.LoginSchema(email="bloqueado@cyber29.com", senha="secret123"))["token"]
-
-        # 1. Gov-Key autorizando QUEM pode realizar tarefas (sem exigir lista de alvos!)
-        opcoes = app_module.listar_equipe_opcoes_govkey_api(current_user=admin)
-        self.assertEqual(len(opcoes), 3)
-
-        gov_res = app_module.atualizar_governanca_cyber_api(
-            app_module.CyberGovernancaSchema(
-                permitir_auditoria_rede=True,
-                usuarios_autorizados=["autorizado@cyber29.com"],
-                restringir_usuarios=True,
-                escopo_autorizado=[],
-                observacao_termo="Apenas Analista Autorizado liberado no Gov-Key",
-            ),
-            current_user=admin,
-        )
-        self.assertTrue(gov_res["governanca"]["permitir_auditoria_rede"])
-        self.assertEqual(gov_res["governanca"]["usuarios_autorizados"], ["autorizado@cyber29.com"])
-
-        user_aut = app_module.get_current_user(f"Bearer {tok_aut}")
-        user_blq = app_module.get_current_user(f"Bearer {tok_blq}")
-
-        orig_web = automation_cyber.NetworkAuditEngine.auditar_web_tls
-        try:
-            automation_cyber.NetworkAuditEngine.auditar_web_tls = staticmethod(
-                lambda url, host: {
-                    "score": 92,
-                    "hosts_ativos": 1,
-                    "portas_expostas": 1,
-                    "detalhes": {"host": host, "url": url},
-                    "achados_detectados": [],
-                }
-            )
-            # Colaborador não listado no Gov-Key é bloqueado (403)
-            with self.assertRaises(HTTPException) as ctx_blq:
-                app_module.executar_auditoria_cyber_api(
-                    app_module.CyberExecutarAuditoriaSchema(alvo="https://portal.cyber29.com.br/", tipo_auditoria="web_tls"),
-                    current_user=user_blq,
-                )
-            self.assertEqual(ctx_blq.exception.status_code, 403)
-
-            # Colaborador autorizado no Gov-Key executa domínio sem bloqueio falso de escopo
-            ok_scan = app_module.executar_auditoria_cyber_api(
-                app_module.CyberExecutarAuditoriaSchema(alvo="https://portal.cyber29.com.br/", tipo_auditoria="web_tls"),
-                current_user=user_aut,
-            )
-            self.assertEqual(ok_scan["auditoria"]["score"], 92)
-
-            # Mesmo se o gestor preencher escopo opcional com https://www.dominio.com.br/login, dominio.com.br casa!
-            app_module.atualizar_governanca_cyber_api(
-                app_module.CyberGovernancaSchema(
-                    permitir_auditoria_rede=True,
-                    usuarios_autorizados=["autorizado@cyber29.com"],
-                    restringir_usuarios=True,
-                    escopo_autorizado=["https://www.portal-oficial.com.br/painel"],
-                ),
-                current_user=admin,
-            )
-            user_aut = app_module.get_current_user(f"Bearer {tok_aut}")
-            ok_url_scope = app_module.executar_auditoria_cyber_api(
-                app_module.CyberExecutarAuditoriaSchema(alvo="portal-oficial.com.br", tipo_auditoria="web_tls"),
-                current_user=user_aut,
-            )
-            self.assertEqual(ok_url_scope["auditoria"]["score"], 92)
-
-            # Erro didático caso digite domínio no modo rede_privada
-            with self.assertRaises(HTTPException) as ctx_modo:
-                app_module.executar_auditoria_cyber_api(
-                    app_module.CyberExecutarAuditoriaSchema(alvo="portal-oficial.com.br", tipo_auditoria="rede_privada"),
-                    current_user=user_aut,
-                )
-            self.assertEqual(ctx_modo.exception.status_code, 400)
-            self.assertIn("Web / TLS", ctx_modo.exception.detail)
-        finally:
-            automation_cyber.NetworkAuditEngine.auditar_web_tls = orig_web
-
-        # 2. Wiki-Core separa Notícias do Mundo Cyber dos Playbooks Internos
-        app_module.criar_conhecimento_cyber_api(
-            app_module.CyberConhecimentoSchema(
-                titulo="Playbook Exclusivo Cyber29",
-                categoria="SOC Interno",
-                resumo="Uso restrito da equipe",
-                conteudo="Passo 1: Isolar switch.",
-                tags="soc,interno",
-            ),
-            current_user=user_aut,
-        )
-        orig_news = automation_cyber.CyberNewsFeedService.obter_noticias
-        try:
-            automation_cyber.CyberNewsFeedService.obter_noticias = classmethod(
-                lambda cls, forcar=False: {
-                    "ao_vivo": True,
-                    "atualizado_em": "2026-11-25T10:00:00Z",
-                    "fontes_ativas": ["CISA KEV", "CERT.br"],
-                    "itens": [
-                        {
-                            "titulo": "CVE-2026-9999 explorada ativamente",
-                            "fonte": "CISA KEV",
-                            "categoria": "CVE",
-                            "data": "2026-11-25",
-                            "resumo": "Atualizar firewall imediatamente.",
-                            "url": "https://www.cisa.gov/",
-                            "destaque": "Crítica",
-                        }
-                    ],
-                }
-            )
-            wiki = app_module.obter_wiki_separado_cyber_api(current_user=user_aut)
-            self.assertEqual(len(wiki["noticias_mundo_cyber"]["itens"]), 1)
-            self.assertEqual(len(wiki["publicados_internos"]), 1)
-            self.assertEqual(wiki["publicados_internos"][0]["titulo"], "Playbook Exclusivo Cyber29")
-            self.assertGreaterEqual(len(wiki["guias_referencia"]), 6)
-        finally:
-            automation_cyber.CyberNewsFeedService.obter_noticias = orig_news
-
-        # 3. Laboratório Didático Ataque × Mitigação + Automações Defensivas
-        cenarios = app_module.listar_laboratorio_cyber_api(current_user=user_aut)
-        self.assertGreaterEqual(len(cenarios), 6)
-        sim = app_module.simular_laboratorio_cyber_api(
-            app_module.CyberSimulacaoDidaticaSchema(cenario_id="bruteforce_credenciais", registrar_plano=True),
-            current_user=user_aut,
-        )
-        self.assertGreaterEqual(sim["achados_gerados"], 1)
-
-        aut_task = app_module.criar_automacao_defesa_api(
-            app_module.CyberAutomacaoDefesaSchema(
-                nome="Caça Diária de Contas sem 2FA",
-                tipo="auditoria_contas_2fa_senhas",
-                frequencia="Diária",
-            ),
-            current_user=user_aut,
-        )["item"]
-        exec_task = app_module.executar_automacao_defesa_api(aut_task["id"], current_user=user_aut)
-        self.assertEqual(exec_task["automacao"]["ultimo_status"], "Alerta")
-        self.assertGreaterEqual(exec_task["achados_criados"], 1)
-
-        script_ps1 = app_module.baixar_script_protecao_cyber_api(tipo="firewall_windows_ps1", current_user=user_aut)
-        self.assertIn("Set-SmbServerConfiguration", script_ps1.body.decode("utf-8"))
+        self.assertIn("Sem Tombamento", resumo_lote["coleta_texto"])
+        self.assertIn("Serial: SN99887766", resumo_lote["coleta_texto"])
 
 
 if __name__ == "__main__":

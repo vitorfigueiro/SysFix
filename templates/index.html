@@ -47,7 +47,7 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/static/theme.css?v=2.9.0">
+  <link rel="stylesheet" href="/static/theme.css?v=2.6.0">
 </head>
 <body class="h-screen flex flex-col overflow-hidden relative bg-[#F6F4FC] dark:bg-[#0B0816] text-[#1C1635] dark:text-[#F4F1FF]">
 
@@ -85,8 +85,8 @@
             <button id="btnLoginTech_infra" type="button" onclick="selecionarTemaLoginTI('infra')" class="px-2.5 py-2 rounded-xl text-[11px] font-extrabold bg-white text-violet-800 shadow-md transition-all text-left flex items-center gap-1.5">
               🖥️ Redes &amp; Servers
             </button>
-            <button id="btnLoginTech_loja" type="button" onclick="selecionarTemaLoginTI('loja')" class="px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-white/10 hover:bg-white/20 text-white/95 border border-white/15 transition-all text-left flex items-center gap-1.5">
-              🏪 Hardware &amp; Loja TI
+            <button id="btnLoginTech_fibra" type="button" onclick="selecionarTemaLoginTI('fibra')" class="px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-white/10 hover:bg-white/20 text-white/95 border border-white/15 transition-all text-left flex items-center gap-1.5">
+              🌐 Fibra &amp; OLT
             </button>
             <button id="btnLoginTech_cyber" type="button" onclick="selecionarTemaLoginTI('cyber')" class="px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-white/10 hover:bg-white/20 text-white/95 border border-white/15 transition-all text-left flex items-center gap-1.5">
               🛡️ Zero Trust &amp; 2FA
@@ -129,7 +129,7 @@
           <form id="formLogin" onsubmit="enviarLogin(event)" class="space-y-3.5">
             <div>
               <label for="login_email" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">E-mail *</label>
-              <input type="email" id="login_email" required autocomplete="email" placeholder="voce@empresa.com" class="w-full px-3.5 py-2.5 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none transition-all">
+              <input type="email" id="login_email" required autocomplete="email" placeholder="voce@empresa.com" class="w-full px-3.5 py-2.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
               <div class="flex justify-between items-center mb-1">
@@ -139,14 +139,14 @@
                 </button>
               </div>
               <div class="relative">
-                <input type="password" id="login_senha" required autocomplete="current-password" placeholder="••••••" class="w-full px-3.5 py-2.5 pr-10 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none transition-all">
-                <button type="button" onclick="toggleSenhaInput('login_senha', this)" title="Mostrar/Ocultar senha" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 dark:text-violet-300 hover:text-violet-600">👁️</button>
+                <input type="password" id="login_senha" required autocomplete="current-password" placeholder="••••••" class="w-full px-3.5 py-2.5 pr-10 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
+                <button type="button" onclick="toggleSenhaInput('login_senha', this)" title="Mostrar/Ocultar senha" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-violet-600">👁️</button>
               </div>
             </div>
             <button id="btnEntrar" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
               Entrar no Sistema
             </button>
-            <p class="text-[10px] text-center text-slate-500 dark:text-violet-300/70 pt-1">
+            <p class="text-[10px] text-center text-slate-400 dark:text-violet-300/70 pt-1">
               🔒 Login protegido contra força bruta • Suporte a 2FA TOTP
             </p>
           </form>
@@ -154,26 +154,26 @@
           <form id="formRegister" onsubmit="enviarCadastroEmpresa(event)" class="space-y-3 hidden">
             <div>
               <label for="reg_empresa" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Nome da Empresa *</label>
-              <input type="text" id="reg_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3.5 py-2 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none transition-all">
+              <input type="text" id="reg_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
               <label for="reg_nome" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Seu Nome *</label>
-              <input type="text" id="reg_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3.5 py-2 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none transition-all">
+              <input type="text" id="reg_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
               <label for="reg_email" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">E-mail Corporativo *</label>
-              <input type="email" id="reg_email" required autocomplete="email" placeholder="carlos@empresa.com" class="w-full px-3.5 py-2 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none transition-all">
+              <input type="email" id="reg_email" required autocomplete="email" placeholder="carlos@empresa.com" class="w-full px-3.5 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
             <div>
               <label for="reg_senha" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Senha (mínimo 6 caracteres) *</label>
               <div class="relative">
-                <input type="password" id="reg_senha" required minlength="6" autocomplete="new-password" oninput="atualizarForcaSenha(this.value)" placeholder="••••••" class="w-full px-3.5 py-2 pr-10 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none transition-all">
-                <button type="button" onclick="toggleSenhaInput('reg_senha', this)" title="Mostrar/Ocultar senha" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 dark:text-violet-300 hover:text-violet-600">👁️</button>
+                <input type="password" id="reg_senha" required minlength="6" autocomplete="new-password" oninput="atualizarForcaSenha(this.value)" placeholder="••••••" class="w-full px-3.5 py-2 pr-10 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
+                <button type="button" onclick="toggleSenhaInput('reg_senha', this)" title="Mostrar/Ocultar senha" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-violet-600">👁️</button>
               </div>
               <div class="w-full h-1.5 rounded-full bg-violet-100 dark:bg-[#1C1633] overflow-hidden mt-1.5">
                 <div id="regSenhaForcaBar" class="h-full w-0 transition-all duration-300 bg-rose-500"></div>
               </div>
-              <p id="regSenhaForcaTexto" class="text-[10px] text-slate-500 dark:text-violet-300/70 mt-1">Mínimo 6 caracteres (use letras, números e símbolos)</p>
+              <p id="regSenhaForcaTexto" class="text-[10px] text-slate-400 dark:text-violet-300/70 mt-1">Mínimo 6 caracteres (use letras, números e símbolos)</p>
             </div>
             <button id="btnCadastrarEmpresa" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
               Criar Conta e Empresa
@@ -188,11 +188,11 @@
               🔐 Verificação em 2 Etapas
             </span>
             <h3 class="text-base font-extrabold text-slate-900 dark:text-white mt-2">Confirme seu Autenticador</h3>
-            <p id="mfaLoginInfo" class="text-xs text-slate-600 dark:text-violet-300 mt-1">Digite o código de 6 dígitos do seu aplicativo autenticador ou um código de recuperação.</p>
+            <p id="mfaLoginInfo" class="text-xs text-slate-500 dark:text-violet-300 mt-1">Digite o código de 6 dígitos do seu aplicativo autenticador ou um código de recuperação.</p>
           </div>
           <div>
             <label for="mfa_login_codigo" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Código 2FA ou Backup *</label>
-            <input type="text" id="mfa_login_codigo" required autocomplete="one-time-code" placeholder="000000 ou XXXX-XXXX" class="w-full px-3.5 py-2.5 text-sm font-mono tracking-widest text-center bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none uppercase">
+            <input type="text" id="mfa_login_codigo" required autocomplete="one-time-code" placeholder="000000 ou XXXX-XXXX" class="w-full px-3.5 py-2.5 text-sm font-mono tracking-widest text-center border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none uppercase">
           </div>
           <div class="flex gap-2">
             <button id="btnConfirmarMfaLogin" type="submit" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
@@ -210,56 +210,19 @@
               Último passo
             </span>
             <h3 class="text-base font-bold text-slate-800 dark:text-white mt-2">Configure sua Empresa</h3>
-            <p id="onboardEmailInfo" class="text-xs text-slate-600 dark:text-violet-300 mt-1">Informe o nome da empresa para criar seu ambiente isolado.</p>
+            <p id="onboardEmailInfo" class="text-xs text-slate-500 dark:text-violet-300 mt-1">Informe o nome da empresa para criar seu ambiente isolado.</p>
           </div>
           <div>
             <label for="onb_empresa" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Nome da Empresa *</label>
-            <input type="text" id="onb_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3.5 py-2.5 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none">
+            <input type="text" id="onb_empresa" required placeholder="Ex: TechFix Assistência" class="w-full px-3.5 py-2.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none">
           </div>
           <div>
             <label for="onb_nome" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Seu Nome *</label>
-            <input type="text" id="onb_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3.5 py-2.5 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600 outline-none">
+            <input type="text" id="onb_nome" required placeholder="Ex: Carlos Silva" class="w-full px-3.5 py-2.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none">
           </div>
           <div class="flex gap-2">
             <button id="btnConcluirOnboarding" type="submit" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all">
               Concluir Cadastro
-            </button>
-            <button type="button" onclick="sairSistema()" class="px-4 py-2.5 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl">
-              Sair
-            </button>
-          </div>
-        </form>
-
-        <!-- Troca Obrigatória de Senha no Primeiro Acesso -->
-        <form id="cardPrimeiroAcessoSenha" onsubmit="enviarSenhaPrimeiroAcesso(event)" class="space-y-4 hidden">
-          <div>
-            <span class="px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-[11px] font-bold">
-              🔑 Primeiro Acesso • Segurança
-            </span>
-            <h3 class="text-base font-extrabold text-slate-900 dark:text-white mt-2">Defina sua Senha Pessoal</h3>
-            <p id="paUsuarioInfo" class="text-xs text-slate-600 dark:text-violet-300 mt-1">Por segurança, troque a senha provisória antes de acessar o sistema.</p>
-          </div>
-          <div>
-            <label for="pa_nova_senha" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Nova Senha Pessoal (mín. 6 caracteres) *</label>
-            <div class="relative">
-              <input type="password" id="pa_nova_senha" required minlength="6" autocomplete="new-password" oninput="atualizarForcaSenha(this.value, 'paSenhaForcaBar', 'paSenhaForcaTexto')" placeholder="Digite sua nova senha" class="w-full px-3.5 py-2.5 pr-10 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl outline-none focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600">
-              <button type="button" onclick="toggleSenhaInput('pa_nova_senha', this)" title="Mostrar/Ocultar senha" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 dark:text-violet-300 hover:text-violet-600">👁️</button>
-            </div>
-            <div class="w-full h-1.5 rounded-full bg-violet-100 dark:bg-[#1C1633] overflow-hidden mt-1.5">
-              <div id="paSenhaForcaBar" class="h-full w-0 transition-all duration-300 bg-rose-500"></div>
-            </div>
-            <p id="paSenhaForcaTexto" class="text-[10px] text-slate-500 dark:text-violet-300/70 mt-1">Mínimo 6 caracteres (use letras, números e símbolos)</p>
-          </div>
-          <div>
-            <label for="pa_confirma_senha" class="block text-xs font-semibold text-slate-700 dark:text-violet-200 mb-1">Confirmar Nova Senha *</label>
-            <div class="relative">
-              <input type="password" id="pa_confirma_senha" required minlength="6" autocomplete="new-password" placeholder="Repita sua nova senha" class="w-full px-3.5 py-2.5 pr-10 text-xs bg-white dark:bg-[#1A1430] text-slate-900 dark:text-white placeholder-slate-400 border border-violet-300 dark:border-violet-800 rounded-xl outline-none focus:ring-2 focus:ring-violet-400/40 focus:border-violet-600">
-              <button type="button" onclick="toggleSenhaInput('pa_confirma_senha', this)" title="Mostrar/Ocultar senha" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 dark:text-violet-300 hover:text-violet-600">👁️</button>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <button id="btnSalvarSenhaPrimeiroAcesso" type="submit" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
-              🔐 Salvar Minha Senha e Entrar
             </button>
             <button type="button" onclick="sairSistema()" class="px-4 py-2.5 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl">
               Sair
@@ -299,8 +262,8 @@
           <button id="navBtnLaudos" onclick="alternarVisao('laudos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
             📋 Laudos
           </button>
-          <button id="navBtnLoja" onclick="alternarVisao('loja')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
-            🏪 Loja de TI
+          <button id="navBtnProvedor" onclick="alternarVisao('provedor')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
+            📡 Provedor (ISP)
           </button>
           <button id="navBtnEstoque" onclick="alternarVisao('estoque')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-all hidden">
             📦 Estoque
@@ -502,29 +465,29 @@
             <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider block">Dados da Coleta</span>
 
             <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Téc. Coleta *</label>
+              <div data-campo-id="tecnico_coleta">
+                <label data-campo-label="tecnico_coleta" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Técnico de Coleta *</label>
                 <input type="text" id="ent_tec" list="datalistTecnicos" placeholder="Ex: Carlos Silva" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Data Coleta *</label>
+              <div data-campo-id="data_coleta">
+                <label data-campo-label="data_coleta" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Data Coleta *</label>
                 <input type="date" id="ent_data" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-              <div data-bancada-field="origem">
-                <label data-bancada-label="origem" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Origem *</label>
+              <div data-campo-id="origem">
+                <label data-campo-label="origem" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Origem / Cliente *</label>
                 <input type="text" id="ent_origem" list="datalistOrigens" placeholder="Ex: Financeiro" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
-              <div data-bancada-field="os_coleta">
-                <label data-bancada-label="os_coleta" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">O.S Coleta *</label>
+              <div data-campo-id="os_coleta">
+                <label data-campo-label="os_coleta" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">O.S Coleta *</label>
                 <input type="text" id="ent_os" placeholder="Ex: OS-2026-001" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
               </div>
             </div>
 
-            <div data-bancada-field="localizacao">
-              <label data-bancada-label="localizacao" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Localização Inicial</label>
+            <div data-campo-id="localizacao">
+              <label data-campo-label="localizacao" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Localização Inicial</label>
               <select id="ent_loc" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430]">
                 <option value="Bancada TI">Bancada TI</option>
                 <option value="PlayLan">PlayLan</option>
@@ -534,19 +497,18 @@
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-              <div id="blocoEntradaFluxo">
-                <label class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">🔄 Fluxo da O.S.</label>
+              <div id="blocoEntradaProvedor" data-campo-id="tipo_fluxo">
+                <label data-campo-label="tipo_fluxo" class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">📡 Fluxo (Provedor/TI)</label>
                 <select id="ent_fluxo" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
                   <option value="Manutenção">Manutenção</option>
-                  <option value="Montagem / Upgrade PC">Montagem / Upgrade PC</option>
-                  <option value="Garantia de Loja">Garantia de Loja</option>
-                  <option value="RMA / Fornecedor">RMA / Fornecedor</option>
-                  <option value="Triagem / Seminovo">Triagem / Seminovo</option>
+                  <option value="Comodato (Cliente)">Comodato (Cliente)</option>
+                  <option value="RMA / Garantia">RMA / Garantia</option>
+                  <option value="Recondicionamento / Triagem">Recondicionamento / Triagem</option>
                   <option value="Preventiva">Preventiva</option>
                 </select>
               </div>
-              <div data-bancada-field="prioridade">
-                <label data-bancada-label="prioridade" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Prioridade / SLA</label>
+              <div data-campo-id="prioridade">
+                <label data-campo-label="prioridade" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Prioridade / SLA</label>
                 <select id="ent_prioridade" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
                   <option value="Normal">Normal</option>
                   <option value="Baixa">Baixa</option>
@@ -555,6 +517,8 @@
                 </select>
               </div>
             </div>
+
+            <div id="camposCustomEntrada" class="space-y-2 pt-1 hidden"></div>
           </div>
 
           <div class="space-y-3">
@@ -572,62 +536,62 @@
                   <button onclick="removerItemEntrada(this)" class="btn-remover-item text-rose-500 hover:text-rose-700 text-xs font-bold hidden">🗑️ Remover</button>
                 </div>
 
-                <div>
-                  <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
-                  <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: Notebook Dell / PC Gamer / Câmera IP">
+                <div data-campo-id="equipamento">
+                  <label data-campo-label="equipamento" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
+                  <input type="text" class="ent_equip w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: ONU Huawei HG8145V5 / Notebook">
                 </div>
 
-                <div class="grid grid-cols-2 gap-2">
-                  <div data-bancada-field="categoria">
-                    <label data-bancada-label="categoria" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI</label>
+                <div class="grid grid-cols-1 gap-2">
+                  <div data-campo-id="categoria">
+                    <label data-campo-label="categoria" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI/ISP</label>
                     <select class="ent_categoria w-full px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
                       <option value="">Geral</option>
+                      <option value="ONU / ONT (Fibra)">ONU / ONT (Fibra)</option>
+                      <option value="Roteador / Wi-Fi">Roteador / Wi-Fi</option>
+                      <option value="Switch / OLT">Switch / OLT</option>
+                      <option value="Nobreak / Fonte">Nobreak / Fonte</option>
                       <option value="Notebook">Notebook</option>
                       <option value="Desktop / PC">Desktop / PC</option>
-                      <option value="PC Gamer / Workstation">PC Gamer / Workstation</option>
-                      <option value="Hardware / Peças">Hardware / Peças</option>
-                      <option value="Periféricos">Periféricos</option>
-                      <option value="Monitor / Display">Monitor / Display</option>
-                      <option value="Impressora / Multifuncional">Impressora / Multifuncional</option>
-                      <option value="Roteador / Switch / Wi-Fi">Roteador / Switch / Wi-Fi</option>
-                      <option value="Nobreak / Fonte">Nobreak / Fonte</option>
-                      <option value="Servidor / Storage NAS">Servidor / Storage NAS</option>
+                      <option value="Impressora">Impressora</option>
+                      <option value="Servidor / Rack">Servidor / Rack</option>
                       <option value="CFTV / Câmera IP">CFTV / Câmera IP</option>
                       <option value="DVR / NVR">DVR / NVR</option>
                       <option value="Central de Alarme">Central de Alarme</option>
                       <option value="Controle de Acesso / Biometria">Controle de Acesso / Biometria</option>
                       <option value="Dispositivo IoT / Sensor">Dispositivo IoT / Sensor</option>
                       <option value="Automação Predial / CLP">Automação Predial / CLP</option>
+                      <option value="Câmera / DVR / NVR">Câmera / DVR / NVR</option>
+                      <option value="Rádio / Antena PTP">Rádio / Antena PTP</option>
                       <option value="Outro">Outro</option>
                     </select>
                   </div>
-                  <div data-bancada-field="tombamento">
-                    <label data-bancada-label="tombamento" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Identificação *</label>
-                    <div class="flex gap-1">
-                      <select onchange="alternarTipoTombamento(this)" class="ent_tipo_tomb px-1.5 py-1.5 text-[11px] font-semibold border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
-                        <option value="Tombamento">Tombamento</option>
-                        <option value="Sem tombamento">Sem tombamento</option>
-                        <option value="Serial">Serial</option>
+                  <div data-campo-id="tombamento">
+                    <label data-campo-label="tombamento" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento / Serial *</label>
+                    <div class="flex gap-1.5">
+                      <select onchange="alternarModoTombamentoCard(this)" class="ent_tomb_tipo px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none font-semibold">
+                        <option value="tombamento">Tombamento</option>
+                        <option value="sem_tombamento">Sem Tombamento</option>
+                        <option value="serial">Serial</option>
                       </select>
-                      <input type="text" class="ent_tomb flex-1 min-w-0 px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 123456">
+                      <input type="text" class="ent_tomb flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Nº do tombamento">
                     </div>
                   </div>
                 </div>
 
-                <div class="bloco-serial-ativo p-2 rounded-lg bg-violet-50/70 dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800/70">
-                  <label class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">🏷️ Serial / IMEI / MAC do Ativo</label>
-                  <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: S/N, IMEI ou MAC Address">
+                <div data-campo-id="serial_mac" class="bloco-serial-provedor p-2 rounded-lg bg-violet-50/70 dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800/70">
+                  <label data-campo-label="serial_mac" class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">📡 Serial / MAC / GPON SN (Provedor &amp; Ativos)</label>
+                  <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 48575443A1B2C3D4 ou AA:BB:CC:DD:EE:FF">
                 </div>
 
-                <div data-bancada-field="problema">
-                  <label data-bancada-label="problema" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
+                <div data-campo-id="problema">
+                  <label data-campo-label="problema" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
                   <textarea class="ent_prob w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none resize-none" rows="2" placeholder="Descreva a falha..."></textarea>
                 </div>
+
+                <div class="campos-custom-item space-y-2 hidden"></div>
               </div>
             </div>
           </div>
-
-          <div id="camposCustomEntradaContainer" class="space-y-2.5"></div>
 
           <div class="pt-2 space-y-2">
             <button id="btnSalvarEntrada" onclick="salvarEntrada()" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
@@ -646,23 +610,23 @@
           </div>
 
           <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Téc. Entrega *</label>
+            <div data-campo-id="tecnico_entrega">
+              <label data-campo-label="tecnico_entrega" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Téc. Entrega *</label>
               <input type="text" id="sai_tec" list="datalistTecnicos" placeholder="Ex: Roberto Gomes" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">O.S Entrega *</label>
+            <div data-campo-id="os_entrega">
+              <label data-campo-label="os_entrega" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">O.S Entrega *</label>
               <input type="text" id="sai_os" placeholder="Ex: OS-2026-99" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Data Entrega *</label>
+            <div data-campo-id="data_entrega">
+              <label data-campo-label="data_entrega" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Data Entrega *</label>
               <input type="date" id="sai_data" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
             </div>
-            <div data-bancada-field="laudado">
-              <label data-bancada-label="laudado" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Laudado?</label>
+            <div data-campo-id="laudado">
+              <label data-campo-label="laudado" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Laudado?</label>
               <select id="sai_laudado" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430]">
                 <option value="Não">Não</option>
                 <option value="Sim">Sim</option>
@@ -670,9 +634,9 @@
             </div>
           </div>
 
-          <div id="grupoCustoSaida" class="grid grid-cols-2 gap-3">
+          <div id="grupoCustoSaida" data-campo-id="status_custo" class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Status Custo</label>
+              <label data-campo-label="status_custo" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Status Custo</label>
               <select id="sai_status_custo" onchange="alternarCampoCusto()" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all bg-white dark:bg-[#1A1430]">
                 <option value="Sem Custo">Sem Custo</option>
                 <option value="Com Custo">Com Custo</option>
@@ -684,17 +648,17 @@
             </div>
           </div>
 
-          <div data-bancada-field="garantia">
-            <label data-bancada-label="garantia" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Garantia do Serviço (dias)</label>
+          <div data-campo-id="garantia_dias">
+            <label data-campo-label="garantia_dias" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Garantia do Serviço (dias)</label>
             <input type="number" min="0" max="3650" id="sai_garantia" value="90" placeholder="Ex: 90 (0 = sem garantia)" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all">
           </div>
 
-          <div data-bancada-field="resolucao">
-            <label data-bancada-label="resolucao" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Serviço / Resolução</label>
+          <div data-campo-id="resolucao">
+            <label data-campo-label="resolucao" class="block text-xs font-semibold text-slate-600 dark:text-violet-200 mb-1">Serviço / Resolução</label>
             <textarea id="sai_resolucao" rows="3" placeholder="Detalhes do reparo efetuado..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none transition-all resize-none"></textarea>
           </div>
 
-          <div id="camposCustomSaidaContainer" class="space-y-2.5"></div>
+          <div id="camposCustomSaida" class="space-y-3 hidden"></div>
 
           <button id="btnSalvarSaida" onclick="salvarSaida()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
             ✅ Finalizar &amp; Marcar Entregue
@@ -783,14 +747,11 @@
 
             <!-- Barra de ações rápidas da O.S. -->
             <div id="fichaBarraAcoes" class="pt-3 border-t border-violet-100 dark:border-violet-900/60 flex flex-wrap gap-1.5">
+              <button id="btnResumoOs" type="button" onclick="abrirModalResumoOsRegistro(registroSelecionadoId, 'completo')" class="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-all">
+                📝 Resumo O.S.
+              </button>
               <button id="btnNovoLaudoOs" type="button" onclick="abrirModalLaudo()" class="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold transition-all">
                 📋 Emitir Laudo
-              </button>
-              <button id="btnResumoColetaOs" type="button" onclick="abrirResumoOsModal('coleta')" class="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 text-[11px] font-bold transition-all">
-                📥 Resumo Coleta
-              </button>
-              <button id="btnResumoEntregaOs" type="button" onclick="abrirResumoOsModal('entrega')" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold transition-all">
-                📤 Resumo Entrega
               </button>
               <button id="btnComprovanteOs" type="button" onclick="baixarComprovanteOsPdf()" class="px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 text-[11px] font-bold transition-all">
                 📄 Comprovante PDF
@@ -824,15 +785,15 @@
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Origem / Cliente:</span><span id="f_origem" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Cód. Acompanhamento:</span><span id="f_codigo" class="font-semibold text-violet-600 dark:text-violet-400">---</span></div>
             </div>
-            <div id="fichaBlocoFluxo" class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 grid grid-cols-2 gap-3 text-xs">
-              <div><span class="text-violet-700 dark:text-violet-300 font-bold block">🏷️ Serial / IMEI / MAC:</span><span id="f_serial_mac" class="font-semibold text-slate-800 dark:text-white">---</span></div>
-              <div><span class="text-violet-700 dark:text-violet-300 font-bold block">🔄 Fluxo da O.S.:</span><span id="f_tipo_fluxo_txt" class="font-semibold text-slate-800 dark:text-white">Manutenção</span></div>
+            <div id="fichaBlocoProvedor" class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 grid grid-cols-2 gap-3 text-xs">
+              <div><span class="text-violet-700 dark:text-violet-300 font-bold block">📡 Serial / MAC / GPON SN:</span><span id="f_serial_mac" class="font-semibold text-slate-800 dark:text-white">---</span></div>
+              <div><span class="text-violet-700 dark:text-violet-300 font-bold block">🔄 Fluxo Provedor (ISP):</span><span id="f_tipo_fluxo_txt" class="font-semibold text-slate-800 dark:text-white">Manutenção</span></div>
             </div>
+            <div id="f_campos_customizados_entrada" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-violet-100 dark:border-violet-900/60 hidden"></div>
             <div class="pt-1">
               <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Problema Relatado:</span>
               <p id="f_problema" class="text-xs bg-violet-50/70 dark:bg-[#1C1633] p-2.5 rounded-xl border border-violet-100 dark:border-violet-800/70 text-slate-700 dark:text-violet-100 mt-1 font-medium">---</p>
             </div>
-            <div id="fichaCamposCustomEntrada" class="grid sm:grid-cols-2 gap-2 text-xs"></div>
           </div>
 
           <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
@@ -845,12 +806,12 @@
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Laudado:</span><span id="f_laudado" class="font-semibold text-slate-800 dark:text-white">---</span></div>
               <div><span class="text-slate-400 dark:text-violet-300/70 font-medium block">Garantia:</span><span id="f_garantia" class="font-semibold text-slate-800 dark:text-white">---</span></div>
             </div>
+            <div id="f_campos_customizados_saida" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-violet-100 dark:border-violet-900/60 hidden"></div>
             <div id="f_extra_resumo" class="flex flex-wrap gap-2 text-[11px]"></div>
             <div class="pt-2">
               <span class="text-slate-400 dark:text-violet-300/70 font-medium block text-xs">Serviço Realizado:</span>
               <p id="f_resolucao" class="text-xs bg-violet-50/70 dark:bg-[#1C1633] p-2.5 rounded-xl border border-violet-100 dark:border-violet-800/70 text-slate-700 dark:text-violet-100 mt-1 font-medium">---</p>
             </div>
-            <div id="fichaCamposCustomSaida" class="grid sm:grid-cols-2 gap-2 text-xs"></div>
           </div>
 
           <!-- Checklist Técnico de Bancada -->
@@ -879,371 +840,168 @@
     </div>
 
     <!-- ==================================================================== -->
-    <!-- VISÃO 2B: SETOR LOJA DE TI (PDV, ORÇAMENTOS, CAIXA, GARANTIA & B2B)  -->
+    <!-- VISÃO 2B: SETOR PROVEDOR DE INTERNET (ISP / COMODATO / POPS)         -->
     <!-- ==================================================================== -->
-    <section id="viewLoja" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
+    <section id="viewProvedor" class="flex-1 overflow-y-auto p-6 bg-[#F6F4FC] dark:bg-[#0B0816] custom-scrollbar hidden">
       <div class="max-w-7xl mx-auto space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🏪 Setor Loja de TI (PDV, Orçamentos, Caixa &amp; RMA)</h2>
-            <p class="text-xs text-slate-500 dark:text-violet-300/80">Gestão comercial completa para lojas de informática: frente de caixa, montagem de PCs, garantia antifraude por Serial/IMEI, B2B e Curva ABC.</p>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">📡 Setor Provedor de Internet (ISP / NOC)</h2>
+            <p class="text-xs text-slate-500 dark:text-violet-300/80">Gestão separada de CPEs em comodato (ONU/Roteador), preventivas de POPs/torres e base de assinantes.</p>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <div id="barraTabsLoja" class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-900">
-              <button id="btnLojaTab_pdv" type="button" onclick="alternarLojaTab('pdv')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm">🛒 PDV &amp; Vendas</button>
-              <button id="btnLojaTab_orcamentos" type="button" onclick="alternarLojaTab('orcamentos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📝 Orçamentos &amp; PCs</button>
-              <button id="btnLojaTab_caixa" type="button" onclick="alternarLojaTab('caixa')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">💵 Caixa &amp; Turnos</button>
-              <button id="btnLojaTab_rma" type="button" onclick="alternarLojaTab('rma')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🔄 Garantias &amp; RMA</button>
-              <button id="btnLojaTab_clientes" type="button" onclick="alternarLojaTab('clientes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">👥 Clientes &amp; Fornec.</button>
-            </div>
-            <button id="btnPdfLoja" type="button" onclick="baixarRelatorioLojaPdf()" class="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
-              📄 Relatório PDF
-            </button>
+          <div class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-900">
+            <button id="btnProvTabCpes" onclick="alternarProvedorTab('cpes')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">🔄 Comodato &amp; CPEs</button>
+            <button id="btnProvTabPreventivas" onclick="alternarProvedorTab('preventivas')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🗓️ Preventivas POPs</button>
+            <button id="btnProvTabClientes" onclick="alternarProvedorTab('clientes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📡 POPs &amp; Assinantes</button>
           </div>
         </div>
 
-        <!-- Dashboard Comercial Exclusivo da Loja de TI -->
-        <div id="lojaKpiStrip" class="grid grid-cols-2 lg:grid-cols-6 gap-3">
-          <div id="lojaFatMesKpiCard" class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Faturamento Mês</span>
-            <div id="kpiLojaFatMes" class="text-lg font-extrabold text-violet-700 dark:text-violet-300 mt-1">R$ 0,00</div>
-            <div id="kpiLojaFatHoje" class="text-[10px] text-slate-500 mt-0.5">Hoje: R$ 0,00</div>
-          </div>
-          <div id="lojaLucroKpiCard" class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-emerald-200/80 dark:border-emerald-900/70 shadow-sm">
-            <span class="text-[10px] font-bold text-emerald-600 uppercase">Lucro Estimado</span>
-            <div id="kpiLojaLucroMes" class="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">R$ 0,00</div>
-            <div id="kpiLojaMargem" class="text-[10px] text-slate-500 mt-0.5">Margem 0%</div>
-          </div>
-          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Vendas no Mês</span>
-            <div id="kpiLojaVendasMes" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">0</div>
-          </div>
-          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
-            <span class="text-[10px] font-bold text-indigo-600 uppercase">Orç. Abertos</span>
-            <div id="kpiLojaOrcAbertos" class="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">0</div>
-            <div id="kpiLojaOrcConv" class="text-[10px] text-slate-500 mt-0.5">0% conv.</div>
-          </div>
-          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-amber-200/80 dark:border-amber-900/70 shadow-sm">
-            <span class="text-[10px] font-bold text-amber-600 uppercase">RMAs Abertos</span>
-            <div id="kpiLojaRmas" class="text-2xl font-extrabold text-amber-600 mt-1">0</div>
-          </div>
-          <div id="lojaCaixaKpiCard" class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Caixa PDV</span>
-            <div id="kpiLojaSaldoCaixa" class="text-lg font-extrabold text-slate-900 dark:text-white mt-1">R$ 0,00</div>
-            <div id="kpiLojaCaixaStatus" class="text-[10px] font-bold text-violet-600 mt-0.5">🔒 Fechado</div>
-          </div>
-        </div>
-
-        <div id="lojaCurvaAbcCard" class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2.5">
-          <div class="flex items-center justify-between">
-            <h3 class="text-xs font-extrabold text-violet-800 dark:text-violet-300 uppercase">📊 Curva ABC de Produtos Mais Vendidos</h3>
-            <span class="text-[10px] text-slate-400">Ranking automático por receita e giro</span>
-          </div>
-          <div id="listaCurvaAbcLoja" class="grid md:grid-cols-2 lg:grid-cols-3 gap-2 text-xs"></div>
-        </div>
-
-        <!-- SUB-ABA 1: PDV & VENDAS -->
-        <div id="lojaTab_pdv" class="grid lg:grid-cols-12 gap-5">
-          <form id="formRegistrarVendaPdv" onsubmit="finalizarVendaPdv(event)" class="lg:col-span-5 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs h-fit">
-            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">🛒 Frente de Caixa (PDV)</h3>
-
-            <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-[10px] font-bold uppercase mb-1">Tabela de Preço</label>
-                  <select id="pdv_tabela_preco" onchange="aoSelecionarProdutoPdv()" class="w-full px-2.5 py-1.5 border border-violet-200 dark:border-violet-700 rounded-lg bg-white dark:bg-[#141024] outline-none">
-                    <option value="varejo">Varejo (Balcão)</option>
-                    <option value="b2b">Atacado / B2B</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-[10px] font-bold uppercase mb-1">Cliente Cadastrado</label>
-                  <select id="pdv_cliente_select" onchange="aoSelecionarClientePdv()" class="w-full px-2.5 py-1.5 border border-violet-200 dark:border-violet-700 rounded-lg bg-white dark:bg-[#141024] outline-none">
-                    <option value="">Consumidor Final (Avulso)</option>
-                  </select>
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="pdv_cliente_nome" placeholder="Nome do Cliente (Consumidor Final)" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-700 rounded-lg outline-none">
-                <input type="text" id="pdv_cliente_doc" placeholder="CPF / CNPJ (opcional)" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-700 rounded-lg outline-none">
-              </div>
+        <!-- SUB-ABA COMODATO & CPES -->
+        <div id="provTabCpes" class="space-y-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">CPEs em Bancada</span>
+              <div id="kpiProvBancada" class="text-2xl font-extrabold text-violet-600 dark:text-violet-400 mt-1">0</div>
             </div>
+            <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">Comodato (Cliente)</span>
+              <div id="kpiProvComodato" class="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">0</div>
+            </div>
+            <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">RMA / Triagem</span>
+              <div id="kpiProvRma" class="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">0</div>
+            </div>
+            <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">Liberados / Entregues</span>
+              <div id="kpiProvEntregues" class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">0</div>
+            </div>
+          </div>
 
-            <div class="p-3 rounded-xl border border-violet-200/80 dark:border-violet-800/70 space-y-2">
-              <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200">Adicionar Produto do Estoque ou Serviço</label>
-              <select id="pdv_produto_select" onchange="aoSelecionarProdutoPdv()" class="w-full px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
-                <option value="">-- Item Avulso / Serviço --</option>
-              </select>
-              <input type="text" id="pdv_item_nome" placeholder="Descrição do produto/serviço" class="w-full px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-              <div class="grid grid-cols-3 gap-2">
-                <div>
-                  <label class="block text-[10px] font-semibold mb-0.5">Qtd</label>
-                  <input type="number" id="pdv_item_qtd" min="1" value="1" class="w-full px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold mb-0.5">Unit. (R$)</label>
-                  <input type="number" id="pdv_item_preco" min="0" step="0.01" placeholder="0.00" class="w-full px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold mb-0.5">Garantia (m)</label>
-                  <input type="number" id="pdv_item_garantia" min="0" max="120" value="3" class="w-full px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-                </div>
+          <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex flex-wrap items-center justify-between gap-3">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Rastreamento de ONUs, Roteadores, OLTs &amp; Comodato</h3>
+              <div class="flex items-center gap-2">
+                <input type="search" id="provBuscaCpe" oninput="renderizarPainelCpesProvedor()" placeholder="Buscar por MAC, GPON SN, cliente ou modelo..." class="w-64 px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+                <button onclick="carregarPainelProvedor()" class="px-3 py-1.5 rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-700 dark:text-violet-200 text-xs font-bold border border-violet-200 dark:border-violet-800">Atualizar</button>
               </div>
-              <div class="flex gap-2">
-                <input type="text" id="pdv_item_serial" placeholder="Serial / IMEI (rastreio garantia)" class="flex-1 px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-                <button type="button" onclick="adicionarItemCarrinhoPdv()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg">+ Incluir</button>
-              </div>
-            </div>
-
-            <div id="pdv_carrinho_lista" class="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar">
-              <p class="text-slate-400">Nenhum item no carrinho do PDV.</p>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2">
-              <div>
-                <label class="block text-[10px] font-semibold mb-0.5">Pagamento</label>
-                <select id="pdv_forma_pgto" class="w-full px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
-                  <option value="Pix">Pix</option>
-                  <option value="Cartão de Crédito">Cartão de Crédito</option>
-                  <option value="Cartão de Débito">Cartão de Débito</option>
-                  <option value="Dinheiro">Dinheiro</option>
-                  <option value="Boleto / Faturado B2B">Boleto / Faturado B2B</option>
-                  <option value="Misto">Misto</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-[10px] font-semibold mb-0.5">Parcelas</label>
-                <input type="number" id="pdv_parcelas" min="1" max="24" value="1" class="w-full px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-              </div>
-              <div>
-                <label class="block text-[10px] font-semibold mb-0.5">Desconto (R$)</label>
-                <input type="number" id="pdv_desconto" min="0" step="0.01" value="0" oninput="atualizarTotalCarrinhoPdv()" class="w-full px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-              </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2">
-              <select id="pdv_tipo_doc" class="px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
-                <option value="NFC-e">NFC-e</option>
-                <option value="NF-e (CNPJ)">NF-e (CNPJ)</option>
-                <option value="Recibo Interno" selected>Recibo Interno</option>
-              </select>
-              <input type="text" id="pdv_numero_nf" placeholder="Nº NF (opcional)" class="px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-              <input type="text" id="pdv_filial" value="Matriz" placeholder="Filial" class="px-2 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <input type="text" id="pdv_vendedor" placeholder="Vendedor" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-              <input type="number" id="pdv_comissao" min="0" max="50" step="0.5" value="0" placeholder="Comissão (%)" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-            </div>
-            <input type="text" id="pdv_obs" placeholder="Observações / Dados de entrega" class="w-full px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-
-            <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
-              <span class="font-bold text-emerald-900 dark:text-emerald-200 uppercase">Total da Venda</span>
-              <span id="pdv_total_txt" class="text-lg font-extrabold text-emerald-700 dark:text-emerald-300">R$ 0,00</span>
-            </div>
-
-            <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm">
-              ✅ Finalizar Venda e Baixar Estoque
-            </button>
-          </form>
-
-          <div class="lg:col-span-7 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden h-fit">
-            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🧾 Histórico de Vendas PDV</h3>
-              <button type="button" onclick="carregarVendasLoja()" class="text-xs font-semibold text-violet-600">Atualizar</button>
             </div>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs border-collapse">
                 <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold border-b border-violet-200 dark:border-violet-900">
                   <tr>
-                    <th class="p-3">Código / Doc</th>
-                    <th class="p-3">Cliente</th>
-                    <th class="p-3">Itens</th>
-                    <th class="p-3">Pagamento</th>
-                    <th class="p-3">Total</th>
-                    <th class="p-3 text-right">Ações</th>
+                    <th class="p-3">O.S.</th>
+                    <th class="p-3">Equipamento / Categoria</th>
+                    <th class="p-3">Serial / MAC / GPON SN</th>
+                    <th class="p-3">Fluxo</th>
+                    <th class="p-3">Assinante / POP</th>
+                    <th class="p-3">Status</th>
+                    <th class="p-3 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody id="tabelaVendasLoja" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
+                <tbody id="tabelaCpesProvedor" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- SUB-ABA 2: ORÇAMENTOS & MONTAGEM DE PCS -->
-        <div id="lojaTab_orcamentos" class="grid lg:grid-cols-12 gap-5 hidden">
-          <form id="formCriarOrcamentoLoja" onsubmit="criarOrcamentoLoja(event)" class="lg:col-span-5 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs h-fit">
-            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">📝 Novo Orçamento / Montagem de PC</h3>
-            <input type="text" id="orc_titulo" placeholder="Título * (Ex: PC Gamer Ryzen 7 + RTX 4060)" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-            <div class="grid grid-cols-2 gap-2">
-              <select id="orc_tipo" class="px-2.5 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                <option value="Montagem PC / Hardware">Montagem PC / Hardware</option>
-                <option value="Proposta Corporativa B2B">Proposta Corporativa B2B</option>
-                <option value="Upgrade / Manutenção">Upgrade / Manutenção</option>
-              </select>
-              <input type="number" id="orc_validade" min="1" max="180" value="7" placeholder="Validade (dias)" class="px-2.5 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+        <!-- SUB-ABA PREVENTIVAS -->
+        <div id="provTabPreventivas" class="grid lg:grid-cols-3 gap-5 hidden">
+          <form onsubmit="criarPreventivaOps(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">🗓️ Nova Agenda Preventiva (POP / Servidor)</h3>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento / Tarefa *</label>
+              <input type="text" id="prv_titulo" required placeholder="Ex: Revisão Nobreaks e Baterias POP Norte" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
             </div>
             <div class="grid grid-cols-2 gap-2">
-              <input type="text" id="orc_cliente_nome" required placeholder="Nome do Cliente *" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              <input type="text" id="orc_cliente_tel" placeholder="WhatsApp / Telefone" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-            </div>
-            <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
-              <select id="orc_produto_select" onchange="aoSelecionarProdutoOrc()" class="w-full px-2.5 py-1.5 border border-violet-200 dark:border-violet-700 rounded-lg bg-white dark:bg-[#141024] outline-none">
-                <option value="">-- Item Avulso / Serviço --</option>
-              </select>
-              <input type="text" id="orc_item_nome" placeholder="Peça ou serviço (Ex: Placa-mãe B550)" class="w-full px-2.5 py-1.5 border border-violet-200 dark:border-violet-700 rounded-lg outline-none">
-              <div class="flex gap-2">
-                <input type="number" id="orc_item_qtd" min="1" value="1" class="w-16 px-2 py-1.5 border border-violet-200 dark:border-violet-700 rounded-lg outline-none">
-                <input type="number" id="orc_item_preco" min="0" step="0.01" placeholder="Unit. R$" class="flex-1 px-2 py-1.5 border border-violet-200 dark:border-violet-700 rounded-lg outline-none">
-                <button type="button" onclick="adicionarItemOrcamento()" class="px-3 py-1.5 bg-violet-600 text-white font-bold rounded-lg">+ Peça</button>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">POP / Torre / Cliente</label>
+                <input type="text" id="prv_local" list="datalistOrigens" placeholder="POP Centro" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">A cada (dias)</label>
+                <input type="number" id="prv_dias" min="1" max="1095" value="30" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
             </div>
-            <div id="orc_itens_lista" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar"></div>
             <div class="grid grid-cols-2 gap-2">
-              <input type="number" id="orc_desconto" min="0" step="0.01" value="0" placeholder="Desconto (R$)" class="px-2.5 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              <input type="text" id="orc_condicoes" value="Pix à vista ou Cartão em até 12x" placeholder="Condições de pagamento" class="px-2.5 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Próxima Execução *</label>
+                <input type="date" id="prv_proxima" required class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Responsável</label>
+                <input type="text" id="prv_resp" list="datalistTecnicos" placeholder="Técnico" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
             </div>
-            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-sm">
-              💾 Emitir Orçamento
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Roteiro de Verificação</label>
+              <textarea id="prv_checklist" rows="2" placeholder="Limpeza de filtros, medição de tensão, backup OLT..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              ➕ Agendar Preventiva
             </button>
           </form>
 
-          <div class="lg:col-span-7 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Propostas e Montagens Emitidas</h3>
-            <div id="listaOrcamentosLoja" class="space-y-2.5"></div>
-          </div>
-        </div>
-
-        <!-- SUB-ABA 3: CAIXA & TURNOS -->
-        <div id="lojaTab_caixa" class="grid lg:grid-cols-12 gap-5 hidden">
-          <div class="lg:col-span-5 space-y-4">
-            <div id="caixaStatusBox"></div>
-
-            <form id="formAbrirCaixaLoja" onsubmit="abrirCaixaLoja(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔓 Abrir Turno de Caixa</h3>
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-[11px] font-semibold mb-1">Fundo de Troco (R$)</label>
-                  <input type="number" id="cx_abertura_val" min="0" step="0.01" value="100.00" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                </div>
-                <div>
-                  <label class="block text-[11px] font-semibold mb-1">Filial / Caixa</label>
-                  <input type="text" id="cx_abertura_filial" value="Matriz" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                </div>
-              </div>
-              <input type="text" id="cx_abertura_obs" placeholder="Observação de abertura" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl">🔓 Abrir Caixa</button>
-            </form>
-
-            <div id="painelCaixaAbertoLoja" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4 text-xs hidden">
-              <div class="space-y-2">
-                <h3 class="text-sm font-bold text-slate-900 dark:text-white">💸 Suprimento / Sangria</h3>
-                <div class="grid grid-cols-2 gap-2">
-                  <input type="number" id="cx_mov_val" min="0.01" step="0.01" placeholder="Valor R$" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                  <input type="text" id="cx_mov_motivo" placeholder="Motivo (Ex: Troco / Depósito)" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button type="button" onclick="movimentarCaixaLoja('suprimento')" class="py-2 bg-emerald-600 text-white font-bold rounded-xl">+ Suprimento</button>
-                  <button type="button" onclick="movimentarCaixaLoja('sangria')" class="py-2 bg-amber-600 text-white font-bold rounded-xl">- Sangria</button>
-                </div>
-              </div>
-
-              <form onsubmit="fecharCaixaLoja(event)" class="pt-3 border-t border-violet-100 dark:border-violet-900/60 space-y-2">
-                <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔒 Fechamento de Caixa</h3>
-                <input type="number" id="cx_fechar_val" required min="0" step="0.01" placeholder="Saldo contado na gaveta (R$) *" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                <input type="text" id="cx_fechar_obs" placeholder="Observações de fechamento" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">🔒 Conferir e Fechar Caixa</button>
-              </form>
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Cronograma de Preventivas</h3>
+              <button onclick="carregarPreventivasOps()" class="text-xs font-semibold text-violet-600 dark:text-violet-400">Atualizar</button>
             </div>
-          </div>
-
-          <div class="lg:col-span-7 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Histórico de Turnos de Caixa</h3>
-            <div id="listaTurnosCaixaLoja" class="space-y-2"></div>
+            <div id="listaPreventivasOps" class="p-4 space-y-2.5 text-xs"></div>
           </div>
         </div>
 
-        <!-- SUB-ABA 4: GARANTIA ANTIFRAUDE POR SERIAL & RMA -->
-        <div id="lojaTab_rma" class="grid lg:grid-cols-12 gap-5 hidden">
-          <div class="lg:col-span-5 space-y-4">
-            <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔍 Validação Antifraude de Garantia (Serial / IMEI)</h3>
-              <div class="flex gap-2">
-                <input type="text" id="garantia_busca_serial" placeholder="Digite Serial, IMEI ou código VND-..." class="flex-1 px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                <button type="button" onclick="consultarGarantiaSerial()" class="px-4 py-2 bg-violet-600 text-white font-bold rounded-xl">Verificar</button>
-              </div>
-              <div id="resultadoConsultaGarantia" class="space-y-2"></div>
-            </div>
-
-            <form id="formCriarRmaLoja" onsubmit="criarRmaLoja(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2.5 text-xs">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔄 Abrir Processo de Garantia / RMA</h3>
-              <select id="rma_tipo" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                <option value="RMA Cliente">RMA de Cliente (Balcão / Garantia)</option>
-                <option value="RMA Fornecedor">RMA para Fornecedor / Distribuidor</option>
-              </select>
-              <input type="text" id="rma_produto" required placeholder="Produto / Peça *" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="rma_serial" placeholder="Serial / IMEI" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                <input type="text" id="rma_venda" placeholder="Código Venda / NF" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="rma_cliente" placeholder="Cliente ou Distribuidor" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                <input type="text" id="rma_protocolo" placeholder="Protocolo Fabricante" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <textarea id="rma_defeito" rows="2" placeholder="Defeito relatado / laudo preliminar" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
-              <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">💾 Registrar RMA</button>
-            </form>
-          </div>
-
-          <div class="lg:col-span-7 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Acompanhamento de Garantias e RMAs</h3>
-            <div id="listaRmasLoja" class="space-y-2"></div>
-          </div>
-        </div>
-
-        <!-- SUB-ABA 5: CLIENTES PF/PJ (B2B), FORNECEDORES & FILIAIS -->
-        <div id="lojaTab_clientes" class="grid lg:grid-cols-12 gap-5 hidden">
-          <form id="formCriarClienteLoja" onsubmit="criarClienteLoja(event)" class="lg:col-span-4 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs h-fit">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">👥 Novo Cliente / Fornecedor / Filial</h3>
-            <input type="text" id="lcli_nome" required placeholder="Nome / Razão Social *" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-            <div class="grid grid-cols-2 gap-2">
-              <select id="lcli_tipo" class="px-2.5 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                <option value="Cliente PF">Cliente PF</option>
-                <option value="Cliente PJ (B2B)">Cliente PJ (B2B)</option>
-                <option value="Fornecedor / Distribuidor">Fornecedor / Distribuidor</option>
-                <option value="Filial / Unidade">Filial / Unidade</option>
-              </select>
-              <select id="lcli_tabela" class="px-2.5 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                <option value="varejo">Tabela Varejo</option>
-                <option value="b2b">Tabela Atacado / B2B</option>
-              </select>
+        <!-- SUB-ABA CLIENTES & POPS -->
+        <div id="provTabClientes" class="grid lg:grid-cols-3 gap-5 hidden">
+          <form onsubmit="criarClienteOps(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white border-b border-violet-100 dark:border-violet-900/60 pb-2">📡 Novo POP, Torre ou Assinante</h3>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome *</label>
+              <input type="text" id="cli_nome" required placeholder="Ex: POP Centro / Cliente João" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
             </div>
             <div class="grid grid-cols-2 gap-2">
-              <input type="text" id="lcli_doc" placeholder="CPF / CNPJ" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              <input type="text" id="lcli_tel" placeholder="Telefone / WhatsApp" class="px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tipo</label>
+                <select id="cli_tipo" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="POP / Torre ISP">POP / Torre ISP</option>
+                  <option value="Assinante FTTH">Assinante FTTH</option>
+                  <option value="Cliente / Empresa">Cliente / Empresa</option>
+                  <option value="Setor Interno">Setor Interno</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Telefone / WhatsApp</label>
+                <input type="text" id="cli_tel" placeholder="(00) 99999-9999" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
             </div>
-            <input type="email" id="lcli_email" placeholder="E-mail" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-            <input type="text" id="lcli_end" placeholder="Endereço / Cidade" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">💾 Salvar Cadastro</button>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Contato / Responsável</label>
+              <input type="text" id="cli_contato" placeholder="Nome do contato" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Endereço / Coordenadas</label>
+              <input type="text" id="cli_end" placeholder="Rua, número, bairro..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
+              💾 Salvar POP / Cliente
+            </button>
           </form>
 
-          <div class="lg:col-span-8 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden h-fit">
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm overflow-hidden">
             <div class="px-5 py-3 border-b border-violet-100 dark:border-violet-900/60 flex items-center justify-between">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Carteira de Clientes B2B/PF e Distribuidores</h3>
-              <button type="button" onclick="carregarClientesLoja()" class="text-xs font-semibold text-violet-600">Atualizar</button>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">POPs, Torres e Clientes Cadastrados</h3>
+              <button onclick="carregarClientesOps()" class="text-xs font-semibold text-violet-600 dark:text-violet-400">Atualizar</button>
             </div>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs border-collapse">
                 <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold border-b border-violet-200 dark:border-violet-900">
                   <tr>
-                    <th class="p-3">Nome / CPF-CNPJ</th>
+                    <th class="p-3">Nome</th>
                     <th class="p-3">Tipo</th>
-                    <th class="p-3">Tabela</th>
-                    <th class="p-3">Contato</th>
+                    <th class="p-3">Contato / Telefone</th>
                     <th class="p-3 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody id="tabelaClientesLoja" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
+                <tbody id="tabelaClientesOps" class="divide-y divide-violet-100 dark:divide-violet-900/50"></tbody>
               </table>
             </div>
           </div>
@@ -1267,7 +1025,7 @@
         </div>
 
         <!-- KPIs Exclusivos do Setor de Estoque -->
-        <div id="estoqueKpiStrip" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
             <span class="text-[11px] font-bold text-slate-400 uppercase">SKUs Cadastrados</span>
             <div id="kpiEstSkus" class="text-2xl font-extrabold text-violet-600 dark:text-violet-400 mt-1">0</div>
@@ -1301,31 +1059,12 @@
               <div>
                 <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria</label>
                 <select id="est_categoria" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                  <option value="Hardware TI">Hardware TI / PCs</option>
-                  <option value="Periféricos & Acessórios">Periféricos &amp; Acessórios</option>
-                  <option value="Peça / Insumo">Peça / Insumo (Bancada)</option>
-                  <option value="Redes / Conectividade">Redes / Conectividade</option>
-                  <option value="Notebooks & Seminovos">Notebooks &amp; Seminovos</option>
+                  <option value="Peça / Insumo">Peça / Insumo</option>
+                  <option value="Equipamento Pronto (Comodato)">Equipamento Pronto (Comodato)</option>
+                  <option value="Fibra / Conectores">Fibra / Conectores</option>
+                  <option value="Hardware TI">Hardware TI</option>
                 </select>
               </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <input type="text" id="est_marca" placeholder="Marca (Ex: Kingston / Asus)" class="px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              <input type="text" id="est_barras" placeholder="EAN / Código de Barras" class="px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Preço Varejo (R$)</label>
-                <input type="number" id="est_preco_venda" min="0" step="0.01" value="0.00" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Preço Atacado B2B (R$)</label>
-                <input type="number" id="est_preco_b2b" min="0" step="0.01" value="0.00" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <input type="text" id="est_fornecedor" placeholder="Distribuidor / Fornecedor" class="px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              <input type="number" id="est_garantia_meses" min="0" max="120" value="3" placeholder="Garantia (meses)" class="px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
             </div>
             <div class="grid grid-cols-2 gap-2">
               <div>
@@ -1431,7 +1170,9 @@
           </div>
         </div>
 
-        <div id="automacaoKpiStrip" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Ativos Auditados</span>
             <div id="kpiAutTotal" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">0</div>
           </div>
           <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
@@ -1543,18 +1284,16 @@
       <div class="max-w-7xl mx-auto space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🛡️ Setor Cibersegurança, Defesa Ativa &amp; Governança</h2>
-            <p class="text-xs text-slate-500 dark:text-violet-300/80">Byte-Scanner, laboratório didático de ataques × mitigações, automações de proteção/busca de falhas, notícias reais do mundo cyber e Gov-Key por operador.</p>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🛡️ Setor Cibersegurança, Auditoria &amp; Governança</h2>
+            <p class="text-xs text-slate-500 dark:text-violet-300/80">Auditoria defensiva autorizada pelo gestor, gestão de vulnerabilidades, conformidade CIS v8/NIST/OWASP/LGPD e base de conhecimento.</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-800">
-              <button id="btnCyberTab_auditoria" type="button" onclick="alternarCyberTab('auditoria')" class="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">🔍 Byte-Scanner</button>
-              <button id="btnCyberTab_laboratorio" type="button" onclick="alternarCyberTab('laboratorio')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🎯 Ataques &amp; Mitigações</button>
-              <button id="btnCyberTab_automacoes" type="button" onclick="alternarCyberTab('automacoes')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">⚙️ Automações &amp; Falhas</button>
-              <button id="btnCyberTab_achados" type="button" onclick="alternarCyberTab('achados')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🐞 Vulnerabilidades</button>
-              <button id="btnCyberTab_checklists" type="button" onclick="alternarCyberTab('checklists')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📋 CIS / NIST</button>
-              <button id="btnCyberTab_conhecimento" type="button" onclick="alternarCyberTab('conhecimento')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📰 Wiki-Core</button>
-              <button id="btnCyberTab_governanca" type="button" onclick="alternarCyberTab('governanca')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🔐 Gov-Key</button>
+              <button id="btnCyberTab_auditoria" type="button" onclick="alternarCyberTab('auditoria')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">🔍 Auditoria de Rede</button>
+              <button id="btnCyberTab_achados" type="button" onclick="alternarCyberTab('achados')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🐞 Vulnerabilidades</button>
+              <button id="btnCyberTab_checklists" type="button" onclick="alternarCyberTab('checklists')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📋 CIS / NIST / LGPD</button>
+              <button id="btnCyberTab_conhecimento" type="button" onclick="alternarCyberTab('conhecimento')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📚 Conhecimento</button>
+              <button id="btnCyberTab_governanca" type="button" onclick="alternarCyberTab('governanca')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🔐 Governança</button>
             </div>
             <button id="btnPdfCyber" type="button" onclick="baixarRelatorioCyberPdf()" class="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
               📄 Relatório PDF
@@ -1574,10 +1313,10 @@
               Minimizar
             </button>
           </div>
-          <div id="cyberBotsBody" class="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5"></div>
+          <div id="cyberBotsBody" class="grid sm:grid-cols-2 lg:grid-cols-5 gap-2.5"></div>
         </div>
 
-        <div id="cyberKpiStrip" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
             <span class="text-[11px] font-bold text-emerald-600 uppercase">Maturidade CIS/NIST</span>
             <div id="kpiCybMaturidade" class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">0%</div>
@@ -1590,49 +1329,44 @@
             </div>
           </div>
           <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
-            <span class="text-[11px] font-bold text-violet-600 uppercase">Auditorias &amp; Automações</span>
+            <span class="text-[11px] font-bold text-violet-600 uppercase">Auditorias Salvas</span>
             <div id="kpiCybAuditorias" class="text-2xl font-extrabold text-violet-700 dark:text-violet-300 mt-1">0</div>
           </div>
           <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
-            <span class="text-[11px] font-bold text-slate-400 uppercase">Gov-Key (Operadores)</span>
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Política do Gestor</span>
             <div id="kpiCybGovBadge" class="text-xs font-extrabold text-amber-600 mt-1.5">🔒 Bloqueada (Aguarda Gestor)</div>
           </div>
         </div>
 
-        <!-- Aba 1: Byte-Scanner (Auditoria de Domínio Web/TLS + Rede Local) -->
+        <!-- Aba 1: Auditoria de Rede Autorizada + Coletor LAN -->
         <div id="cyberTab_auditoria" class="grid lg:grid-cols-3 gap-5">
           <div class="space-y-4">
             <form id="formExecutarAuditoriaCyber" onsubmit="executarAuditoriaCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔍 Byte-Scanner — Busca de Vulnerabilidades</h3>
-              <div class="p-3 rounded-xl bg-violet-50/80 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-1 text-[11px] text-slate-600 dark:text-violet-200">
-                <div><b>💡 Como usar de forma simples:</b></div>
-                <div>• <b>Domínio/Site:</b> digite <code>suaempresa.com.br</code> (ou URL com <code>https://</code>) — o modo muda sozinho para <b>Web / TLS</b>.</div>
-                <div>• <b>Rede Local (LAN):</b> digite a faixa privada <code>192.168.1.0/24</code> no modo <b>Rede Privada</b>.</div>
-                <div>• Requer que seu usuário esteja autorizado na aba <b>🔐 Gov-Key</b>.</div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🔍 Auditoria Ativa Autorizada</h3>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Requer liberação explícita do administrador na aba Governança e alvo dentro da lista autorizada.</p>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Alvo (Domínio, IP ou Sub-rede CIDR) *</label>
+                <input type="text" id="cyb_aud_alvo" required placeholder="Ex: portal.empresa.com.br ou 192.168.10.0/24" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold mb-1">Alvo (Domínio, URL ou Sub-rede CIDR) *</label>
-                <input type="text" id="cyb_aud_alvo" required oninput="autoAjustarModoByteScanner(this.value)" placeholder="Ex: suaempresa.com.br ou 192.168.1.0/24" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold mb-1">Modo da Verificação Defensiva</label>
+                <label class="block text-[11px] font-semibold mb-1">Modo da Auditoria Defensiva</label>
                 <select id="cyb_aud_tipo" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                  <option value="web_tls">🔒 Web / TLS / Certificados &amp; Headers OWASP (Domínios)</option>
-                  <option value="rede_privada">🌐 Varredura de Rede Privada / Portas Expostas (IP ou CIDR)</option>
+                  <option value="rede_privada">🌐 Varredura Defensiva de Rede / Portas (IP ou CIDR)</option>
+                  <option value="web_tls">🔒 Web / TLS / Certificados &amp; Headers OWASP</option>
                 </select>
               </div>
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" id="cyb_aud_gerar_achados" checked class="rounded text-violet-600">
-                <span>Enviar falhas encontradas automaticamente para a fila de mitigação</span>
+                <span>Registrar vulnerabilidades encontradas na fila</span>
               </label>
               <button id="btnExecutarAuditoriaCyber" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white font-bold rounded-xl shadow-sm">
-                🚀 Executar Byte-Scanner
+                🚀 Executar Auditoria Autorizada
               </button>
             </form>
 
             <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
               <h3 class="text-sm font-bold text-slate-900 dark:text-white">💻 Coletor LAN Local (Somente Leitura)</h3>
-              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Quando o sistema está na nuvem e você deseja varrer uma LAN local isolada, baixe o coletor, execute na máquina da rede e importe o JSON.</p>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Para auditar redes internas privadas isoladas da nuvem, rode o coletor localmente e importe o JSON gerado.</p>
               <div class="grid grid-cols-2 gap-2">
                 <button type="button" onclick="baixarColetorCyber('ps1')" class="py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-violet-800 dark:text-violet-200">⬇️ PowerShell (.ps1)</button>
                 <button type="button" onclick="baixarColetorCyber('py')" class="py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-violet-800 dark:text-violet-200">⬇️ Python (.py)</button>
@@ -1645,92 +1379,8 @@
           </div>
 
           <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Histórico de Varreduras, Portas Expostas &amp; Scores</h3>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Histórico de Auditorias e Scores</h3>
             <div id="listaAuditoriasCyber" class="space-y-2.5"></div>
-          </div>
-        </div>
-
-        <!-- Aba NOVA: Laboratório Didático Ataques × Busca de Falhas × Mitigações -->
-        <div id="cyberTab_laboratorio" class="grid lg:grid-cols-3 gap-5 hidden">
-          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-            <div>
-              <span class="px-2 py-0.5 rounded-full bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 text-[10px] font-extrabold uppercase">Purple Team Didático</span>
-              <h3 class="text-sm font-extrabold text-slate-900 dark:text-white mt-1.5">🎯 Escolha o Vetor de Ataque</h3>
-              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Entenda de forma didática como cada ataque explora falhas, como caçar a vulnerabilidade e como blindar sua rede sem risco destrutivo.</p>
-            </div>
-            <div id="listaCenariosDidaticos" class="space-y-2"></div>
-          </div>
-
-          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4 text-xs">
-            <div id="detalheCenarioDidatico" class="space-y-4"></div>
-            <div id="resultadoSimulacaoDidatica" class="hidden p-4 rounded-xl bg-violet-50/80 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-2.5"></div>
-          </div>
-        </div>
-
-        <!-- Aba NOVA: Automações de Proteção de Rede & Busca Contínua por Falhas -->
-        <div id="cyberTab_automacoes" class="grid lg:grid-cols-3 gap-5 hidden">
-          <div class="space-y-4">
-            <form id="formCriarAutomacaoCyber" onsubmit="criarAutomacaoCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-              <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">⚙️ Nova Automação de Defesa &amp; Busca de Falhas</h3>
-              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Programe rotinas defensivas para caçar senhas fracas/sem 2FA, dispositivos IoT/CFTV inseguros, SSL expirando e portas críticas expostas.</p>
-              <div>
-                <label class="block text-[11px] font-semibold mb-1">Nome da Rotina *</label>
-                <input type="text" id="aut_cyb_nome" required placeholder="Ex: Caça Diária de Contas sem 2FA e Senha Padrão" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold mb-1">Tipo de Busca / Proteção</label>
-                <select id="aut_cyb_tipo" onchange="ajustarPlaceholderAlvoAutomacao()" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                  <option value="auditoria_contas_2fa_senhas">🔐 Caça-Falhas de Identidade (2FA &amp; Senhas Provisórias)</option>
-                  <option value="auditoria_iot_cftv_hardening">📷 Busca de Falhas em Câmeras, DVRs, Alarmes &amp; IoT</option>
-                  <option value="conformidade_backup_cis">🛡️ Verificação de Backup Imutável 3-2-1-1-0 &amp; CIS/LGPD</option>
-                  <option value="monitor_ssl_headers">🌐 Vigia de Certificado HTTPS &amp; Headers OWASP</option>
-                  <option value="varredura_portas_criticas">📡 Busca de Portas Críticas na Rede Local (RFC1918)</option>
-                </select>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-[11px] font-semibold mb-1">Alvo</label>
-                  <input type="text" id="aut_cyb_alvo" value="Ambiente Interno" placeholder="Ambiente Interno" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-                </div>
-                <div>
-                  <label class="block text-[11px] font-semibold mb-1">Frequência</label>
-                  <select id="aut_cyb_freq" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                    <option value="Diária">Diária</option>
-                    <option value="A cada 6h">A cada 6h</option>
-                    <option value="Semanal">Semanal</option>
-                    <option value="Mensal">Mensal</option>
-                    <option value="Sob Demanda">Sob Demanda</option>
-                  </select>
-                </div>
-              </div>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="aut_cyb_auto_achados" checked class="rounded text-violet-600">
-                <span>Abrir alerta automaticamente na fila se encontrar falha</span>
-              </label>
-              <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-sm">
-                ➕ Salvar Tarefa Automatizada
-              </button>
-            </form>
-
-            <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2.5 text-xs">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🛡️ Scripts Prontos de Blindagem de Rede</h3>
-              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Baixe scripts defensivos auditáveis para bloquear protocolos inseguros (SMBv1, Telnet 23) e agendar monitoramento local.</p>
-              <div class="space-y-1.5">
-                <button type="button" onclick="baixarScriptProtecaoCyber('firewall_windows_ps1')" class="w-full py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-left text-violet-900 dark:text-violet-200 hover:bg-violet-100">⬇️ Blindagem Firewall Windows &amp; Anti-SMBv1 (.ps1)</button>
-                <button type="button" onclick="baixarScriptProtecaoCyber('hardening_linux_ufw_sh')" class="w-full py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-left text-violet-900 dark:text-violet-200 hover:bg-violet-100">⬇️ Hardening Linux UFW &amp; Anti-BruteForce SSH (.sh)</button>
-                <button type="button" onclick="baixarScriptProtecaoCyber('tarefa_agendada_monitor_ps1')" class="w-full py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-left text-violet-900 dark:text-violet-200 hover:bg-violet-100">⬇️ Monitor Agendado Diário SSL &amp; Rede (.ps1)</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-            <div class="flex flex-wrap justify-between items-center gap-2">
-              <div>
-                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Robôs &amp; Tarefas de Defesa Configuradas</h3>
-                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Clique em <b>Rodar Agora</b> para executar a caça por falhas imediatamente e atualizar o score.</p>
-              </div>
-            </div>
-            <div id="listaAutomacoesCyber" class="space-y-2.5"></div>
           </div>
         </div>
 
@@ -1786,122 +1436,63 @@
           <div id="listaChecklistCyber" class="space-y-2"></div>
         </div>
 
-        <!-- Aba 4: Wiki-Core — Notícias Reais do Mundo Cibernético SEPARADAS dos Playbooks Internos -->
-        <div id="cyberTab_conhecimento" class="space-y-5 hidden">
-          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div class="flex flex-wrap gap-1.5">
-              <button id="btnWikiSecao_noticias" type="button" onclick="alternarWikiSecao('noticias')" class="px-3.5 py-2 rounded-xl font-extrabold bg-violet-600 text-white shadow-sm">
-                🌐 Notícias Reais do Mundo Cibernético
-              </button>
-              <button id="btnWikiSecao_internos" type="button" onclick="alternarWikiSecao('internos')" class="px-3.5 py-2 rounded-xl font-bold bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-700">
-                🏢 Publicados Internamente &amp; Playbooks
-              </button>
+        <!-- Aba 4: Base de Conhecimento & Playbooks -->
+        <div id="cyberTab_conhecimento" class="grid lg:grid-cols-3 gap-5 hidden">
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+            <div class="flex flex-wrap justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Base de Conhecimento &amp; Hardening</h3>
+              <input type="text" id="kb_busca" oninput="carregarConhecimentoCyber()" placeholder="🔎 Buscar guia (Zero Trust, CFTV, BGP, LGPD...)" class="px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none w-72">
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <input type="text" id="kb_busca" oninput="carregarConhecimentoCyber(false)" placeholder="🔎 Filtrar notícias ou playbooks..." class="px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none w-64">
-              <button type="button" onclick="carregarConhecimentoCyber(true)" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-                🔄 Atualizar Feed
-              </button>
-            </div>
+            <div id="listaConhecimentoCyber" class="space-y-3"></div>
           </div>
 
-          <!-- Seção 1: Notícias Reais Externas (Isoladas dos Documentos Internos) -->
-          <div id="blocoWikiNoticiasReais" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
-              <div>
-                <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🌐 Radar Global de Notícias &amp; CVEs Exploradas</h3>
-                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Fontes oficiais externas (CISA KEV, CERT.br, The Hacker News e BleepingComputer), totalmente separadas dos documentos internos da sua empresa.</p>
-              </div>
-              <span id="badgeStatusNoticiasCyber" class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Sincronizando...</span>
+          <form id="formCriarKbCyber" onsubmit="criarArtigoKbCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs h-fit">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Publicar Playbook Interno</h3>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Título *</label>
+              <input type="text" id="kb_titulo" required placeholder="Ex: Playbook Isolamento Ransomware" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
             </div>
-            <div id="listaNoticiasMundoCyber" class="grid md:grid-cols-2 gap-3"></div>
-          </div>
-
-          <!-- Seção 2: Publicados Internamente pela Empresa & Guias de Hardening -->
-          <div id="blocoWikiInternos" class="grid lg:grid-cols-3 gap-5 hidden">
-            <div class="lg:col-span-2 space-y-4 text-xs">
-              <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
-                <div class="flex items-center justify-between border-b border-violet-100 dark:border-violet-900/60 pb-2">
-                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🏢 Documentos &amp; Playbooks Publicados Internamente</h3>
-                  <span id="contadorInternosWiki" class="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/60 text-violet-800 dark:text-violet-200 text-[10px] font-bold">0 publicados</span>
-                </div>
-                <div id="listaPlaybooksInternosCyber" class="space-y-3"></div>
-              </div>
-
-              <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
-                <h3 class="text-sm font-bold text-slate-900 dark:text-white">📘 Biblioteca Técnica de Referência (Hardening &amp; Normas)</h3>
-                <div id="listaConhecimentoCyber" class="space-y-3"></div>
-              </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Categoria</label>
+              <input type="text" id="kb_cat" value="Playbook Interno" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
             </div>
-
-            <form id="formCriarKbCyber" onsubmit="criarArtigoKbCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs h-fit">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">✍️ Publicar Playbook Interno</h3>
-              <div>
-                <label class="block text-[11px] font-semibold mb-1">Título *</label>
-                <input type="text" id="kb_titulo" required placeholder="Ex: Playbook Isolamento Ransomware" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold mb-1">Categoria</label>
-                <input type="text" id="kb_cat" value="Playbook Interno" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold mb-1">Resumo</label>
-                <input type="text" id="kb_resumo" placeholder="Objetivo e quando acionar..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold mb-1">Procedimento / Conteúdo *</label>
-                <textarea id="kb_conteudo" required rows="5" placeholder="1. Desconectar host da rede..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold mb-1">Tags</label>
-                <input type="text" id="kb_tags" placeholder="incidente, soc, firewall" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-              </div>
-              <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">📚 Publicar Internamente</button>
-            </form>
-          </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Resumo</label>
+              <input type="text" id="kb_resumo" placeholder="Objetivo e quando acionar..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Procedimento / Conteúdo *</label>
+              <textarea id="kb_conteudo" required rows="5" placeholder="1. Desconectar host da rede..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Tags</label>
+              <input type="text" id="kb_tags" placeholder="incidente, soc, firewall" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">📚 Publicar Guia</button>
+          </form>
         </div>
 
-        <!-- Aba 5: Gov-Key — Controle de QUEM tem Permissão para Realizar Tarefas de Segurança -->
+        <!-- Aba 5: Governança & Autorização do Gestor (Admin) -->
         <div id="cyberTab_governanca" class="bg-white dark:bg-[#141024] p-6 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4 text-xs hidden">
-          <div class="p-3.5 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 text-slate-800 dark:text-violet-100">
-            <b>🔐 Gov-Key — Autorização por Pessoa/Operador:</b> Defina exatamente <b>a quem é permitido realizar tarefas</b> de cibersegurança (varreduras no Byte-Scanner, automações de proteção e caça por falhas). A proteção Anti-SSRF permanece sempre ativa automaticamente.
+          <div class="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200">
+            <b>⚠️ Governança &amp; Segurança Jurídica:</b> A auditoria ativa de rede só executa quando autorizada formalmente pelo Administrador/Gestor e exclusivamente contra domínios/IPs listados no escopo aprovado (com bloqueio anti-SSRF automático).
           </div>
           <p id="gov_info_auditoria" class="text-xs font-semibold text-violet-700 dark:text-violet-300"></p>
-          <form id="formGovernancaCyber" onsubmit="salvarGovernancaCyber(event)" class="space-y-4 max-w-3xl">
-            <label class="flex items-center gap-2.5 p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-800/70 cursor-pointer font-bold text-slate-900 dark:text-white">
+          <form id="formGovernancaCyber" onsubmit="salvarGovernancaCyber(event)" class="space-y-3 max-w-2xl">
+            <label class="flex items-center gap-2.5 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 cursor-pointer font-bold">
               <input type="checkbox" id="gov_permitir_auditoria" class="rounded text-violet-600">
-              <span>Habilitar tarefas ativas de segurança e auditoria para os operadores autorizados abaixo</span>
+              <span>Autorizar equipe com permissão a auditar alvos dentro do escopo desta empresa</span>
             </label>
-
-            <div class="p-4 rounded-2xl bg-violet-50/60 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-3">
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <span class="block text-xs font-extrabold text-slate-900 dark:text-white">👥 Quem pode realizar tarefas de Cibersegurança?</span>
-                  <span class="text-[11px] text-slate-500 dark:text-violet-300/80">Marque os colaboradores autorizados pelo gestor (Administradores possuem chave mestre por padrão).</span>
-                </div>
-                <div class="flex gap-1.5">
-                  <button type="button" onclick="selecionarOperadoresGovKey('cyber')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-[11px] font-bold text-violet-700 dark:text-violet-200">Equipe Cyber</button>
-                  <button type="button" onclick="selecionarOperadoresGovKey('todos')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-[11px] font-bold text-violet-700 dark:text-violet-200">Marcar Todos</button>
-                </div>
-              </div>
-              <div id="listaOperadoresGovKey" class="grid sm:grid-cols-2 gap-2.5"></div>
-            </div>
-
             <div>
-              <label class="block text-[11px] font-semibold mb-1">Termo / Observação da Autorização do Gestor</label>
-              <input type="text" id="gov_termo" placeholder="Ex: Equipe técnica autorizada pela gerência de TI para auditorias preventivas." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              <label class="block text-[11px] font-semibold mb-1">Escopo Autorizado (1 domínio, IP ou CIDR por linha)</label>
+              <textarea id="gov_escopo" rows="4" placeholder="192.168.10.0/24&#10;portal.suaempresa.com.br" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl font-mono outline-none"></textarea>
             </div>
-
-            <details class="p-3 rounded-xl border border-violet-200/80 dark:border-violet-800/70 bg-white dark:bg-[#141024]">
-              <summary class="cursor-pointer font-bold text-[11px] text-slate-600 dark:text-violet-300">⚙️ Avançado (Opcional): Restringir também a domínios ou sub-redes específicas</summary>
-              <div class="pt-2.5 space-y-1">
-                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Deixe em branco para permitir que os operadores selecionados acima auditem qualquer domínio válido ou rede privada RFC1918 da operação.</p>
-                <textarea id="gov_escopo" rows="3" placeholder="Opcional — ex: suaempresa.com.br ou 192.168.1.0/24" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl font-mono outline-none"></textarea>
-              </div>
-            </details>
-
+            <div>
+              <label class="block text-[11px] font-semibold mb-1">Termo / Observação de Autorização</label>
+              <input type="text" id="gov_termo" placeholder="Autorizado pela diretoria de TI para auditoria interna trimestral." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            </div>
             <button type="submit" class="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-sm">
-              🔐 Salvar Permissões do Gov-Key
+              🔐 Salvar Política de Governança
             </button>
           </form>
         </div>
@@ -1918,14 +1509,14 @@
             <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">📋 Criador de Laudos &amp; Pareceres Técnicos</h2>
             <p class="text-xs text-slate-500 dark:text-violet-300/80">Campo dedicado para técnicos e gestores emitirem laudos com prévia em tempo real, modelos prontos e exportação em PDF.</p>
           </div>
-          <div id="barraTabsLaudos" class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-800">
-            <button id="btnLaudoTab_criar" type="button" onclick="alternarLaudoViewTab('criar')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm">✍️ Redigir Laudo</button>
+          <div class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-800">
+            <button id="btnLaudoTab_criar" type="button" onclick="alternarLaudoViewTab('criar')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">✍️ Criador de Laudo</button>
             <button id="btnLaudoTab_emitidos" type="button" onclick="alternarLaudoViewTab('emitidos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📚 Laudos Emitidos</button>
             <button id="btnLaudoTab_modelos" type="button" onclick="alternarLaudoViewTab('modelos')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🎨 Modelos &amp; Timbre</button>
           </div>
         </div>
 
-        <div id="laudosKpiStrip" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
             <span class="text-[11px] font-bold text-slate-400 uppercase">Laudos Emitidos</span>
             <div id="kpiLaudoTotal" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">0</div>
@@ -2112,7 +1703,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <span class="font-bold text-slate-800 dark:text-white">☑️ Checklist Padrão da Bancada (1 item por linha)</span>
                   <div class="flex gap-1">
-                    <button type="button" onclick="aplicarPresetChecklist('loja')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-violet-600 text-white">Loja de TI</button>
+                    <button type="button" onclick="aplicarPresetChecklist('isp')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-violet-600 text-white">Provedor ISP</button>
                     <button type="button" onclick="aplicarPresetChecklist('ti')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-indigo-600 text-white">Assistência TI</button>
                     <button type="button" onclick="aplicarPresetChecklist('padrao')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-slate-600 text-white">Misto</button>
                   </div>
@@ -2200,8 +1791,8 @@
               <span>🖥️ TI &amp; Bancada (O.S.)</span>
             </label>
             <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" id="setor_ativo_loja" checked class="rounded border-violet-300 text-violet-600">
-              <span>🏪 Loja de TI (PDV, Orçamentos, Caixa &amp; RMA)</span>
+              <input type="checkbox" id="setor_ativo_provedor" checked class="rounded border-violet-300 text-violet-600">
+              <span>📡 Provedor de Internet (ISP / Comodato / POPs)</span>
             </label>
             <label class="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" id="setor_ativo_estoque" checked class="rounded border-violet-300 text-violet-600">
@@ -2255,8 +1846,7 @@
                 <span class="text-[11px] font-bold text-violet-800 dark:text-violet-200 uppercase">🔐 Permissões por Setor</span>
                 <div class="flex flex-wrap gap-1">
                   <button type="button" onclick="aplicarPresetNovoMembro('tecnico_ti')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🖥️ Téc. TI</button>
-                  <button type="button" onclick="aplicarPresetNovoMembro('vendedor_loja')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🏪 Vendedor Loja</button>
-                  <button type="button" onclick="aplicarPresetNovoMembro('gerente_loja')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🏬 Gerente Loja</button>
+                  <button type="button" onclick="aplicarPresetNovoMembro('tecnico_isp')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">📡 Téc. ISP</button>
                   <button type="button" onclick="aplicarPresetNovoMembro('tecnico_automacao')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🤖 Automação</button>
                   <button type="button" onclick="aplicarPresetNovoMembro('analista_cyber')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">🛡️ Cyber</button>
                   <button type="button" onclick="aplicarPresetNovoMembro('estoquista')" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700">📦 Estoquista</button>
@@ -2266,11 +1856,7 @@
               <div id="listaPermissoesNovoMembro" class="grid md:grid-cols-2 gap-3"></div>
             </div>
 
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-violet-200 cursor-pointer">
-                <input type="checkbox" id="mem_exigir_troca_senha" checked class="rounded border-violet-300 text-violet-600">
-                <span>🔑 Exigir que o colaborador crie uma senha própria no primeiro login</span>
-              </label>
+            <div class="flex justify-end">
               <button type="submit" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-violet-600/20">
                 ➕ Cadastrar Colaborador
               </button>
@@ -2298,58 +1884,69 @@
           </div>
         </div>
 
-        <!-- Personalização Completa de Campos da Bancada TI (Admin) -->
-        <div id="blocoCamposBancada" class="lg:col-span-3 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4">
+        <!-- Configuração Editável de Campos da Bancada TI -->
+        <div id="blocoConfigCamposBancada" class="lg:col-span-3 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
             <div>
-              <h2 class="text-sm font-bold text-slate-900 dark:text-white">🧩 Campos Personalizáveis da Bancada TI (Entrada &amp; Saída)</h2>
-              <p class="text-xs text-slate-500 dark:text-violet-300/80">O administrador pode ocultar/exibir campos padrão, mudar rótulos, definir obrigatoriedade e adicionar ou remover novos campos na O.S.</p>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">🧩 Campos Editáveis da Bancada TI (Entrada, Equipamento &amp; Saída)</h2>
+              <p class="text-xs text-slate-500 dark:text-violet-300/80">Adicione novos campos personalizados, renomeie rótulos, defina obrigatoriedade ou oculte/retire campos que sua equipe não utiliza.</p>
             </div>
-            <button type="button" onclick="salvarCamposBancadaEmpresa()" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
-              💾 Salvar Campos da Bancada
-            </button>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="restaurarCamposBancadaPadrao()" class="px-3 py-1.5 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl border border-violet-200 dark:border-violet-800 transition-all">
+                🔄 Restaurar Padrão
+              </button>
+              <button type="button" onclick="salvarConfigCamposBancada()" class="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all">
+                💾 Salvar Campos da Bancada
+              </button>
+            </div>
           </div>
 
-          <div class="grid lg:grid-cols-2 gap-5 text-xs">
-            <div class="space-y-2">
-              <span class="font-bold text-violet-800 dark:text-violet-200 uppercase text-[11px] block">Campos Padrão da Bancada</span>
-              <div id="listaCamposPadraoBancada" class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1"></div>
-            </div>
-
-            <div class="space-y-3">
-              <span class="font-bold text-violet-800 dark:text-violet-200 uppercase text-[11px] block">Adicionar / Remover Novos Campos</span>
-              <div class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
-                <div class="grid sm:grid-cols-3 gap-2">
-                  <input type="text" id="cf_novo_label" placeholder="Nome do campo * (Ex: Acessórios)" class="sm:col-span-2 px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-                  <select id="cf_novo_secao" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none">
-                    <option value="entrada">Na Entrada / Coleta</option>
-                    <option value="saida">Na Saída / Entrega</option>
-                  </select>
-                </div>
-                <div class="grid sm:grid-cols-3 gap-2">
-                  <select id="cf_novo_tipo" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none">
-                    <option value="texto">Texto curto</option>
-                    <option value="textarea">Texto longo</option>
-                    <option value="numero">Número</option>
-                    <option value="select">Lista de opções</option>
-                    <option value="checkbox">Sim / Não (Checkbox)</option>
-                  </select>
-                  <input type="text" id="cf_novo_placeholder" placeholder="Dica/Placeholder (opcional)" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-                  <input type="text" id="cf_novo_opcoes" placeholder="Opções (se lista: A, B, C)" class="px-2.5 py-1.5 border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-                </div>
-                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <label class="flex items-center gap-2 cursor-pointer text-[11px]">
-                    <input type="checkbox" id="cf_novo_obrig" class="rounded border-violet-300 text-violet-600">
-                    <span>Campo obrigatório</span>
-                  </label>
-                  <button type="button" onclick="adicionarCampoCustomBancada()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg">
-                    ➕ Adicionar Campo
-                  </button>
-                </div>
+          <div class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2.5 text-xs">
+            <span class="block text-[11px] font-bold text-violet-800 dark:text-violet-200 uppercase">➕ Adicionar Novo Campo Personalizado</span>
+            <div class="grid md:grid-cols-6 gap-2 items-end">
+              <div class="md:col-span-2">
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Nome do Campo *</label>
+                <input type="text" id="novoCampoLabel" placeholder="Ex: Senha Wi-Fi / Acessórios / Nota Fiscal" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
               </div>
-              <div id="listaCamposCustomBancada" class="space-y-2 max-h-52 overflow-y-auto custom-scrollbar pr-1"></div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Onde Aparece</label>
+                <select id="novoCampoSecao" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="entrada">📥 Dados da Coleta</option>
+                  <option value="item">📦 Card do Equipamento</option>
+                  <option value="saida">📤 Saída / Entrega</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tipo</label>
+                <select id="novoCampoTipo" onchange="alternarOpcoesNovoCampo()" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="texto">Texto Curto</option>
+                  <option value="textarea">Texto Longo</option>
+                  <option value="numero">Número</option>
+                  <option value="selecao">Lista (Opções)</option>
+                  <option value="data">Data</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Dica / Placeholder</label>
+                <input type="text" id="novoCampoPlaceholder" placeholder="Opcional..." class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <label class="flex items-center gap-1.5 cursor-pointer text-[11px] font-semibold text-slate-700 dark:text-violet-200">
+                  <input type="checkbox" id="novoCampoObrigatorio" class="rounded border-violet-300 text-violet-600">
+                  <span>Obrig.</span>
+                </label>
+                <button type="button" onclick="adicionarCampoPersonalizadoBancada()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all whitespace-nowrap">
+                  + Adicionar
+                </button>
+              </div>
+            </div>
+            <div id="grupoOpcoesNovoCampo" class="hidden pt-1">
+              <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Opções da Lista (separadas por vírgula)</label>
+              <input type="text" id="novoCampoOpcoes" placeholder="Ex: Fonte, Cabo de Rede, Controle Remoto" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
             </div>
           </div>
+
+          <div id="listaConfigCamposBancada" class="grid md:grid-cols-3 gap-3 text-xs"></div>
         </div>
 
         <!-- Importação e Backup de Dados -->
@@ -2512,11 +2109,8 @@
         <button type="button" onclick="aplicarPresetPermissoes('tecnico_ti')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
           🖥️ Técnico TI
         </button>
-        <button type="button" onclick="aplicarPresetPermissoes('vendedor_loja')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
-          🏪 Vendedor Loja
-        </button>
-        <button type="button" onclick="aplicarPresetPermissoes('gerente_loja')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
-          🏬 Gerente Loja
+        <button type="button" onclick="aplicarPresetPermissoes('tecnico_isp')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
+          📡 Técnico ISP
         </button>
         <button type="button" onclick="aplicarPresetPermissoes('tecnico_automacao')" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800 hover:bg-violet-100">
           🤖 Téc. Automação
@@ -2823,33 +2417,42 @@
     </div>
   </div>
 
-  <!-- MODAL: RESUMO DE COLETA / ENTREGA PARA ANEXAR NA O.S. -->
+  <!-- MODAL RESUMO DE COLETA & ENTREGA PARA ANEXAR NA O.S. -->
   <div id="modalResumoOs" class="fixed inset-0 bg-[#0B0816]/65 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
-    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-xl shadow-2xl space-y-4">
-      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-2.5">
-        <h3 id="resumoOsTitulo" class="text-sm font-extrabold text-slate-900 dark:text-white">📋 Resumo para Anexar na O.S.</h3>
+    <div class="bg-white dark:bg-[#141024] rounded-2xl border border-violet-200 dark:border-violet-800 p-6 w-full max-w-2xl shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-violet-100 dark:border-violet-900/60 pb-3">
+        <div>
+          <h3 id="modalResumoOsTitulo" class="text-sm font-extrabold text-slate-900 dark:text-white">📝 Resumo para Anexar na O.S.</h3>
+          <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Copie ou baixe o resumo formatado de Coleta e/ou Entrega para colar diretamente na sua Ordem de Serviço.</p>
+        </div>
         <button type="button" onclick="fecharModalResumoOs()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
       </div>
-      <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Copie o resumo abaixo para colar no seu sistema/ERP de O.S. ou baixe em arquivo <code>.txt</code> para anexar diretamente.</p>
-      <textarea id="resumoOsTexto" readonly rows="12" class="w-full px-3.5 py-3 text-xs font-mono border border-violet-200 dark:border-violet-800 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] text-slate-800 dark:text-violet-100 outline-none"></textarea>
-      <div class="flex flex-wrap gap-2">
-        <button type="button" onclick="copiarResumoOsTexto()" class="flex-1 py-2.5 px-3 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
-          📋 Copiar Resumo
+
+      <div class="flex flex-wrap gap-1.5 bg-violet-50 dark:bg-[#1C1633] p-1 rounded-xl border border-violet-200/70 dark:border-violet-800">
+        <button id="btnTabResumoColeta" type="button" onclick="alternarAbaResumoOs('coleta')" class="flex-1 py-1.5 px-3 text-xs font-bold rounded-lg bg-violet-600 text-white transition-all">📥 Resumo Coleta</button>
+        <button id="btnTabResumoEntrega" type="button" onclick="alternarAbaResumoOs('entrega')" class="flex-1 py-1.5 px-3 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 transition-all">📤 Resumo Entrega</button>
+        <button id="btnTabResumoCompleto" type="button" onclick="alternarAbaResumoOs('completo')" class="flex-1 py-1.5 px-3 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 transition-all">📑 Coleta + Entrega</button>
+      </div>
+
+      <textarea id="resumoOsTexto" readonly rows="13" class="w-full p-3.5 text-xs font-mono leading-relaxed bg-slate-50 dark:bg-[#0B0816] text-slate-800 dark:text-violet-100 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-y"></textarea>
+
+      <div class="flex flex-wrap justify-between items-center gap-2 pt-1">
+        <button type="button" onclick="baixarResumoOsTxt()" class="px-3.5 py-2 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-800 dark:text-violet-200 text-xs font-bold rounded-xl border border-violet-200 dark:border-violet-800 transition-all">
+          💾 Baixar .TXT para Anexo
         </button>
-        <button type="button" onclick="baixarResumoOsTxt()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm">
-          ⬇️ Baixar .TXT
-        </button>
-        <button type="button" onclick="fecharModalResumoOs()" class="py-2.5 px-4 bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl border border-violet-200 dark:border-violet-800">
-          Fechar
-        </button>
+        <div class="flex gap-2">
+          <button type="button" onclick="fecharModalResumoOs()" class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl">Fechar</button>
+          <button type="button" onclick="copiarResumoOs()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all">
+            📋 Copiar para O.S.
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.9.0"></script>
-  <script src="/static/laudos_ops.js?v=2.9.0"></script>
-  <script src="/static/loja_ti.js?v=2.9.0"></script>
-  <script src="/static/automation_cyber.js?v=2.9.0"></script>
-  <script src="/static/auth_security_ui.js?v=2.9.0"></script>
+  <script src="/static/app.js?v=2.7.0"></script>
+  <script src="/static/laudos_ops.js?v=2.7.0"></script>
+  <script src="/static/automation_cyber.js?v=2.7.0"></script>
+  <script src="/static/auth_security_ui.js?v=2.7.0"></script>
 </body>
 </html>

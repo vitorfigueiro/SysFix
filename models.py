@@ -7,6 +7,8 @@ from templates_laudo import (
     CONCLUSOES_LAUDO,
     PRIORIDADES,
     TIPOS_FLUXO,
+    TOMBAMENTO_TIPOS,
+    normalizar_config_campos_bancada,
     validar_imagem_base64,
 )
 
@@ -191,152 +193,62 @@ def _novo_evento(tipo: str, descricao: str, actor: str = "", publico: bool = Tru
     }
 
 
-TIPOS_TOMBAMENTO = ("Tombamento", "Sem tombamento", "Serial")
-
-
-def _normalizar_tipo_tombamento(valor) -> str:
-    val = SecurityValidator.sanitizar_texto(valor)
-    if not val:
-        return "Tombamento"
-    lower = val.lower()
-    if "sem" in lower:
-        return "Sem tombamento"
-    if "serial" in lower or "s/n" in lower:
-        return "Serial"
-    return "Tombamento"
-
-
-def _normalizar_campos_personalizados(
-    raw: Any,
-    secao: str,
-    campos_config: dict | None = None,
-    existentes: dict | None = None,
-) -> dict[str, Any]:
-    resultado = dict(existentes) if isinstance(existentes, dict) else {}
-    if isinstance(raw, dict):
-        for k, v in raw.items():
-            key = SecurityValidator.sanitizar_texto(str(k))[:40]
-            if not key:
-                continue
-            if isinstance(v, bool):
-                resultado[key] = v
-            elif v is None:
-                resultado[key] = ""
-            else:
-                resultado[key] = SecurityValidator.sanitizar_texto(str(v))[:400]
-
-    custom_defs = (campos_config or {}).get("personalizados") if isinstance(campos_config, dict) else None
-    if isinstance(custom_defs, list):
-        for df in custom_defs:
-            if not isinstance(df, dict) or df.get("secao") != secao:
-                continue
-            cid = str(df.get("id") or "")
-            if df.get("obrigatorio"):
-                val = resultado.get(cid)
-                if val is None or val == "" or val is False:
-                    raise ValueError(f"O campo configurado '{df.get('label') or cid}' é obrigatório.")
-    return resultado
-
-
 def _gerar_codigo_acompanhamento() -> str:
     return f"SF-{uuid.uuid4().hex[:8].upper()}"
 
 
-class ColetaModel:
-    @staticmethod
-    def gerar_resumo_coleta(
-        record: dict,
-        tenant_nome: str = "",
-        campos_config: dict | None = None,
-    ) -> str:
-        if not record:
-            return ""
-        rid = record.get("id")
-        cab = f"=== RESUMO DE COLETA / ENTRADA{f' — O.S. #{rid}' if rid else ''} ==="
-        if tenant_nome:
-            cab = f"[{tenant_nome}]\n{cab}"
-        linhas = [
-            cab,
-            f"Equipamento: {record.get('equipamento') or '-'}",
-            f"Identificação ({record.get('tipo_tombamento') or 'Tombamento'}): {record.get('tombamento') or '-'}",
-        ]
-        if record.get("categoria"):
-            linhas.append(f"Categoria: {record['categoria']}")
-        if record.get("serial_mac"):
-            linhas.append(f"Serial / MAC: {record['serial_mac']}")
-        if record.get("origem"):
-            linhas.append(f"Origem / Cliente: {record['origem']}")
-        if record.get("os_coleta"):
-            linhas.append(f"O.S. Coleta: {record['os_coleta']}")
-        linhas.append(f"Técnico Coleta: {record.get('tecnico_coleta') or '-'}")
-        linhas.append(f"Data Coleta: {record.get('data_coleta') or '-'}")
-        if record.get("localizacao"):
-            linhas.append(f"Localização: {record['localizacao']}")
-        if record.get("prioridade"):
-            linhas.append(f"Prioridade: {record['prioridade']}")
-        if record.get("problema"):
-            linhas.append(f"Problema Relatado: {record['problema']}")
+def _normalizar_tombamento(tombamento: str | None, tombamento_tipo: str | None = "") -> tuple[str, str]:
+    tipo_raw = str(tombamento_tipo or "").strip().lower()
+    valor = SecurityValidator.sanitizar_texto(tombamento)
+    if tipo_raw in {"sem_tombamento", "sem", "sem-tombamento", "none", "s/t"}:
+        return "sem_tombamento", "Sem Tombamento"
+    if not tipo_raw and valor.lower() in {"sem tombamento", "s/t", "sem_tombamento"}:
+        return "sem_tombamento", "Sem Tombamento"
+    if tipo_raw == "serial":
+        return "serial", valor[:100]
+    return "tombamento", valor[:100]
 
-        custom_vals = record.get("campos_personalizados") or {}
-        custom_defs = (campos_config or {}).get("personalizados") if isinstance(campos_config, dict) else []
-        labels_map = {d.get("id"): d.get("label") for d in custom_defs if isinstance(d, dict) and d.get("secao") == "entrada"}
-        for k, v in custom_vals.items():
-            if (not custom_defs or k in labels_map) and v not in ("", None, False):
-                lbl = labels_map.get(k, k)
-                val_txt = "Sim" if v is True else str(v)
-                linhas.append(f"{lbl}: {val_txt}")
-        if record.get("codigo_acompanhamento"):
-            linhas.append(f"Código Acompanhamento: {record['codigo_acompanhamento']}")
-        return "\n".join(linhas)
 
-    @staticmethod
-    def gerar_resumo_entrega(
-        record: dict,
-        tenant_nome: str = "",
-        ocultar_custos: bool = False,
-        campos_config: dict | None = None,
-    ) -> str:
-        if not record:
-            return ""
-        rid = record.get("id")
-        cab = f"=== RESUMO DE ENTREGA / SAÍDA{f' — O.S. #{rid}' if rid else ''} ==="
-        if tenant_nome:
-            cab = f"[{tenant_nome}]\n{cab}"
-        linhas = [
-            cab,
-            f"Equipamento: {record.get('equipamento') or '-'}",
-            f"Identificação ({record.get('tipo_tombamento') or 'Tombamento'}): {record.get('tombamento') or '-'}",
-            f"Status: {record.get('status') or 'Pendente'}",
-            f"Técnico Entrega: {record.get('tecnico_entrega') or '-'}",
-            f"Data Entrega: {record.get('data_entrega') or '-'}",
-            f"O.S. Entrega: {record.get('os_entrega') or '-'}",
-            f"Laudado: {record.get('laudado') or 'Não'}",
-        ]
-        garantia = int(record.get("garantia_dias") or 0)
-        if garantia > 0:
-            ate = f" (até {record['garantia_ate']})" if record.get("garantia_ate") else ""
-            linhas.append(f"Garantia: {garantia} dia(s){ate}")
+def _sanitizar_campos_customizados(
+    raw: Any,
+    config_campos: list[dict] | None = None,
+    secoes: tuple[str, ...] | None = None,
+    validar_obrigatorios: bool = False,
+) -> dict[str, Any]:
+    dados = raw if isinstance(raw, dict) else {}
+    resultado: dict[str, Any] = {}
+    for key, val in list(dados.items())[:50]:
+        chave = SecurityValidator.sanitizar_texto(key).replace(" ", "_")[:60]
+        if not chave:
+            continue
+        if isinstance(val, bool):
+            resultado[chave] = val
+        elif isinstance(val, (int, float)):
+            resultado[chave] = val
         else:
-            linhas.append("Garantia: Sem garantia")
+            resultado[chave] = SecurityValidator.sanitizar_texto(val)[:1000]
 
-        if not ocultar_custos and record.get("status_custo"):
-            if record.get("status_custo") == "Com Custo":
-                linhas.append(f"Custo: Com Custo (R$ {float(record.get('valor_custo') or 0.0):.2f})")
-            else:
-                linhas.append(f"Custo: {record['status_custo']}")
+    if validar_obrigatorios and config_campos:
+        cfg_norm = normalizar_config_campos_bancada(config_campos)
+        for campo in cfg_norm:
+            if campo.get("sistema") or not campo.get("ativo", True) or not campo.get("obrigatorio", False):
+                continue
+            if secoes and campo.get("secao") not in secoes:
+                continue
+            cid = campo["id"]
+            val_atual = resultado.get(cid)
+            if val_atual in (None, ""):
+                raise ValueError(f"O campo '{campo['label']}' é obrigatório.")
+    return resultado
 
-        if record.get("resolucao"):
-            linhas.append(f"Serviço / Resolução: {record['resolucao']}")
 
-        custom_vals = record.get("campos_personalizados") or {}
-        custom_defs = (campos_config or {}).get("personalizados") if isinstance(campos_config, dict) else []
-        labels_map = {d.get("id"): d.get("label") for d in custom_defs if isinstance(d, dict) and d.get("secao") == "saida"}
-        for k, v in custom_vals.items():
-            if k in labels_map and v not in ("", None, False):
-                val_txt = "Sim" if v is True else str(v)
-                linhas.append(f"{labels_map[k]}: {val_txt}")
-        return "\n".join(linhas)
+def _mapa_campos_bancada_opcional(config_campos: list[dict] | None) -> dict[str, dict]:
+    if not config_campos:
+        return {}
+    return {item["id"]: item for item in normalizar_config_campos_bancada(config_campos)}
 
+
+class ColetaModel:
     @staticmethod
     def registrar_entrada(
         equipamento,
@@ -356,10 +268,9 @@ class ColetaModel:
         prioridade: str = "",
         garantia_dias: int = 0,
         checklist: list | None = None,
-        tipo_tombamento: str = "Tombamento",
-        campos_personalizados: dict | None = None,
-        campos_config: dict | None = None,
-        tenant_nome: str = "",
+        tombamento_tipo: str = "tombamento",
+        campos_customizados: dict | None = None,
+        config_campos_bancada: list[dict] | None = None,
     ):
         record = ColetaModel._preparar_entrada(
             equipamento,
@@ -379,10 +290,9 @@ class ColetaModel:
             prioridade=prioridade,
             garantia_dias=garantia_dias,
             checklist=checklist,
-            tipo_tombamento=tipo_tombamento,
-            campos_personalizados=campos_personalizados,
-            campos_config=campos_config,
-            tenant_nome=tenant_nome,
+            tombamento_tipo=tombamento_tipo,
+            campos_customizados=campos_customizados,
+            config_campos_bancada=config_campos_bancada,
         )
         ids = _get_active_store().create_records([record], tenant_id=tenant_id)
         return ids[0]
@@ -406,78 +316,84 @@ class ColetaModel:
         prioridade: str = "",
         garantia_dias: int = 0,
         checklist: list | None = None,
-        tipo_tombamento: str = "Tombamento",
-        campos_personalizados: dict | None = None,
-        campos_config: dict | None = None,
-        tenant_nome: str = "",
+        tombamento_tipo: str = "tombamento",
+        campos_customizados: dict | None = None,
+        config_campos_bancada: list[dict] | None = None,
     ) -> dict:
-        if not data_coleta or not str(data_coleta).strip():
+        mapa_cfg = _mapa_campos_bancada_opcional(config_campos_bancada)
+
+        def campo_ativo(cid: str) -> bool:
+            return bool(mapa_cfg.get(cid, {}).get("ativo", True)) if mapa_cfg else True
+
+        def campo_obrig(cid: str, padrao: bool) -> bool:
+            if not mapa_cfg or cid not in mapa_cfg:
+                return padrao
+            c = mapa_cfg[cid]
+            return bool(c.get("ativo", True) and c.get("obrigatorio", padrao))
+
+        def rotulo(cid: str, padrao: str) -> str:
+            return str(mapa_cfg.get(cid, {}).get("label") or padrao) if mapa_cfg else padrao
+
+        if data_coleta and str(data_coleta).strip():
+            data_coleta_iso = SecurityValidator.validar_data(data_coleta)
+        elif campo_obrig("data_coleta", True):
             raise ValueError("O campo 'Data de Coleta' é obrigatório.")
+        else:
+            data_coleta_iso = date.today().strftime("%Y-%m-%d")
+
         agora = _now_iso()
         autor = SecurityValidator.sanitizar_texto(actor)
-        padrao_cfg = (campos_config or {}).get("padrao") if isinstance(campos_config, dict) else {}
-        if not isinstance(padrao_cfg, dict):
-            padrao_cfg = {}
-
-        def _campo_obrigatorio(chave: str, default_req: bool) -> bool:
-            cfg = padrao_cfg.get(chave)
-            if not isinstance(cfg, dict):
-                return default_req
-            if cfg.get("visivel") is False:
-                return False
-            return bool(cfg.get("obrigatorio", default_req))
-
-        loc_val = SecurityValidator.sanitizar_texto(localizacao)
-        if not loc_val and not _campo_obrigatorio("localizacao", True):
-            loc_validada = allowed_locations[0] if allowed_locations else "Bancada TI"
-        else:
-            loc_validada = _validar_localizacao_empresa(
-                localizacao, allowed_locations=allowed_locations
-            )
-
-        tipo_tomb_norm = _normalizar_tipo_tombamento(tipo_tombamento)
-        tomb_limpo = SecurityValidator.sanitizar_texto(tombamento)
-        serial_limpo = SecurityValidator.sanitizar_texto(serial_mac)[:100]
-        if tipo_tomb_norm == "Sem tombamento":
-            tomb_limpo = "Sem tombamento"
-        elif tipo_tomb_norm == "Serial" and not tomb_limpo and serial_limpo:
-            tomb_limpo = serial_limpo
-        elif not tomb_limpo and not _campo_obrigatorio("tombamento", True):
-            tomb_limpo = "Sem tombamento"
-
+        loc_validada = _validar_localizacao_empresa(
+            localizacao, allowed_locations=allowed_locations
+        )
         fluxo_norm = _normalizar_tipo_fluxo(tipo_fluxo)
         prio_norm = _normalizar_prioridade(prioridade)
-        custom_entrada = _normalizar_campos_personalizados(
-            campos_personalizados, "entrada", campos_config=campos_config
+        tomb_tipo_norm, tomb_valor_norm = _normalizar_tombamento(tombamento, tombamento_tipo)
+        if not campo_ativo("tombamento") and not tomb_valor_norm:
+            tomb_tipo_norm, tomb_valor_norm = "sem_tombamento", "Sem Tombamento"
+
+        custom_limpo = _sanitizar_campos_customizados(
+            campos_customizados,
+            config_campos=config_campos_bancada,
+            secoes=("entrada", "item"),
+            validar_obrigatorios=True,
         )
+
         record = {
             "equipamento": SecurityValidator.sanitizar_texto(equipamento),
-            "tipo_tombamento": tipo_tomb_norm,
-            "tombamento": tomb_limpo,
+            "tombamento": tomb_valor_norm,
+            "tombamento_tipo": tomb_tipo_norm,
             "tecnico_coleta": SecurityValidator.sanitizar_texto(tecnico),
-            "data_coleta": SecurityValidator.validar_data(data_coleta),
+            "data_coleta": data_coleta_iso,
             "origem": SecurityValidator.sanitizar_texto(origem),
             "os_coleta": SecurityValidator.sanitizar_texto(os_coleta),
             "localizacao": loc_validada,
             "problema": SecurityValidator.sanitizar_texto(problema),
             "categoria": SecurityValidator.sanitizar_texto(categoria)[:80],
-            "serial_mac": serial_limpo,
+            "serial_mac": SecurityValidator.sanitizar_texto(serial_mac)[:100],
             "tipo_fluxo": fluxo_norm,
             "prioridade": prio_norm,
             "garantia_dias": _normalizar_garantia_dias(garantia_dias),
             "garantia_ate": "",
-            "campos_personalizados": custom_entrada,
+            "campos_customizados": custom_limpo,
         }
-        campos = (
-            ("equipamento", "Equipamento", True),
-            ("tombamento", "Tombamento", _campo_obrigatorio("tombamento", True)),
-            ("tecnico_coleta", "Técnico de Coleta", True),
-            ("origem", "Origem", _campo_obrigatorio("origem", True)),
-            ("os_coleta", "O.S. de Coleta", _campo_obrigatorio("os_coleta", True)),
-            ("problema", "Problema Relatado", _campo_obrigatorio("problema", False)),
+
+        if not record["equipamento"]:
+            raise ValueError("O campo 'Equipamento' é obrigatório.")
+
+        if campo_obrig("tombamento", True) and tomb_tipo_norm != "sem_tombamento" and not record["tombamento"]:
+            lbl_tomb = "Serial" if tomb_tipo_norm == "serial" else "Tombamento"
+            raise ValueError(f"O campo '{lbl_tomb}' é obrigatório.")
+
+        campos_validacao = (
+            ("tecnico_coleta", rotulo("tecnico_coleta", "Técnico de Coleta"), True),
+            ("origem", rotulo("origem", "Origem"), True),
+            ("os_coleta", rotulo("os_coleta", "O.S. de Coleta"), True),
+            ("serial_mac", rotulo("serial_mac", "Serial / MAC / GPON SN"), False),
+            ("problema", rotulo("problema", "Problema Relatado"), False),
         )
-        for field, label, is_req in campos:
-            if is_req and not record[field]:
+        for field, label, padrao_req in campos_validacao:
+            if campo_obrig(field, padrao_req) and not record[field]:
                 raise ValueError(f"O campo '{label}' é obrigatório.")
         record.update(
             {
@@ -495,7 +411,6 @@ class ColetaModel:
                 "laudos": [],
                 "orcamento": None,
                 "assinatura_entrega": None,
-                "resumo_entrega": "",
                 "historico_eventos": [
                     _novo_evento(
                         "entrada",
@@ -510,9 +425,6 @@ class ColetaModel:
                 "atualizado_por": autor,
             }
         )
-        record["resumo_coleta"] = ColetaModel.gerar_resumo_coleta(
-            record, tenant_nome=tenant_nome, campos_config=campos_config
-        )
         return record
 
     @staticmethod
@@ -522,8 +434,7 @@ class ColetaModel:
         actor: str = "",
         allowed_locations: list[str] | None = None,
         default_checklist: list[str] | None = None,
-        campos_config: dict | None = None,
-        tenant_nome: str = "",
+        config_campos_bancada: list[dict] | None = None,
     ) -> list:
         if not lista_coletas or not isinstance(lista_coletas, list):
             raise ValueError("Uma lista válida de registros deve ser fornecida.")
@@ -553,10 +464,9 @@ class ColetaModel:
                         prioridade=item.get("prioridade", ""),
                         garantia_dias=item.get("garantia_dias", 0) or 0,
                         checklist=item_checklist,
-                        tipo_tombamento=item.get("tipo_tombamento", "Tombamento"),
-                        campos_personalizados=item.get("campos_personalizados"),
-                        campos_config=campos_config,
-                        tenant_nome=tenant_nome,
+                        tombamento_tipo=item.get("tombamento_tipo", "tombamento"),
+                        campos_customizados=item.get("campos_customizados"),
+                        config_campos_bancada=config_campos_bancada,
                     )
                 )
             except ValueError as exc:
@@ -577,29 +487,44 @@ class ColetaModel:
         tenant_id: str = "default",
         actor: str = "",
         garantia_dias=None,
-        campos_personalizados: dict | None = None,
-        campos_config: dict | None = None,
-        tenant_nome: str = "",
+        campos_customizados: dict | None = None,
+        config_campos_bancada: list[dict] | None = None,
     ):
         registro_id = _validar_registro_id(
             registro_id, "Nenhum registro selecionado para atualizar saída."
         )
 
+        mapa_cfg = _mapa_campos_bancada_opcional(config_campos_bancada)
+
+        def campo_obrig_saida(cid: str, padrao: bool) -> bool:
+            if not mapa_cfg or cid not in mapa_cfg:
+                return padrao
+            c = mapa_cfg[cid]
+            return bool(c.get("ativo", True) and c.get("obrigatorio", padrao))
+
         tecnico = SecurityValidator.sanitizar_texto(tecnico_entrega)
-        if not tecnico:
+        if campo_obrig_saida("tecnico_entrega", True) and not tecnico:
             raise ValueError("O campo 'Técnico de Entrega/Saída' é obrigatório.")
         ordem_servico = SecurityValidator.sanitizar_texto(os_entrega)
-        if not ordem_servico:
+        if campo_obrig_saida("os_entrega", True) and not ordem_servico:
             raise ValueError("O campo 'O.S. de Entrega/Saída' é obrigatório.")
-        if not data_entrega or not str(data_entrega).strip():
+        if data_entrega and str(data_entrega).strip():
+            data_entrega_iso = SecurityValidator.validar_data(data_entrega)
+        elif campo_obrig_saida("data_entrega", True):
             raise ValueError("O campo 'Data de Entrega/Saída' é obrigatório.")
+        else:
+            data_entrega_iso = date.today().strftime("%Y-%m-%d")
 
-        padrao_cfg = (campos_config or {}).get("padrao") if isinstance(campos_config, dict) else {}
-        if isinstance(padrao_cfg, dict):
-            res_cfg = padrao_cfg.get("resolucao")
-            if isinstance(res_cfg, dict) and res_cfg.get("visivel") is not False and res_cfg.get("obrigatorio"):
-                if not SecurityValidator.sanitizar_texto(resolucao):
-                    raise ValueError("O campo 'Serviço / Resolução' é obrigatório.")
+        resolucao_limpa = SecurityValidator.sanitizar_texto(resolucao)
+        if campo_obrig_saida("resolucao", False) and not resolucao_limpa:
+            raise ValueError("O campo 'Serviço / Resolução' é obrigatório.")
+
+        custom_saida = _sanitizar_campos_customizados(
+            campos_customizados,
+            config_campos=config_campos_bancada,
+            secoes=("saida",),
+            validar_obrigatorios=True,
+        )
 
         status_custo_norm = _normalizar_status_custo(status_custo)
         valor_custo_norm = (
@@ -608,19 +533,11 @@ class ColetaModel:
             else SecurityValidator.validate_cost(valor_custo)
         )
         laudado_norm = _normalizar_laudado(laudado)
-        data_entrega_iso = SecurityValidator.validar_data(data_entrega)
 
         store = _get_active_store()
         existente = store.get(registro_id, tenant_id=tenant_id)
         if not existente:
             return False
-
-        custom_merged = _normalizar_campos_personalizados(
-            campos_personalizados,
-            "saida",
-            campos_config=campos_config,
-            existentes=existente.get("campos_personalizados"),
-        )
 
         dias_garantia = (
             _normalizar_garantia_dias(garantia_dias)
@@ -636,12 +553,15 @@ class ColetaModel:
         eventos.append(
             _novo_evento(
                 "entrega",
-                f"Equipamento entregue (O.S. {ordem_servico}) por {tecnico}."
+                f"Equipamento entregue (O.S. {ordem_servico or '---'}) por {tecnico or 'Equipe'}."
                 + (f" Garantia de {dias_garantia} dias." if dias_garantia > 0 else ""),
                 actor=SecurityValidator.sanitizar_texto(actor) or tecnico,
                 publico=True,
             )
         )
+
+        custom_merged = dict(existente.get("campos_customizados") or {})
+        custom_merged.update(custom_saida)
 
         atualizacoes = {
             "status": "Entregue",
@@ -650,25 +570,17 @@ class ColetaModel:
             "os_entrega": ordem_servico,
             "status_custo": status_custo_norm,
             "valor_custo": valor_custo_norm,
-            "resolucao": SecurityValidator.sanitizar_texto(resolucao),
+            "resolucao": resolucao_limpa,
             "laudado": laudado_norm,
             "garantia_dias": dias_garantia,
             "garantia_ate": garantia_ate,
-            "campos_personalizados": custom_merged,
+            "campos_customizados": custom_merged,
             "historico_eventos": eventos,
             "atualizado_em": _now_iso(),
             "atualizado_por": SecurityValidator.sanitizar_texto(actor),
         }
         if not existente.get("codigo_acompanhamento"):
             atualizacoes["codigo_acompanhamento"] = _gerar_codigo_acompanhamento()
-
-        merged_for_summary = {**existente, **atualizacoes}
-        atualizacoes["resumo_entrega"] = ColetaModel.gerar_resumo_entrega(
-            merged_for_summary,
-            tenant_nome=tenant_nome,
-            ocultar_custos=False,
-            campos_config=campos_config,
-        )
 
         return store.update_record(registro_id, atualizacoes, tenant_id=tenant_id)
 
@@ -691,10 +603,9 @@ class ColetaModel:
         tipo_fluxo: str | None = None,
         prioridade: str | None = None,
         garantia_dias: int | None = None,
-        tipo_tombamento: str | None = None,
-        campos_personalizados: dict | None = None,
-        campos_config: dict | None = None,
-        tenant_nome: str = "",
+        tombamento_tipo: str | None = None,
+        campos_customizados: dict | None = None,
+        config_campos_bancada: list[dict] | None = None,
     ):
         registro_id = _validar_registro_id(
             registro_id, "ID de registro inválido para atualização."
@@ -705,16 +616,9 @@ class ColetaModel:
         if not existente:
             return False
 
-        custom_merged = (
-            _normalizar_campos_personalizados(
-                campos_personalizados,
-                "entrada",
-                campos_config=campos_config,
-                existentes=existente.get("campos_personalizados"),
-            )
-            if campos_personalizados is not None
-            else dict(existente.get("campos_personalizados") or {})
-        )
+        custom_merged = dict(existente.get("campos_customizados") or {})
+        if isinstance(campos_customizados, dict):
+            custom_merged.update(campos_customizados)
 
         atualizacoes = ColetaModel._preparar_entrada(
             equipamento,
@@ -733,10 +637,9 @@ class ColetaModel:
             tipo_fluxo=existente.get("tipo_fluxo", "") if tipo_fluxo is None else tipo_fluxo,
             prioridade=existente.get("prioridade", "") if prioridade is None else prioridade,
             garantia_dias=existente.get("garantia_dias", 0) if garantia_dias is None else garantia_dias,
-            tipo_tombamento=existente.get("tipo_tombamento", "Tombamento") if tipo_tombamento is None else tipo_tombamento,
-            campos_personalizados=custom_merged,
-            campos_config=campos_config,
-            tenant_nome=tenant_nome,
+            tombamento_tipo=existente.get("tombamento_tipo", "tombamento") if tombamento_tipo is None else tombamento_tipo,
+            campos_customizados=custom_merged,
+            config_campos_bancada=config_campos_bancada,
         )
         for campo_fixo in (
             "status",
@@ -753,16 +656,10 @@ class ColetaModel:
             "laudos",
             "orcamento",
             "assinatura_entrega",
-            "resumo_entrega",
             "criado_em",
             "criado_por",
         ):
             atualizacoes.pop(campo_fixo, None)
-        atualizacoes["resumo_coleta"] = ColetaModel.gerar_resumo_coleta(
-            {**existente, **atualizacoes},
-            tenant_nome=tenant_nome,
-            campos_config=campos_config,
-        )
 
         eventos = list(existente.get("historico_eventos") or [])
         nova_loc = atualizacoes.get("localizacao")

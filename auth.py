@@ -53,7 +53,6 @@ ROLES_PERMITIDAS = {"admin", "tecnico"}
 
 DEFAULT_ACTIVE_SECTORS: dict[str, bool] = {
     "ti": True,
-    "provedor": True,
     "estoque": True,
     "automacao": True,
     "ciberseguranca": True,
@@ -64,11 +63,6 @@ PERMISSION_SECTORS = [
         "key": "ti",
         "label": "🖥️ TI & Bancada (O.S.)",
         "descricao": "Atendimento de chamados, entradas, bancada e entregas de TI.",
-    },
-    {
-        "key": "provedor",
-        "label": "📡 Provedor de Internet (ISP / NOC)",
-        "descricao": "Comodato de CPEs (ONUs/Roteadores), preventivas de POPs e assinantes.",
     },
     {
         "key": "estoque",
@@ -145,28 +139,6 @@ PERMISSIONS_CATALOG = [
         "label": "Excluir Registros",
         "descricao": "Apagar permanentemente registros de equipamentos.",
         "default_tecnico": False,
-    },
-    # --- SETOR: PROVEDOR DE INTERNET (ISP / NOC) ---
-    {
-        "key": "ver_provedor",
-        "setor": "provedor",
-        "label": "Acessar Setor Provedor (ISP)",
-        "descricao": "Visualizar campos de MAC/GPON SN, fluxo Comodato e painel CPEs.",
-        "default_tecnico": True,
-    },
-    {
-        "key": "gerenciar_preventivas",
-        "setor": "provedor",
-        "label": "Preventivas de POPs & Torres",
-        "descricao": "Agendar e concluir manutenções preventivas de infraestrutura.",
-        "default_tecnico": True,
-    },
-    {
-        "key": "gerenciar_clientes_pops",
-        "setor": "provedor",
-        "label": "POPs, Torres & Assinantes",
-        "descricao": "Cadastrar e consultar POPs, torres e clientes ISP.",
-        "default_tecnico": True,
     },
     # --- SETOR: ESTOQUE & ALMOXARIFADO ---
     {
@@ -297,9 +269,6 @@ PERMISSIONS_CATALOG = [
 
 LEGACY_PERMISSION_ALIASES: dict[str, tuple[str, ...]] = {
     "gerenciar_operacoes_ti": (
-        "ver_provedor",
-        "gerenciar_preventivas",
-        "gerenciar_clientes_pops",
         "ver_estoque",
         "movimentar_estoque",
     )
@@ -316,7 +285,7 @@ _VALID_PERMISSION_KEYS = set(ALL_PERMISSIONS_TRUE.keys())
 ROLE_PRESETS: dict[str, dict[str, Any]] = {
     "tecnico_ti": {
         "label": "🖥️ Técnico TI (Bancada)",
-        "descricao": "O.S. de bancada, checklist, laudos e comprovante (sem Provedor, Estoque ou Custos).",
+        "descricao": "O.S. de bancada, checklist, laudos e comprovante (sem Estoque ou Custos).",
         "permissoes": {
             "ver_ti": True,
             "ver_dashboard_entradas": True,
@@ -327,25 +296,6 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
             "gerenciar_laudos": True,
             "compartilhar_os": True,
             "exportar_pdf": True,
-        },
-    },
-    "tecnico_isp": {
-        "label": "📡 Técnico Provedor (ISP)",
-        "descricao": "Comodato/CPEs, preventivas de POPs, assinantes, O.S. e baixa de estoque.",
-        "permissoes": {
-            "ver_ti": True,
-            "ver_dashboard_entradas": True,
-            "registrar_entrada": True,
-            "editar_entrada": True,
-            "registrar_saida": True,
-            "ver_provedor": True,
-            "gerenciar_preventivas": True,
-            "gerenciar_clientes_pops": True,
-            "ver_estoque": True,
-            "movimentar_estoque": True,
-            "acessar_criador_laudos": True,
-            "gerenciar_laudos": True,
-            "compartilhar_os": True,
         },
     },
     "estoquista": {
@@ -366,24 +316,22 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
             "ver_custos": True,
             "exportar_pdf": True,
             "ver_ti": True,
-            "ver_provedor": True,
             "ver_estoque": True,
         },
     },
     "operacional_sem_custos": {
         "label": "🔧 Operacional (Sem Custos)",
-        "descricao": "TI, Provedor, Estoque (baixa) e Laudos sem visualização financeira.",
+        "descricao": "TI, Estoque (baixa), Automação e Laudos sem visualização financeira.",
         "permissoes": {
             "ver_ti": True,
             "ver_dashboard_entradas": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,
-            "ver_provedor": True,
-            "gerenciar_preventivas": True,
-            "gerenciar_clientes_pops": True,
             "ver_estoque": True,
             "movimentar_estoque": True,
+            "ver_automacao": True,
+            "gerenciar_automacao": True,
             "acessar_criador_laudos": True,
             "gerenciar_laudos": True,
             "compartilhar_os": True,
@@ -420,7 +368,6 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
             "executar_auditoria_rede": True,
             "ver_automacao": True,
             "ver_ti": True,
-            "ver_provedor": True,
             "exportar_pdf": True,
         },
     },
@@ -589,7 +536,7 @@ def _normalizar_setores_ativos(setores: dict[str, Any] | None) -> dict[str, bool
             if key in setores:
                 base[key] = bool(setores[key])
     if not any(base.values()):
-        raise ValueError("Mantenha pelo menos um setor ativo na empresa (TI, Provedor ou Estoque).")
+        raise ValueError("Mantenha pelo menos um setor ativo na empresa (TI, Estoque, Automação ou Cibersegurança).")
     return base
 
 
@@ -1543,9 +1490,21 @@ class AuthService:
         exigir_mfa_equipe: bool | None = None,
         config_campos_bancada: list[dict] | None = None,
     ) -> dict[str, Any]:
-        if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
+        alterando_empresa_geral = any(
+            v is not None
+            for v in (nome, sla_dias, localizacoes, setores_ativos, exigir_mfa_equipe)
+        )
+        if alterando_empresa_geral:
+            if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
+                raise AuthorizationError(
+                    "Você não tem permissão para alterar configurações da empresa."
+                )
+        elif not (
+            usuario_tem_permissao(admin_ctx, "gerenciar_equipe")
+            or usuario_tem_permissao(admin_ctx, "gerenciar_modelos")
+        ):
             raise AuthorizationError(
-                "Você não tem permissão para alterar configurações da empresa."
+                "Você não tem permissão para configurar os campos da Bancada TI."
             )
 
         updates: dict[str, Any] = {}

@@ -1315,7 +1315,9 @@ def atualizar_usuario_empresa(
 @app.put("/api/empresa/configuracoes")
 def atualizar_configuracoes_empresa(
     payload: TenantSettingsSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_equipe")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_equipe", "gerenciar_modelos")
+    ),
 ):
     try:
         tenant = _get_auth_service().update_tenant_settings(
@@ -2347,7 +2349,7 @@ def excluir_item_estoque_ops(
 
 @app.get("/api/ops/preventivas")
 def listar_preventivas_ops(
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
+    current_user: dict[str, Any] = Depends(require_permission("ver_ti")),
 ):
     return _get_ops_service().listar_preventivas(current_user["tenant_id"])
 
@@ -2355,7 +2357,7 @@ def listar_preventivas_ops(
 @app.post("/api/ops/preventivas")
 def criar_preventiva_ops(
     payload: PreventivaSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
+    current_user: dict[str, Any] = Depends(require_permission("editar_entrada")),
 ):
     try:
         item = _get_ops_service().criar_preventiva(
@@ -2375,7 +2377,7 @@ def criar_preventiva_ops(
 def concluir_preventiva_ops(
     item_id: str,
     payload: PreventivaConcluirSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
+    current_user: dict[str, Any] = Depends(require_permission("editar_entrada")),
 ):
     try:
         data_exec = (
@@ -2405,7 +2407,7 @@ def concluir_preventiva_ops(
 @app.delete("/api/ops/preventivas/{item_id}")
 def excluir_preventiva_ops(
     item_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
+    current_user: dict[str, Any] = Depends(require_permission("editar_entrada")),
 ):
     if not _get_ops_service().excluir_preventiva(current_user["tenant_id"], item_id):
         raise HTTPException(status_code=404, detail="Agenda preventiva não encontrada.")
@@ -2414,7 +2416,7 @@ def excluir_preventiva_ops(
 
 @app.get("/api/ops/clientes")
 def listar_clientes_ops(
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
+    current_user: dict[str, Any] = Depends(require_permission("ver_ti")),
 ):
     return _get_ops_service().listar_clientes(current_user["tenant_id"])
 
@@ -2422,7 +2424,7 @@ def listar_clientes_ops(
 @app.post("/api/ops/clientes")
 def criar_cliente_ops(
     payload: ClientePopSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
+    current_user: dict[str, Any] = Depends(require_permission("editar_entrada")),
 ):
     try:
         item = _get_ops_service().criar_cliente(
@@ -2439,7 +2441,7 @@ def criar_cliente_ops(
 @app.delete("/api/ops/clientes/{item_id}")
 def excluir_cliente_ops(
     item_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
+    current_user: dict[str, Any] = Depends(require_permission("editar_entrada")),
 ):
     if not _get_ops_service().excluir_cliente(current_user["tenant_id"], item_id):
         raise HTTPException(status_code=404, detail="Cliente/POP não encontrado.")

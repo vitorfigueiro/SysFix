@@ -391,7 +391,7 @@ function alternarAuthTab(tab) {
   document.getElementById('formRegister').classList.toggle('hidden', isLogin);
 
   const active = 'py-2 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm transition-all';
-  const inactive = 'py-2 text-xs font-bold rounded-lg text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-white transition-all';
+  const inactive = 'py-2 text-xs font-bold rounded-lg text-slate-700 dark:text-violet-300 hover:text-violet-800 dark:hover:text-white transition-all';
 
   document.getElementById('btnAuthTabLogin').className = isLogin ? active : inactive;
   document.getElementById('btnAuthTabRegister').className = !isLogin ? active : inactive;
@@ -517,14 +517,6 @@ function temAcessoDashboardEntradas() {
   return setorEmpresaAtivo('ti') && temPermissao('ver_dashboard_entradas');
 }
 
-function temAcessoSetorProvedor() {
-  return setorEmpresaAtivo('provedor') && (
-    temPermissao('ver_provedor') ||
-    temPermissao('gerenciar_preventivas') ||
-    temPermissao('gerenciar_clientes_pops')
-  );
-}
-
 function temAcessoSetorEstoque() {
   return setorEmpresaAtivo('estoque') && (
     temPermissao('ver_estoque') ||
@@ -574,11 +566,6 @@ function aplicarPermissoesNaUI() {
   const podeCompartilhar = temPermissao('compartilhar_os');
   const podeModelos = temPermissao('gerenciar_modelos');
 
-  const podeProvedor = temAcessoSetorProvedor();
-  const podeVerProvedorCampos = setorEmpresaAtivo('provedor') && temPermissao('ver_provedor');
-  const podePrev = temPermissao('gerenciar_preventivas');
-  const podeClientes = temPermissao('gerenciar_clientes_pops');
-
   const podeEstoque = temAcessoSetorEstoque();
   const podeGerirEstoque = temPermissao('gerenciar_estoque');
 
@@ -597,7 +584,6 @@ function aplicarPermissoesNaUI() {
   setHidden('navBtnDashboard', !podeDashboard);
   setHidden('navBtnEquipamentos', !podeTI);
   setHidden('navBtnLaudos', !temAcessoSetorLaudos());
-  setHidden('navBtnProvedor', !podeProvedor);
   setHidden('navBtnEstoque', !podeEstoque);
   setHidden('navBtnAutomacao', !podeAutomacao);
   setHidden('navBtnCyber', !podeCyber);
@@ -637,15 +623,9 @@ function aplicarPermissoesNaUI() {
 
   setHidden('blocoConfigEmpresa', !podeEquipe);
   setHidden('blocoEquipeEmpresa', !podeEquipe);
-  setHidden('blocoConfigCamposBancada', !podeEquipe);
+  setHidden('btnAbrirConfigCamposBancada', !podeEquipe && !podeModelos);
   setHidden('blocoModelosLaudoEmpresa', !podeModelos && !podeEquipe);
   setHidden('blocoImportExport', !podeBackup);
-
-  setHidden('blocoEntradaProvedor', !podeVerProvedorCampos);
-  setHidden('fichaBlocoProvedor', !podeVerProvedorCampos);
-  document.querySelectorAll('.bloco-serial-provedor').forEach(el => {
-    el.classList.toggle('hidden', !podeVerProvedorCampos);
-  });
 
   if (typeof aplicarConfigCamposBancadaNaUI === 'function') {
     aplicarConfigCamposBancadaNaUI();
@@ -659,10 +639,6 @@ function aplicarPermissoesNaUI() {
   setHidden('btnAssinarOs', !podeCompartilhar);
   setHidden('btnOrcamentoOs', !podeCompartilhar || !podeCustos);
   setHidden('btnAplicarChecklistPadrao', !podeEditar);
-
-  setHidden('btnProvTabCpes', !podeVerProvedorCampos);
-  setHidden('btnProvTabPreventivas', !podePrev);
-  setHidden('btnProvTabClientes', !podeClientes);
 
   setHidden('formCriarEstoque', !podeGerirEstoque);
   const cardListaEst = document.getElementById('cardListaEstoque');
@@ -736,24 +712,19 @@ function aplicarSessaoNaUI() {
   aplicarPermissoesNaUI();
   renderizarCheckboxesPermissoesNovoMembro();
   if (typeof carregarPresetsTI === 'function') carregarPresetsTI();
-  if (typeof sincronizarDatalistClientes === 'function' && setorEmpresaAtivo('provedor') && temPermissao('gerenciar_clientes_pops')) {
-    sincronizarDatalistClientes();
-  }
   const primeiraVisao = (temPermissao('ver_dashboard') || temAcessoDashboardEntradas())
     ? 'dashboard'
     : (temAcessoSetorTI()
       ? 'equipamentos'
       : (temAcessoSetorLaudos()
         ? 'laudos'
-        : (temAcessoSetorProvedor()
-          ? 'provedor'
-          : (temAcessoSetorEstoque()
-            ? 'estoque'
-            : (temAcessoSetorAutomacao()
-              ? 'automacao'
-              : (temAcessoSetorCyber() ? 'cyber' : 'empresa'))))));
+        : (temAcessoSetorEstoque()
+          ? 'estoque'
+          : (temAcessoSetorAutomacao()
+            ? 'automacao'
+            : (temAcessoSetorCyber() ? 'cyber' : 'empresa')))));
   alternarVisao(primeiraVisao);
-  if (temAcessoSetorTI() || temAcessoSetorProvedor()) {
+  if (temAcessoSetorTI()) {
     carregarLista('nao_finalizados');
   }
 }
@@ -959,7 +930,6 @@ function alternarVisao(visao) {
   toggleView('viewDashboard', visao === 'dashboard');
   toggleView('viewEquipamentos', visao === 'equipamentos');
   toggleView('viewLaudos', visao === 'laudos');
-  toggleView('viewProvedor', visao === 'provedor');
   toggleView('viewEstoque', visao === 'estoque');
   toggleView('viewAutomacao', visao === 'automacao');
   toggleView('viewCyber', visao === 'cyber');
@@ -975,7 +945,6 @@ function alternarVisao(visao) {
   setBtnClass('navBtnDashboard', visao === 'dashboard');
   setBtnClass('navBtnEquipamentos', visao === 'equipamentos');
   setBtnClass('navBtnLaudos', visao === 'laudos');
-  setBtnClass('navBtnProvedor', visao === 'provedor');
   setBtnClass('navBtnEstoque', visao === 'estoque');
   setBtnClass('navBtnAutomacao', visao === 'automacao');
   setBtnClass('navBtnCyber', visao === 'cyber');
@@ -985,8 +954,6 @@ function alternarVisao(visao) {
     carregarDashboard();
   } else if (visao === 'laudos' && typeof carregarPainelLaudos === 'function') {
     carregarPainelLaudos();
-  } else if (visao === 'provedor' && typeof carregarPainelProvedor === 'function') {
-    carregarPainelProvedor();
   } else if (visao === 'estoque' && typeof carregarEstoqueOps === 'function') {
     carregarEstoqueOps();
   } else if (visao === 'automacao' && typeof carregarPainelAutomacao === 'function') {
@@ -1241,9 +1208,9 @@ function criarCardHtmlEntrada(labelTitulo, dados = {}, mostrarRemover = true) {
           </div>
         </div>
       </div>
-      <div data-campo-id="serial_mac" class="bloco-serial-provedor p-2 rounded-lg bg-violet-50/70 dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800/70 ${typeof temPermissao === 'function' && setorEmpresaAtivo('provedor') && temPermissao('ver_provedor') ? '' : 'hidden'}">
-        <label data-campo-label="serial_mac" class="block text-[11px] font-semibold text-violet-700 dark:text-violet-300 mb-1">📡 Serial / MAC / GPON SN (Provedor &amp; Ativos)</label>
-        <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Ex: 48575443A1B2C3D4 ou AA:BB:CC:DD:EE:FF" value="${escapeHtml(dados.serial_mac || '')}">
+      <div data-campo-id="serial_mac" class="bloco-serial-provedor p-2 rounded-lg bg-violet-50/70 dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800/70">
+        <label data-campo-label="serial_mac" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-300 mb-1">MAC / Identificador Extra</label>
+        <input type="text" class="ent_serial w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg focus:ring-2 focus:ring-violet-400/40 focus:border-violet-500 outline-none" placeholder="Opcional (Ex: AA:BB:CC:DD:EE:FF)" value="${escapeHtml(dados.serial_mac || '')}">
       </div>
       <div data-campo-id="problema">
         <label data-campo-label="problema" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Problema Relatado</label>
@@ -1654,6 +1621,7 @@ async function selecionarItem(id) {
     document.getElementById('f_resolucao').innerText = d.resolucao || d.servico_realizado || 'Pendente de atendimento.';
 
     if (typeof renderizarCamposCustomizadosFicha === 'function') renderizarCamposCustomizadosFicha(d);
+    if (typeof atualizarBoxesResumoSelecionado === 'function') atualizarBoxesResumoSelecionado(d.id);
     if (typeof renderizarExtrasFicha === 'function') renderizarExtrasFicha(d);
     if (typeof renderizarChecklistFicha === 'function') renderizarChecklistFicha(d);
     if (typeof renderizarLaudosFicha === 'function') renderizarLaudosFicha(d);
@@ -1753,8 +1721,8 @@ async function salvarEntrada() {
       : (resultado.id ? [resultado.id] : []);
     limparFormularios();
     carregarLista();
-    if (idsCriados.length > 0 && typeof abrirModalResumoOsLote === 'function') {
-      abrirModalResumoOsLote(idsCriados);
+    if (idsCriados.length > 0 && typeof mostrarBoxResumoUltimaEntrada === 'function') {
+      mostrarBoxResumoUltimaEntrada(idsCriados, true);
     }
   } catch (e) {
     console.error('Erro ao salvar entrada:', e);
@@ -1891,8 +1859,8 @@ async function salvarSaida() {
     mostrarToast(`Saída finalizada! Item #${idAlvo} marcado como Entregue.`, 'sucesso');
     limparFormularios();
     carregarLista();
-    if (typeof abrirModalResumoOsRegistro === 'function') {
-      abrirModalResumoOsRegistro(idAlvo, 'entrega');
+    if (typeof mostrarBoxResumoUltimaSaida === 'function') {
+      mostrarBoxResumoUltimaSaida(idAlvo, true);
     }
   } catch (e) {
     console.error('Erro ao registrar saída:', e);
@@ -2016,14 +1984,12 @@ async function carregarTelaEmpresa() {
     document.getElementById('emp_locs').value = (tenant.localizacoes || []).join('\n');
     const setores = tenant.setores_ativos || {
       ti: true,
-      provedor: true,
       estoque: true,
       automacao: true,
       ciberseguranca: true
     };
     if (document.getElementById('setor_ativo_ti')) {
       document.getElementById('setor_ativo_ti').checked = setores.ti !== false;
-      document.getElementById('setor_ativo_provedor').checked = setores.provedor !== false;
       document.getElementById('setor_ativo_estoque').checked = setores.estoque !== false;
       if (document.getElementById('setor_ativo_automacao')) {
         document.getElementById('setor_ativo_automacao').checked = setores.automacao !== false;
@@ -2050,7 +2016,6 @@ function obterSetoresPermissoes() {
   if (permissionSectors.length > 0) return permissionSectors;
   return [
     { key: 'ti', label: '🖥️ TI & Bancada (O.S.)', descricao: 'Atendimento e manutenção de TI.' },
-    { key: 'provedor', label: '📡 Provedor (ISP / NOC)', descricao: 'Comodato CPEs, preventivas e POPs.' },
     { key: 'estoque', label: '📦 Estoque & Almoxarifado', descricao: 'Peças, insumos e baixas.' },
     { key: 'automacao', label: '🤖 Automação, CFTV & IoT', descricao: 'Auditoria de câmeras, infra, IoT e alarmes.' },
     { key: 'ciberseguranca', label: '🛡️ Cibersegurança & Auditoria', descricao: 'Auditoria autorizada, achados e CIS/NIST.' },
@@ -2069,9 +2034,6 @@ function obterCatalogoPermissoes() {
     { key: 'editar_entrada', setor: 'ti', label: 'Editar Entradas e Checklist', descricao: 'Alterar dados e checklist', default_tecnico: true },
     { key: 'registrar_saida', setor: 'ti', label: 'Dar Saída / Entregar', descricao: 'Finalizar O.S.', default_tecnico: true },
     { key: 'excluir_registros', setor: 'ti', label: 'Excluir Registros', descricao: 'Remover itens do banco', default_tecnico: false },
-    { key: 'ver_provedor', setor: 'provedor', label: 'Acessar Setor Provedor (ISP)', descricao: 'MAC/GPON, Comodato e CPEs', default_tecnico: true },
-    { key: 'gerenciar_preventivas', setor: 'provedor', label: 'Preventivas de POPs & Torres', descricao: 'Agenda preventiva de rede', default_tecnico: true },
-    { key: 'gerenciar_clientes_pops', setor: 'provedor', label: 'POPs, Torres & Assinantes', descricao: 'Cadastro de POPs e assinantes', default_tecnico: true },
     { key: 'ver_estoque', setor: 'estoque', label: 'Consultar Estoque', descricao: 'Saldo e almoxarifados', default_tecnico: true },
     { key: 'movimentar_estoque', setor: 'estoque', label: 'Movimentar / Dar Baixa na O.S.', descricao: 'Entradas e saídas vinculadas', default_tecnico: true },
     { key: 'gerenciar_estoque', setor: 'estoque', label: 'Cadastrar e Excluir Itens', descricao: 'Criar SKUs e excluir itens', default_tecnico: false },
@@ -2146,12 +2108,11 @@ function obterMapaPreset(presetKey) {
   }
   const fallback = {
     tecnico_ti: { ver_ti: true, ver_dashboard_entradas: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true },
-    tecnico_isp: { ver_ti: true, ver_dashboard_entradas: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true },
     tecnico_automacao: { ver_automacao: true, gerenciar_automacao: true, ver_estoque: true, movimentar_estoque: true, acessar_criador_laudos: true, gerenciar_laudos: true, exportar_pdf: true },
     analista_cyber: { ver_ciberseguranca: true, gerenciar_auditoria_cyber: true, executar_auditoria_rede: true, ver_automacao: true, ver_dashboard: true, exportar_pdf: true },
     estoquista: { ver_estoque: true, movimentar_estoque: true, gerenciar_estoque: true },
-    financeiro_gestor: { ver_dashboard: true, ver_dashboard_entradas: true, ver_custos: true, exportar_pdf: true, ver_ti: true, ver_provedor: true, ver_estoque: true, ver_automacao: true, ver_ciberseguranca: true },
-    operacional_sem_custos: { ver_ti: true, ver_dashboard_entradas: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_provedor: true, gerenciar_preventivas: true, gerenciar_clientes_pops: true, ver_estoque: true, movimentar_estoque: true, ver_automacao: true, gerenciar_automacao: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
+    financeiro_gestor: { ver_dashboard: true, ver_dashboard_entradas: true, ver_custos: true, exportar_pdf: true, ver_ti: true, ver_estoque: true, ver_automacao: true, ver_ciberseguranca: true },
+    operacional_sem_custos: { ver_ti: true, ver_dashboard_entradas: true, registrar_entrada: true, editar_entrada: true, registrar_saida: true, ver_estoque: true, movimentar_estoque: true, ver_automacao: true, gerenciar_automacao: true, acessar_criador_laudos: true, gerenciar_laudos: true, compartilhar_os: true, exportar_pdf: true }
   };
   return fallback[presetKey] || null;
 }
@@ -2192,7 +2153,6 @@ async function salvarConfiguracoesEmpresa(event) {
     .filter(Boolean);
   const setoresAtivos = {
     ti: Boolean(document.getElementById('setor_ativo_ti')?.checked),
-    provedor: Boolean(document.getElementById('setor_ativo_provedor')?.checked),
     estoque: Boolean(document.getElementById('setor_ativo_estoque')?.checked),
     automacao: Boolean(document.getElementById('setor_ativo_automacao')?.checked),
     ciberseguranca: Boolean(document.getElementById('setor_ativo_ciberseguranca')?.checked),
@@ -2566,12 +2526,12 @@ const BANCADA_FIELDS_FALLBACK = [
   { id: 'origem', label: 'Origem / Cliente', tipo: 'texto', secao: 'entrada', ativo: true, obrigatorio: true, sistema: true, placeholder: '', opcoes: [] },
   { id: 'os_coleta', label: 'O.S. Coleta', tipo: 'texto', secao: 'entrada', ativo: true, obrigatorio: true, sistema: true, placeholder: '', opcoes: [] },
   { id: 'localizacao', label: 'Localização Inicial', tipo: 'selecao', secao: 'entrada', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
-  { id: 'tipo_fluxo', label: 'Fluxo (Provedor/TI)', tipo: 'selecao', secao: 'entrada', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
+  { id: 'tipo_fluxo', label: 'Tipo de Atendimento', tipo: 'selecao', secao: 'entrada', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
   { id: 'prioridade', label: 'Prioridade / SLA', tipo: 'selecao', secao: 'entrada', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
   { id: 'equipamento', label: 'Equipamento', tipo: 'texto', secao: 'item', ativo: true, obrigatorio: true, sistema: true, placeholder: '', opcoes: [] },
-  { id: 'categoria', label: 'Categoria TI/ISP', tipo: 'selecao', secao: 'item', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
+  { id: 'categoria', label: 'Categoria TI', tipo: 'selecao', secao: 'item', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
   { id: 'tombamento', label: 'Tombamento / Serial', tipo: 'tombamento', secao: 'item', ativo: true, obrigatorio: true, sistema: true, placeholder: '', opcoes: [] },
-  { id: 'serial_mac', label: 'Serial / MAC / GPON SN', tipo: 'texto', secao: 'item', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
+  { id: 'serial_mac', label: 'MAC / Identificador Extra', tipo: 'texto', secao: 'item', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
   { id: 'problema', label: 'Problema Relatado', tipo: 'textarea', secao: 'item', ativo: true, obrigatorio: false, sistema: true, placeholder: '', opcoes: [] },
   { id: 'tecnico_entrega', label: 'Técnico de Saída', tipo: 'texto', secao: 'saida', ativo: true, obrigatorio: true, sistema: true, placeholder: '', opcoes: [] },
   { id: 'os_entrega', label: 'O.S. de Saída', tipo: 'texto', secao: 'saida', ativo: true, obrigatorio: true, sistema: true, placeholder: '', opcoes: [] },
@@ -2584,6 +2544,8 @@ const BANCADA_FIELDS_FALLBACK = [
 
 let camposBancadaDraft = [];
 let resumoOsState = { coleta_texto: '', entrega_texto: '', completo_texto: '', aba: 'coleta', refLabel: 'OS' };
+let ultimaEntradaIds = [];
+let ultimaSaidaId = null;
 
 function obterConfigCamposBancada() {
   const cfg = sessaoAtual?.tenant?.config_campos_bancada;
@@ -2682,7 +2644,6 @@ function capturarValoresAtuaisCustomizados(container) {
 function aplicarConfigCamposBancadaNaUI() {
   const cfg = obterConfigCamposBancada();
   const mapa = new Map(cfg.map(c => [c.id, c]));
-  const podeProvedor = typeof setorEmpresaAtivo === 'function' && setorEmpresaAtivo('provedor') && typeof temPermissao === 'function' && temPermissao('ver_provedor');
   const podeCustos = typeof temPermissao === 'function' && temPermissao('ver_custos');
 
   document.querySelectorAll('[data-campo-id]').forEach(wrapper => {
@@ -2690,9 +2651,6 @@ function aplicarConfigCamposBancadaNaUI() {
     const f = mapa.get(fid);
     if (!f) return;
     let deveOcultar = !f.ativo;
-    if (fid === 'tipo_fluxo' || fid === 'serial_mac') {
-      deveOcultar = deveOcultar || !podeProvedor;
-    }
     if (fid === 'status_custo') {
       deveOcultar = deveOcultar || !podeCustos;
     }
@@ -2703,6 +2661,12 @@ function aplicarConfigCamposBancadaNaUI() {
       lbl.textContent = `${f.label}${f.obrigatorio ? ' *' : ''}`;
     }
   });
+
+  const blocoFichaExtra = document.getElementById('fichaBlocoProvedor');
+  if (blocoFichaExtra) {
+    const mostraExtra = Boolean(mapa.get('serial_mac')?.ativo || mapa.get('tipo_fluxo')?.ativo);
+    blocoFichaExtra.classList.toggle('hidden', !mostraExtra);
+  }
 
   const entContainer = document.getElementById('camposCustomEntrada');
   if (entContainer) {
@@ -2922,6 +2886,15 @@ function restaurarCamposBancadaPadrao() {
   mostrarToast('Campos restaurados para o padrão! Clique em "Salvar Campos da Bancada" para gravar.', 'info');
 }
 
+function abrirModalConfigCamposBancada() {
+  carregarEditorCamposBancadaNaUI();
+  document.getElementById('modalConfigCamposBancada')?.classList.remove('hidden');
+}
+
+function fecharModalConfigCamposBancada() {
+  document.getElementById('modalConfigCamposBancada')?.classList.add('hidden');
+}
+
 async function salvarConfigCamposBancada() {
   try {
     const res = await apiFetch('/empresa/configuracoes', {
@@ -2937,9 +2910,116 @@ async function salvarConfigCamposBancada() {
     camposBancadaDraft = obterConfigCamposBancada().map(c => ({ ...c, opcoes: [...(c.opcoes || [])] }));
     renderizarEditorCamposBancada();
     aplicarConfigCamposBancadaNaUI();
+    fecharModalConfigCamposBancada();
     mostrarToast('Campos da Bancada TI atualizados com sucesso!', 'sucesso');
   } catch (e) {
     mostrarToast('Falha de conexão ao salvar os campos da bancada.', 'erro');
+  }
+}
+
+// ---------- Botões Rápidos de Resumo após Entrada e após Saída ----------
+
+function mostrarBoxResumoUltimaEntrada(ids, recemCriada = false) {
+  const lista = Array.isArray(ids) ? ids.filter(Boolean) : [];
+  if (lista.length === 0) return;
+  ultimaEntradaIds = lista;
+  const box = document.getElementById('boxResumoUltimaEntrada');
+  const lbl = document.getElementById('lblResumoUltimaEntrada');
+  if (lbl) {
+    const ref = lista.length === 1 ? `#${lista[0]}` : `(${lista.length} itens)`;
+    lbl.textContent = recemCriada
+      ? `✅ Entrada ${ref} registrada! Gere o resumo para anexar na O.S.:`
+      : `📌 Registro ${ref} selecionado — Resumo da Entrada para O.S.:`;
+  }
+  box?.classList.remove('hidden');
+}
+
+function mostrarBoxResumoUltimaSaida(id, recemFinalizada = false) {
+  if (!id) return;
+  ultimaSaidaId = id;
+  const box = document.getElementById('boxResumoUltimaSaida');
+  const lbl = document.getElementById('lblResumoUltimaSaida');
+  if (lbl) {
+    lbl.textContent = recemFinalizada
+      ? `✅ Saída #${id} finalizada! Gere o resumo da entrega para anexar na O.S.:`
+      : `📌 Registro #${id} selecionado — Resumo da Saída para O.S.:`;
+  }
+  box?.classList.remove('hidden');
+}
+
+function atualizarBoxesResumoSelecionado(id) {
+  if (!id) return;
+  mostrarBoxResumoUltimaEntrada([id], false);
+  mostrarBoxResumoUltimaSaida(id, false);
+}
+
+async function gerarResumoUltimaEntrada() {
+  if (!ultimaEntradaIds || ultimaEntradaIds.length === 0) {
+    if (registroSelecionadoId) {
+      await abrirModalResumoOsRegistro(registroSelecionadoId, 'coleta');
+      return;
+    }
+    mostrarToast('Registre uma entrada ou selecione um item primeiro.', 'erro');
+    return;
+  }
+  if (ultimaEntradaIds.length === 1) {
+    await abrirModalResumoOsRegistro(ultimaEntradaIds[0], 'coleta');
+  } else {
+    await abrirModalResumoOsLote(ultimaEntradaIds);
+  }
+}
+
+async function copiarResumoUltimaEntradaDireto() {
+  const ids = (ultimaEntradaIds && ultimaEntradaIds.length > 0)
+    ? ultimaEntradaIds
+    : (registroSelecionadoId ? [registroSelecionadoId] : []);
+  if (ids.length === 0) {
+    mostrarToast('Registre uma entrada ou selecione um item primeiro.', 'erro');
+    return;
+  }
+  try {
+    const res = await apiFetch('/equipamentos/resumo-lote', {
+      method: 'POST',
+      body: JSON.stringify({ ids })
+    });
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Erro ao gerar resumo.'), 'erro');
+      return;
+    }
+    const data = await res.json();
+    await navigator.clipboard.writeText(data.coleta_texto || '');
+    mostrarToast('Resumo da Entrada copiado! Cole na sua O.S.', 'sucesso');
+  } catch (e) {
+    await gerarResumoUltimaEntrada();
+  }
+}
+
+async function gerarResumoUltimaSaida() {
+  const idAlvo = ultimaSaidaId || registroSelecionadoId;
+  if (!idAlvo) {
+    mostrarToast('Dê saída em um equipamento ou selecione um item primeiro.', 'erro');
+    return;
+  }
+  await abrirModalResumoOsRegistro(idAlvo, 'entrega');
+}
+
+async function copiarResumoUltimaSaidaDireto() {
+  const idAlvo = ultimaSaidaId || registroSelecionadoId;
+  if (!idAlvo) {
+    mostrarToast('Dê saída em um equipamento ou selecione um item primeiro.', 'erro');
+    return;
+  }
+  try {
+    const res = await apiFetch(`/equipamentos/${idAlvo}/resumo`);
+    if (!res.ok) {
+      mostrarToast(await extrairErroResposta(res, 'Erro ao gerar resumo da saída.'), 'erro');
+      return;
+    }
+    const data = await res.json();
+    await navigator.clipboard.writeText(data.entrega_texto || '');
+    mostrarToast('Resumo da Saída copiado! Cole na sua O.S.', 'sucesso');
+  } catch (e) {
+    await gerarResumoUltimaSaida();
   }
 }
 

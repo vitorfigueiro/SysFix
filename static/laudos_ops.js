@@ -791,7 +791,7 @@ async function salvarBrandingEModelos() {
 }
 
 // ==============================================================================
-// SETOR ESTOQUE & SINCRONIZAÇÃO DE CLIENTES DA LOJA DE TI
+// SETOR ESTOQUE & ALMOXARIFADO
 // ==============================================================================
 
 let estoqueItensCache = [];
@@ -851,9 +851,9 @@ function renderizarTabelaEstoqueOps() {
     <tr>
       <td class="p-3">
         <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(i.nome)}</div>
-        <div class="text-[10px] text-slate-400">${escapeHtml(i.codigo || 'Sem SKU')}${i.marca ? ` • ${escapeHtml(i.marca)}` : ''} • ${escapeHtml(i.categoria || '')} • Gar. ${i.garantia_meses ?? 3}m</div>
+        <div class="text-[10px] text-slate-400">${escapeHtml(i.codigo || 'Sem SKU')} • ${escapeHtml(i.categoria || '')} • ${escapeHtml(i.localizacao || '')}</div>
       </td>
-      <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(i.almoxarifado || 'Almoxarifado Central')}${Number(i.preco_venda || 0) > 0 ? `<div class="text-[10px] font-bold text-violet-600 dark:text-violet-300">Venda: R$ ${formatarMoedaBR(i.preco_venda)}</div>` : ''}</td>
+      <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(i.almoxarifado || 'Almoxarifado Central')}</td>
       <td class="p-3">
         <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${i.estoque_baixo ? 'bg-rose-100 text-rose-700' : 'bg-emerald-50 text-emerald-700'}">${i.quantidade} ${escapeHtml(i.unidade || 'un')} ${i.estoque_baixo ? '⚠️' : ''}</span>
       </td>
@@ -903,18 +903,12 @@ async function criarItemEstoque(event) {
   const payload = {
     nome: document.getElementById('est_nome').value.trim(),
     codigo: document.getElementById('est_codigo').value.trim(),
-    codigo_barras: document.getElementById('est_barras')?.value.trim() || '',
-    marca: document.getElementById('est_marca')?.value.trim() || '',
-    fornecedor: document.getElementById('est_fornecedor')?.value.trim() || '',
     categoria: document.getElementById('est_categoria').value,
     almoxarifado: document.getElementById('est_almoxarifado').value,
     unidade: document.getElementById('est_unidade').value,
     quantidade: Number.parseInt(document.getElementById('est_qtd').value, 10) || 0,
     estoque_minimo: Number.parseInt(document.getElementById('est_min').value, 10) || 0,
     custo_unitario: temPermissao('ver_custos') ? (Number.parseFloat(document.getElementById('est_custo').value) || 0) : 0,
-    preco_venda: Number.parseFloat(document.getElementById('est_preco_venda')?.value || '0') || 0,
-    preco_atacado_b2b: Number.parseFloat(document.getElementById('est_preco_b2b')?.value || '0') || 0,
-    garantia_meses: Number.parseInt(document.getElementById('est_garantia_meses')?.value || '3', 10) || 0,
     localizacao: document.getElementById('est_loc').value.trim(),
   };
   const res = await apiFetch('/ops/estoque', { method: 'POST', body: JSON.stringify(payload) });
@@ -967,24 +961,6 @@ async function excluirItemEstoqueOps(itemId) {
   if (res.ok) await carregarEstoqueOps();
 }
 
-async function sincronizarDatalistClientes() {
-  if (!temPermissao('gerenciar_clientes_loja') && !temPermissao('ver_loja') && !temPermissao('operar_pdv_vendas')) return;
-  const res = await apiFetch('/loja/clientes');
-  if (!res.ok) return;
-  const itens = await res.json();
-  const dl = document.getElementById('datalistOrigens');
-  if (dl && Array.isArray(itens)) {
-    const existentes = new Set(Array.from(dl.options).map(o => o.value));
-    itens.forEach(c => {
-      if (c.nome && !existentes.has(c.nome)) {
-        const opt = document.createElement('option');
-        opt.value = c.nome;
-        dl.appendChild(opt);
-      }
-    });
-  }
-}
-
 // ==============================================================================
 // VISÃO DEDICADA: CRIADOR DE LAUDOS, PARECERES & MODELOS (SEPARADO)
 // ==============================================================================
@@ -995,51 +971,34 @@ let criadorLaudoEditando = null;
 let laudoViewTabAtual = 'criar';
 
 function alternarLaudoViewTab(tab) {
-  const podeEmitir = temPermissao('acessar_criador_laudos') || temPermissao('gerenciar_laudos');
-  const podeModelos = temPermissao('gerenciar_modelos') || temPermissao('gerenciar_equipe');
-  const permitidos = { criar: podeEmitir, emitidos: podeEmitir, modelos: podeModelos };
-
-  if (!permitidos[tab]) {
-    tab = podeEmitir ? 'criar' : 'modelos';
-  }
   laudoViewTabAtual = tab;
-
   ['criar', 'emitidos', 'modelos'].forEach(key => {
     const sec = document.getElementById(`laudoTab_${key}`);
-    if (sec) sec.classList.toggle('hidden', key !== tab || !permitidos[key]);
+    if (sec) sec.classList.toggle('hidden', key !== tab);
     const btn = document.getElementById(`btnLaudoTab_${key}`);
-    if (typeof aplicarEstadoAbaBotao === 'function') {
-      aplicarEstadoAbaBotao(
-        btn,
-        key === tab,
-        'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm',
-        'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40'
-      );
-    } else if (btn) {
-      const estavaOculto = btn.classList.contains('hidden');
+    if (btn) {
       btn.className = key === tab
-        ? 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm'
+        ? 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white'
         : 'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200';
-      if (estavaOculto) btn.classList.add('hidden');
     }
   });
-  if (tab === 'modelos' && podeModelos && typeof carregarBrandingEModelosNaUI === 'function') {
+  if (tab === 'modelos' && typeof carregarBrandingEModelosNaUI === 'function') {
     carregarBrandingEModelosNaUI();
   }
 }
 
 async function carregarPainelLaudos() {
-  const podeEmitir = temPermissao('acessar_criador_laudos') || temPermissao('gerenciar_laudos');
+  const podeCriar = temPermissao('acessar_criador_laudos');
+  const podeEmitidos = podeCriar || temPermissao('gerenciar_laudos');
   const podeModelos = temPermissao('gerenciar_modelos') || temPermissao('gerenciar_equipe');
-  const podeDashLaudos = temPermissao('ver_dashboard_laudos');
-
-  document.getElementById('laudosKpiStrip')?.classList.toggle('hidden', !podeDashLaudos);
 
   let tabInicial = laudoViewTabAtual;
-  if ((tabInicial === 'criar' || tabInicial === 'emitidos') && !podeEmitir) {
-    tabInicial = 'modelos';
+  if (tabInicial === 'criar' && !podeCriar) {
+    tabInicial = podeEmitidos ? 'emitidos' : 'modelos';
+  } else if (tabInicial === 'emitidos' && !podeEmitidos) {
+    tabInicial = podeCriar ? 'criar' : 'modelos';
   } else if (tabInicial === 'modelos' && !podeModelos) {
-    tabInicial = 'criar';
+    tabInicial = podeCriar ? 'criar' : 'emitidos';
   }
   alternarLaudoViewTab(tabInicial);
 
@@ -1052,7 +1011,7 @@ async function carregarPainelLaudos() {
   }
   popularSelectModelosCriador();
 
-  if (podeEmitir) {
+  if (podeEmitidos) {
     const res = await apiFetch('/laudos');
     if (res.ok) {
       const data = await res.json();
@@ -1271,8 +1230,7 @@ function renderizarListaLaudosEmitidos() {
   const box = document.getElementById('listaLaudosEmitidos');
   if (!box) return;
   const termo = (document.getElementById('cl_busca_emitidos')?.value || '').trim().toLowerCase();
-  const podeEditar = temPermissao('acessar_criador_laudos') || temPermissao('gerenciar_laudos');
-  const podeExportar = temPermissao('exportar_pdf') || podeEditar;
+  const podeCriar = temPermissao('acessar_criador_laudos');
 
   const filtrados = laudosEmitidosCache.filter(l => {
     if (!termo) return true;
@@ -1299,9 +1257,9 @@ function renderizarListaLaudosEmitidos() {
       </div>
       <p class="text-[11px] text-slate-700 dark:text-violet-100 line-clamp-2 whitespace-pre-line">${escapeHtml(l.parecer)}</p>
       <div class="flex flex-wrap gap-1.5 pt-1">
-        ${podeExportar ? `<button type="button" onclick="abrirLaudoPdfDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">🖨️ Imprimir / PDF</button>` : ''}
-        ${podeEditar ? `<button type="button" onclick="editarLaudoNoCriador(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-violet-800 dark:text-violet-200 text-[11px] font-semibold">✏️ Editar no Criador</button>` : ''}
-        ${podeEditar ? `<button type="button" onclick="excluirLaudoDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold">🗑️ Excluir</button>` : ''}
+        <button type="button" onclick="abrirLaudoPdfDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">🖨️ Imprimir / PDF</button>
+        ${podeCriar ? `<button type="button" onclick="editarLaudoNoCriador(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-violet-800 dark:text-violet-200 text-[11px] font-semibold">✏️ Editar no Criador</button>` : ''}
+        <button type="button" onclick="excluirLaudoDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold">🗑️ Excluir</button>
       </div>
     </div>
   `).join('');

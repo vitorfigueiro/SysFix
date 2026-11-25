@@ -1516,7 +1516,6 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
             sector_keys,
             [
                 "ti",
-                "provedor",
                 "estoque",
                 "automacao",
                 "ciberseguranca",
@@ -1525,19 +1524,20 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
                 "administracao",
             ],
         )
+        self.assertNotIn("provedor", sector_keys)
+        self.assertNotIn("provedor", me["tenant"]["setores_ativos"])
         self.assertIn("estoquista", me["role_presets"])
-        self.assertIn("tecnico_isp", me["role_presets"])
+        self.assertNotIn("tecnico_isp", me["role_presets"])
         self.assertIn("tecnico_ti", me["role_presets"])
         self.assertIn("tecnico_automacao", me["role_presets"])
         self.assertIn("analista_cyber", me["role_presets"])
 
-        # Configurar setores ativos da empresa (desabilita tudo -> deve falhar; desabilita só provedor -> aceita)
+        # Configurar setores ativos da empresa (desabilita tudo -> deve falhar; desabilita só automacao -> aceita)
         with self.assertRaises(HTTPException) as ctx_empty_sec:
             app_module.atualizar_configuracoes_empresa(
                 app_module.TenantSettingsSchema(
                     setores_ativos={
                         "ti": False,
-                        "provedor": False,
                         "estoque": False,
                         "automacao": False,
                         "ciberseguranca": False,
@@ -1549,16 +1549,15 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
 
         upd_sec = app_module.atualizar_configuracoes_empresa(
             app_module.TenantSettingsSchema(
-                setores_ativos={"ti": True, "provedor": False, "estoque": True}
+                setores_ativos={"ti": True, "estoque": True, "automacao": False}
             ),
             current_user=admin,
         )
-        self.assertFalse(upd_sec["tenant"]["setores_ativos"]["provedor"])
+        self.assertFalse(upd_sec["tenant"]["setores_ativos"]["automacao"])
         self.assertTrue(upd_sec["tenant"]["setores_ativos"]["estoque"])
 
         # Alias legado 'gerenciar_operacoes_ti' expande corretamente sem quebrar
         expanded = auth_module.normalizar_permissoes_input({"gerenciar_operacoes_ti": False})
-        self.assertFalse(expanded["ver_provedor"])
         self.assertFalse(expanded["ver_estoque"])
         self.assertFalse(expanded["movimentar_estoque"])
 
@@ -1613,43 +1612,43 @@ class SectorPermissionsAndSeparationTests(unittest.TestCase):
         self.assertEqual(resumo_est["total_unidades"], 7)
         self.assertNotIn("valor_total_estoque", resumo_est)
 
-        for perm_bloqueada in ("ver_ti", "ver_provedor", "gerenciar_preventivas", "gerenciar_laudos", "ver_dashboard", "ver_custos"):
+        for perm_bloqueada in ("ver_ti", "gerenciar_laudos", "ver_dashboard", "ver_custos"):
             with self.assertRaises(HTTPException) as ctx_b:
                 app_module.require_permission(perm_bloqueada)(est_user)
             self.assertEqual(ctx_b.exception.status_code, 403)
 
-        # 2. Técnico ISP: acessa preventivas, clientes/POPs e dá baixa no estoque, mas não cadastra/exclui itens do almoxarifado
-        isp_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
-        isp_perms.update(auth_module.ROLE_PRESETS["tecnico_isp"]["permissoes"])
+        # 2. Técnico TI: acessa Bancada TI e Laudos, mas não cadastra/exclui itens do almoxarifado
+        ti_perms = {k: False for k in auth_module.ALL_PERMISSIONS_TRUE}
+        ti_perms.update(auth_module.ROLE_PRESETS["tecnico_ti"]["permissoes"])
         app_module.criar_usuario_empresa(
             app_module.TeamMemberCreateSchema(
-                nome="Rafael ISP",
-                email="isp@multisetor.com",
+                nome="Rafael TI",
+                email="ti@multisetor.com",
                 senha="secret123",
                 role="tecnico",
-                permissoes=isp_perms,
+                permissoes=ti_perms,
             ),
             current_user=admin,
         )
-        tok_isp = app_module.login_usuario(
-            app_module.LoginSchema(email="isp@multisetor.com", senha="secret123")
+        tok_ti = app_module.login_usuario(
+            app_module.LoginSchema(email="ti@multisetor.com", senha="secret123")
         )["token"]
-        isp_user = app_module.get_current_user(f"Bearer {tok_isp}")
+        ti_user = app_module.get_current_user(f"Bearer {tok_ti}")
 
         prv = app_module.criar_preventiva_ops(
             app_module.PreventivaSchema(
-                titulo="OLT POP Sul",
-                local_pop="POP Sul",
+                titulo="Revisão Nobreak Sala TI",
+                local_pop="Sala Servidores",
                 periodicidade_dias=15,
                 proxima_execucao="2026-12-01",
             ),
-            current_user=app_module.require_permission("gerenciar_preventivas")(isp_user),
+            current_user=app_module.require_permission("editar_entrada")(ti_user),
         )
-        self.assertEqual(prv["item"]["local_pop"], "POP Sul")
+        self.assertEqual(prv["item"]["local_pop"], "Sala Servidores")
 
-        with self.assertRaises(HTTPException) as ctx_isp_est:
-            app_module.require_permission("gerenciar_estoque")(isp_user)
-        self.assertEqual(ctx_isp_est.exception.status_code, 403)
+        with self.assertRaises(HTTPException) as ctx_ti_est:
+            app_module.require_permission("gerenciar_estoque")(ti_user)
+        self.assertEqual(ctx_ti_est.exception.status_code, 403)
 
     def test_criador_de_laudos_separado_e_permissao_tecnico(self):
         reg = app_module.registrar_empresa(

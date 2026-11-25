@@ -1636,7 +1636,7 @@ def importar_arquivo_modelo_laudo(
         except (binascii.Error, ValueError) as exc:
             raise ValueError("Conteúdo do modelo em base64 inválido.") from exc
         if len(raw_bytes) > MAX_TEMPLATE_UPLOAD_BYTES:
-            raise ValueError("O arquivo de modelo excede 512 KB.")
+            raise ValueError("O arquivo de modelo excede 5 MB.")
         modelo = parse_uploaded_laudo_template(payload.filename, raw_bytes)
         return {"sucesso": True, "modelo": modelo}
     except ValueError as ve:

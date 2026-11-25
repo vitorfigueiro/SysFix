@@ -6,13 +6,15 @@ import io
 import json
 import re
 import unicodedata
+import xml.etree.ElementTree as ET
+import zipfile
 from typing import Any
 
 from PIL import Image
 
 from security import SecurityValidator
 
-MAX_TEMPLATE_UPLOAD_BYTES = 512 * 1024  # 512 KB
+MAX_TEMPLATE_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
 MAX_IMAGE_BYTES = 300 * 1024  # 300 KB
 
 CATEGORIAS_EQUIPAMENTO = [
@@ -96,6 +98,35 @@ CHECKLIST_PRESETS: dict[str, dict[str, Any]] = {
 }
 
 DEFAULT_LAUDO_TEMPLATES: list[dict[str, Any]] = [
+    {
+        "id": "tpl_parecer_formal_carta",
+        "nome": "Laudo / Parecer Formal TI (Padrão Carta)",
+        "categoria_sugerida": "TI / Corporativo",
+        "titulo": "LAUDO TÉCNICO — {{data_atual}}",
+        "conclusao_padrao": "Reparado / Aprovado",
+        "diagnostico": (
+            "Equipamento: {{equipamento}} (Tombamento: {{tombamento}} | Serial/MAC: {{serial_mac}})\n"
+            "Problema Relatado: {{problema}}"
+        ),
+        "corpo": (
+            "Laudo {{data_atual}} — O.S. #{{id}}\n"
+            "Espigão do Oeste, {{data_atual}}.\n\n"
+            "Para: {{origem}}\n"
+            "Assunto: Parecer Técnico — {{equipamento}}\n"
+            "Equipamento: {{equipamento}} (Tombamento: {{tombamento}} | Serial/MAC: {{serial_mac}})\n\n"
+            "Problema Relatado:\n"
+            "{{problema}}\n\n"
+            "Problema Identificado:\n"
+            "{{resolucao}}\n\n"
+            "Estamos à disposição para sanar qualquer dúvida.\n\n"
+            "Atenciosamente,\n"
+            "{{tecnico}}\n"
+            "T.I — {{empresa}}"
+        ),
+        "recomendacoes": (
+            "Conclusão e Recomendação: Equipamento avaliado pela equipe de T.I. Recomenda-se seguir as orientações técnicas descritas neste parecer."
+        ),
+    },
     {
         "id": "tpl_inviabilidade",
         "nome": "Laudo de Inviabilidade / Condenação",
@@ -330,22 +361,176 @@ def _strip_html_for_template(raw_html: str) -> tuple[str, str]:
     return title_text, texto
 
 
+def _extract_docx_text(raw_bytes: bytes) -> str:
+    """Extrai texto estruturado de arquivos Microsoft Word (.docx) usando stdlib."""
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw_bytes))
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Arquivo .docx inválido ou corrompido.") from exc
+
+    with zf:
+        if "word/document.xml" not in zf.namelist():
+            raise ValueError("Arquivo .docx não contém o documento principal (word/document.xml).")
+
+        def _parse_word_xml(xml_name: str) -> list[str]:
+            info = zf.getinfo(xml_name)
+            if info.file_size > 15 * 1024 * 1024:
+                raise ValueError("Conteúdo interno do arquivo .docx excede o limite de segurança.")
+            root = ET.fromstring(zf.read(xml_name))
+            linhas_out: list[str] = []
+            for elem in root.iter():
+                tag = elem.tag.rsplit("}", 1)[-1]
+                if tag == "p":
+                    partes: list[str] = []
+                    for node in elem.iter():
+                        ntag = node.tag.rsplit("}", 1)[-1]
+                        if ntag == "t" and node.text:
+                            partes.append(node.text)
+                        elif ntag == "tab":
+                            partes.append(" ")
+                        elif ntag in {"br", "cr"}:
+                            partes.append("\n")
+                    linha = "".join(partes).strip()
+                    if linha:
+                        linhas_out.append(linha)
+            return linhas_out
+
+        blocos: list[str] = []
+        vistos_hf: set[str] = set()
+        for name in sorted(zf.namelist()):
+            if re.match(r"^word/header\d*\.xml$", name):
+                for ln in _parse_word_xml(name):
+                    if ln not in vistos_hf:
+                        vistos_hf.add(ln)
+                        blocos.append(ln)
+
+        blocos.extend(_parse_word_xml("word/document.xml"))
+
+        for name in sorted(zf.namelist()):
+            if re.match(r"^word/footer\d*\.xml$", name):
+                for ln in _parse_word_xml(name):
+                    if ln not in vistos_hf:
+                        vistos_hf.add(ln)
+                        blocos.append(ln)
+
+    texto = re.sub(r"\n{3,}", "\n\n", "\n".join(blocos)).strip()
+    if not texto:
+        raise ValueError("Não foi possível extrair texto do arquivo .docx enviado.")
+    return texto
+
+
+def _extract_odt_text(raw_bytes: bytes) -> str:
+    """Extrai texto estruturado de arquivos LibreOffice / OpenDocument (.odt)."""
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw_bytes))
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Arquivo .odt inválido ou corrompido.") from exc
+
+    with zf:
+        if "content.xml" not in zf.namelist():
+            raise ValueError("Arquivo .odt inválido (content.xml ausente).")
+        info = zf.getinfo("content.xml")
+        if info.file_size > 15 * 1024 * 1024:
+            raise ValueError("Conteúdo interno do arquivo .odt excede o limite de segurança.")
+        root = ET.fromstring(zf.read("content.xml"))
+        linhas: list[str] = []
+        for elem in root.iter():
+            tag = elem.tag.rsplit("}", 1)[-1]
+            if tag in {"p", "h"}:
+                txt = "".join(elem.itertext()).strip()
+                if txt:
+                    linhas.append(txt)
+    texto = re.sub(r"\n{3,}", "\n\n", "\n".join(linhas)).strip()
+    if not texto:
+        raise ValueError("Não foi possível extrair texto do arquivo .odt enviado.")
+    return texto
+
+
+def _extract_rtf_text(raw_bytes: bytes) -> str:
+    """Extrai texto legível de arquivos .rtf simples."""
+    raw = _decode_template_text(raw_bytes)
+    raw = re.sub(r"\\par[d]?\b", "\n", raw)
+    raw = re.sub(r"\\line\b", "\n", raw)
+    raw = re.sub(r"\\tab\b", " ", raw)
+
+    def _hex_sub(match: re.Match[str]) -> str:
+        try:
+            return bytes([int(match.group(1), 16)]).decode("cp1252", errors="ignore")
+        except ValueError:
+            return ""
+
+    raw = re.sub(r"\\'([0-9a-fA-F]{2})", _hex_sub, raw)
+    raw = re.sub(r"\{\\\*[^{}]*\}", "", raw)
+    raw = re.sub(r"\{\\(?:fonttbl|colortbl|stylesheet|info|pict)[^{}]*\}", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"\\[a-zA-Z]+-?\d*\s?", "", raw)
+    raw = raw.replace("{", "").replace("}", "")
+    linhas = [ln.strip() for ln in raw.splitlines()]
+    texto = re.sub(r"\n{3,}", "\n\n", "\n".join(linhas)).strip()
+    if not texto:
+        raise ValueError("Não foi possível extrair texto do arquivo .rtf enviado.")
+    return texto
+
+
+def _extract_pdf_text(raw_bytes: bytes) -> str:
+    """Extrai texto de arquivos .pdf (usando pypdf quando disponível)."""
+    try:
+        from pypdf import PdfReader  # type: ignore
+
+        reader = PdfReader(io.BytesIO(raw_bytes))
+        paginas = []
+        for page in reader.pages[:25]:
+            txt = (page.extract_text() or "").strip()
+            if txt:
+                paginas.append(txt)
+        texto = re.sub(r"\n{3,}", "\n\n", "\n\n".join(paginas)).strip()
+        if not texto:
+            raise ValueError(
+                "O PDF enviado não possui texto selecionável (parece ser imagem/escaneado). Envie em .docx, .txt ou PDF com texto."
+            )
+        return texto
+    except ImportError as exc:
+        raise ValueError(
+            "Leitor de PDF indisponível neste ambiente. Salve o documento como .docx ou .txt e envie novamente."
+        ) from exc
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(f"Não foi possível ler o arquivo PDF enviado: {exc}") from exc
+
+
 def parse_uploaded_laudo_template(filename: str, raw_bytes: bytes) -> dict[str, Any]:
-    """Lê um arquivo pronto de modelo de laudo (.json, .txt, .md, .html) e converte em modelo SysFix."""
+    """Lê um arquivo pronto de modelo de laudo (.docx, .pdf, .odt, .rtf, .json, .txt, .md, .html) e converte em modelo SysFix."""
     if not raw_bytes:
         raise ValueError("O arquivo de modelo enviado está vazio.")
     if len(raw_bytes) > MAX_TEMPLATE_UPLOAD_BYTES:
-        raise ValueError("O modelo excede o limite de 512 KB.")
+        raise ValueError("O modelo excede o limite de 5 MB.")
 
     nome_arq = (filename or "modelo.txt").strip()
     base_name = nome_arq.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
     stem = base_name.rsplit(".", 1)[0] if "." in base_name else base_name
     ext = base_name.rsplit(".", 1)[-1].lower() if "." in base_name else "txt"
 
-    if ext not in {"json", "txt", "md", "html", "htm"}:
-        raise ValueError("Formato inválido. Envie um modelo pronto em .txt, .md, .html ou .json.")
+    if ext == "doc":
+        raise ValueError(
+            "Formato antigo .doc (Word 97-2003) não é suportado diretamente. Salve no Word como .docx ou .pdf e envie novamente."
+        )
 
-    texto = _decode_template_text(raw_bytes).strip()
+    if ext not in {"docx", "odt", "pdf", "rtf", "json", "txt", "md", "html", "htm"}:
+        raise ValueError(
+            "Formato inválido. Envie um modelo em .docx, .pdf, .odt, .rtf, .txt, .md, .html ou .json."
+        )
+
+    if ext == "docx":
+        texto = _extract_docx_text(raw_bytes)
+    elif ext == "odt":
+        texto = _extract_odt_text(raw_bytes)
+    elif ext == "rtf":
+        texto = _extract_rtf_text(raw_bytes)
+    elif ext == "pdf":
+        texto = _extract_pdf_text(raw_bytes)
+    else:
+        texto = _decode_template_text(raw_bytes).strip()
+
     if not texto:
         raise ValueError("O arquivo de modelo não possui conteúdo.")
 
@@ -382,6 +567,8 @@ def parse_uploaded_laudo_template(filename: str, raw_bytes: bytes) -> dict[str, 
         if linhas and linhas[0].lstrip().startswith("#"):
             titulo_extraido = SecurityValidator.sanitizar_texto(linhas[0].lstrip("#").strip())
             linhas = linhas[1:]
+        elif linhas and 3 <= len(linhas[0].strip()) <= 90 and ":" not in linhas[0]:
+            titulo_extraido = SecurityValidator.sanitizar_texto(linhas[0].strip())
         corpo_limpo = re.sub(r"\n{3,}", "\n\n", "\n".join(linhas)).strip()
 
     if not corpo_limpo:

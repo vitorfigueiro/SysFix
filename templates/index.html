@@ -1632,7 +1632,7 @@
                   <select id="cl_modelo_select" class="flex-1 px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none"></select>
                   <button type="button" onclick="aplicarModeloNoCriadorLaudo()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold rounded-lg">Preencher</button>
                 </div>
-                <input type="file" id="cl_upload_modelo" accept=".txt,.md,.html,.htm,.json" onchange="importarModeloNoCriadorLaudo(event)" class="w-full text-[11px]">
+                <input type="file" id="cl_upload_modelo" accept=".docx,.pdf,.odt,.rtf,.txt,.md,.html,.htm,.json" onchange="importarModeloNoCriadorLaudo(event)" class="w-full text-[11px]">
               </div>
             </div>
 
@@ -1791,8 +1791,8 @@
                 </div>
                 <div id="listaModelosEmpresa" class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1"></div>
                 <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-dashed border-violet-300 dark:border-violet-700 space-y-1.5">
-                  <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200">📤 Enviar Modelo Pronto (.txt, .md, .html, .json)</label>
-                  <input type="file" id="inpImportarModeloEmpresa" accept=".txt,.md,.html,.htm,.json" onchange="importarModeloParaEmpresa(event)" class="w-full text-[11px]">
+                  <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200">📤 Enviar Modelo Pronto (.docx, .pdf, .odt, .rtf, .txt, .md, .html, .json)</label>
+                  <input type="file" id="inpImportarModeloEmpresa" accept=".docx,.pdf,.odt,.rtf,.txt,.md,.html,.htm,.json" onchange="importarModeloParaEmpresa(event)" class="w-full text-[11px]">
                 </div>
               </div>
 
@@ -2166,8 +2166,8 @@
           </div>
         </div>
         <div>
-          <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200 mb-1">Ou Enviar Modelo Pronto (.txt, .md, .html, .json)</label>
-          <input type="file" id="ld_upload_modelo" accept=".txt,.md,.html,.htm,.json" onchange="importarModeloDiretoNoLaudo(event)" class="w-full text-[11px]">
+          <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200 mb-1">Ou Enviar Modelo Pronto (.docx, .pdf, .odt, .rtf, .txt, .md, .html, .json)</label>
+          <input type="file" id="ld_upload_modelo" accept=".docx,.pdf,.odt,.rtf,.txt,.md,.html,.htm,.json" onchange="importarModeloDiretoNoLaudo(event)" class="w-full text-[11px]">
         </div>
       </div>
 
@@ -2520,7 +2520,7 @@
   </div>
 
   <script src="/static/app.js?v=2.8.2"></script>
-  <script src="/static/laudos_ops.js?v=2.8.2"></script>
+  <script src="/static/laudos_ops.js?v=2.8.4"></script>
   <script src="/static/automation_cyber.js?v=2.8.3"></script>
   <script src="/static/auth_security_ui.js?v=2.8.2"></script>
 </body>

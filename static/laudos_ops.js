@@ -504,6 +504,11 @@ function aplicarModeloSelecionadoNoLaudo() {
 async function importarModeloDiretoNoLaudo(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    mostrarToast('O arquivo de modelo excede o limite de 5 MB.', 'erro');
+    event.target.value = '';
+    return;
+  }
   try {
     const b64 = await lerArquivoBase64(file);
     const res = await apiFetch('/laudos/importar-modelo', {
@@ -519,6 +524,8 @@ async function importarModeloDiretoNoLaudo(event) {
     mostrarToast(`Modelo "${data.modelo.nome}" carregado no laudo!`, 'sucesso');
   } catch (e) {
     mostrarToast('Falha ao importar arquivo de modelo.', 'erro');
+  } finally {
+    event.target.value = '';
   }
 }
 
@@ -737,6 +744,11 @@ function excluirModeloAtualEmpresa() {
 async function importarModeloParaEmpresa(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    mostrarToast('O arquivo de modelo excede o limite de 5 MB.', 'erro');
+    event.target.value = '';
+    return;
+  }
   try {
     const b64 = await lerArquivoBase64(file);
     const res = await apiFetch('/laudos/importar-modelo', {
@@ -750,10 +762,11 @@ async function importarModeloParaEmpresa(event) {
     const data = await res.json();
     modelosEmpresaDraft.push(data.modelo);
     selecionarModeloEmpresa(modelosEmpresaDraft.length - 1);
-    event.target.value = '';
     mostrarToast(`Modelo "${data.modelo.nome}" adicionado! Clique em Salvar Personalizações.`, 'sucesso');
   } catch (e) {
     mostrarToast('Falha ao importar arquivo de modelo.', 'erro');
+  } finally {
+    event.target.value = '';
   }
 }
 
@@ -1099,6 +1112,11 @@ function aplicarModeloNoCriadorLaudo() {
 async function importarModeloNoCriadorLaudo(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    mostrarToast('O arquivo de modelo excede o limite de 5 MB.', 'erro');
+    event.target.value = '';
+    return;
+  }
   try {
     const b64 = await lerArquivoBase64(file);
     const res = await apiFetch('/laudos/importar-modelo', {
@@ -1114,6 +1132,8 @@ async function importarModeloNoCriadorLaudo(event) {
     mostrarToast(`Modelo "${data.modelo.nome}" carregado!`, 'sucesso');
   } catch (e) {
     mostrarToast('Falha ao importar arquivo de modelo.', 'erro');
+  } finally {
+    event.target.value = '';
   }
 }
 

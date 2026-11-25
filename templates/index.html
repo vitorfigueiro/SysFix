@@ -464,7 +464,12 @@
         <!-- FORMULÁRIO DE ENTRADA -->
         <div id="formEntradaContainer" class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
           <div class="bg-violet-50/70 dark:bg-[#1C1633] p-3.5 rounded-xl border border-violet-200/80 dark:border-violet-900/70 space-y-2.5">
-            <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider block">Dados da Coleta</span>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Dados da Coleta</span>
+              <button id="btnEditarCamposInline" type="button" onclick="abrirModalConfigCamposBancada()" class="px-2 py-0.5 rounded-md bg-white dark:bg-[#141024] hover:bg-violet-100 text-violet-700 dark:text-violet-300 text-[10px] font-bold border border-violet-200 dark:border-violet-700 transition-all hidden">
+                ⚙️ Editar Campos
+              </button>
+            </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div data-campo-id="tecnico_coleta">
@@ -544,7 +549,7 @@
 
                 <div class="grid grid-cols-1 gap-2">
                   <div data-campo-id="categoria">
-                    <label data-campo-label="categoria" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI/ISP</label>
+                    <label data-campo-label="categoria" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI</label>
                     <select class="ent_categoria w-full px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">
                       <option value="">Geral</option>
                       <option value="ONU / ONT (Fibra)">ONU / ONT (Fibra)</option>
@@ -922,7 +927,7 @@
                 <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria</label>
                 <select id="est_categoria" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
                   <option value="Peça / Insumo">Peça / Insumo</option>
-                  <option value="Equipamento Pronto (Comodato)">Equipamento Pronto (Comodato)</option>
+                  <option value="Equipamento Pronto">Equipamento Pronto</option>
                   <option value="Fibra / Conectores">Fibra / Conectores</option>
                   <option value="Hardware TI">Hardware TI</option>
                 </select>
@@ -1291,7 +1296,7 @@
         <div id="cyberTab_checklists" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs hidden">
           <div class="flex flex-wrap justify-between items-center gap-2">
             <div>
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Controles de Maturidade (CIS v8 • NIST CSF 2.0 • OWASP • LGPD • CFTV/ISP)</h3>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Controles de Maturidade (CIS v8 • NIST CSF 2.0 • OWASP • LGPD • CFTV/TI)</h3>
               <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Atualize o status de cada controle para calcular automaticamente a maturidade cibernética da empresa.</p>
             </div>
           </div>

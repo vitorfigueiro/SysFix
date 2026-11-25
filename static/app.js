@@ -624,6 +624,7 @@ function aplicarPermissoesNaUI() {
   setHidden('blocoConfigEmpresa', !podeEquipe);
   setHidden('blocoEquipeEmpresa', !podeEquipe);
   setHidden('btnAbrirConfigCamposBancada', !podeEquipe && !podeModelos);
+  setHidden('btnEditarCamposInline', !podeEquipe && !podeModelos);
   setHidden('blocoModelosLaudoEmpresa', !podeModelos && !podeEquipe);
   setHidden('blocoImportExport', !podeBackup);
 
@@ -1193,7 +1194,7 @@ function criarCardHtmlEntrada(labelTitulo, dados = {}, mostrarRemover = true) {
       </div>
       <div class="grid grid-cols-1 gap-2">
         <div data-campo-id="categoria">
-          <label data-campo-label="categoria" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI/ISP</label>
+          <label data-campo-label="categoria" class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Categoria TI</label>
           <select class="ent_categoria w-full px-2 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#1A1430] outline-none">${optsCat}</select>
         </div>
         <div data-campo-id="tombamento">
@@ -2660,6 +2661,10 @@ function aplicarConfigCamposBancadaNaUI() {
     if (lbl) {
       lbl.textContent = `${f.label}${f.obrigatorio ? ' *' : ''}`;
     }
+    if (f.placeholder) {
+      const inp = wrapper.querySelector('input:not([type="checkbox"]), textarea');
+      if (inp) inp.placeholder = f.placeholder;
+    }
   });
 
   const blocoFichaExtra = document.getElementById('fichaBlocoProvedor');
@@ -2759,12 +2764,20 @@ function renderizarEditorCamposBancada() {
             const badgeOrigem = c.sistema
               ? '<span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Padrão</span>'
               : `<span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">Custom (${escapeHtml(c.tipo)})</span>`;
+            const opcoesInputHtml = (!c.sistema && c.tipo === 'selecao')
+              ? `<input type="text" value="${escapeHtml((c.opcoes || []).join(', '))}" oninput="atualizarOpcoesCampoBancada(${idx}, this.value)" placeholder="Opções separadas por vírgula" class="w-full px-2 py-1 text-[10px] border border-violet-200 dark:border-violet-800 rounded outline-none">`
+              : '';
+            const placeholderInputHtml = (c.tipo === 'texto' || c.tipo === 'textarea' || c.tipo === 'numero')
+              ? `<input type="text" value="${escapeHtml(c.placeholder || '')}" oninput="atualizarPlaceholderCampoBancada(${idx}, this.value)" placeholder="Dica / placeholder (opcional)" class="w-full px-2 py-1 text-[10px] border border-violet-200 dark:border-violet-800 rounded outline-none">`
+              : '';
             return `
               <div class="p-2 rounded-lg bg-white dark:bg-[#141024] border ${c.ativo ? 'border-violet-200 dark:border-violet-800' : 'border-slate-200 dark:border-slate-800 opacity-60'} space-y-1.5">
                 <div class="flex items-center gap-1.5">
                   <input type="text" value="${escapeHtml(c.label)}" oninput="atualizarLabelCampoBancada(${idx}, this.value)" class="flex-1 min-w-0 px-2 py-1 text-[11px] font-semibold border border-violet-200 dark:border-violet-800 rounded outline-none">
                   ${badgeOrigem}
                 </div>
+                ${placeholderInputHtml}
+                ${opcoesInputHtml}
                 <div class="flex flex-wrap items-center justify-between gap-2 text-[10px]">
                   <div class="flex items-center gap-2.5">
                     <label class="flex items-center gap-1 cursor-pointer font-semibold text-slate-700 dark:text-violet-200">
@@ -2793,6 +2806,19 @@ function renderizarEditorCamposBancada() {
 
 function atualizarLabelCampoBancada(idx, valor) {
   if (camposBancadaDraft[idx]) camposBancadaDraft[idx].label = valor;
+}
+
+function atualizarPlaceholderCampoBancada(idx, valor) {
+  if (camposBancadaDraft[idx]) camposBancadaDraft[idx].placeholder = valor;
+}
+
+function atualizarOpcoesCampoBancada(idx, valor) {
+  if (camposBancadaDraft[idx]) {
+    camposBancadaDraft[idx].opcoes = String(valor || '')
+      .split(/,|\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
 }
 
 function alternarAtivoCampoBancada(idx, ativo) {

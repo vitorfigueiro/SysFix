@@ -739,190 +739,217 @@ class PDFReportGenerator:
         laudo: dict,
         tenant: dict | None = None,
     ) -> io.BytesIO:
-        """Gera Laudo ou Parecer Técnico formal em PDF (A4) timbrado."""
+        """Gera Laudo ou Parecer Técnico no formato carta padrão oficial (A4)."""
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
             buffer,
             pagesize=A4,
-            rightMargin=40,
-            leftMargin=40,
-            topMargin=32,
-            bottomMargin=32,
+            rightMargin=52,
+            leftMargin=52,
+            topMargin=44,
+            bottomMargin=44,
         )
         styles = getSampleStyleSheet()
         cor_hex = cls._cor_tema_hex(tenant)
         cor_clara = colors.HexColor("#F5F3FF")
         cor_borda = colors.HexColor("#DDD6FE")
 
-        sec_style = ParagraphStyle(
+        meses_pt = [
+            "",
+            "Janeiro",
+            "Fevereiro",
+            "Março",
+            "Abril",
+            "Maio",
+            "Junho",
+            "Julho",
+            "Agosto",
+            "Setembro",
+            "Outubro",
+            "Novembro",
+            "Dezembro",
+        ]
+
+        data_dt = datetime.now()
+        raw_dt = str(laudo.get("data_laudo") or laudo.get("emitido_em") or "").strip()
+        if raw_dt:
+            chunk = raw_dt.replace("T", " ").split(" ")[0]
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+                try:
+                    data_dt = datetime.strptime(chunk, fmt)
+                    break
+                except ValueError:
+                    continue
+
+        data_hifen = data_dt.strftime("%d-%m-%Y")
+        data_extenso = f"{data_dt.day:02d} de {meses_pt[data_dt.month]} de {data_dt.year}"
+
+        seq_num = "01"
+        raw_num = str(laudo.get("numero") or "").strip()
+        if raw_num:
+            partes_num = raw_num.rsplit("-", 1)
+            if partes_num[-1].isdigit():
+                seq_num = f"{int(partes_num[-1]):02d}"
+
+        titulo_top_style = ParagraphStyle(
+            "CartaTop",
+            parent=styles["Normal"],
+            fontSize=12,
+            leading=16,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor("#0F172A"),
+        )
+        data_style = ParagraphStyle(
+            "CartaData",
+            parent=styles["Normal"],
+            fontSize=10.5,
+            leading=15,
+            fontName="Helvetica",
+            textColor=colors.HexColor("#1E293B"),
+        )
+        campo_style = ParagraphStyle(
+            "CartaCampo",
+            parent=styles["Normal"],
+            fontSize=10.5,
+            leading=15.5,
+            fontName="Helvetica",
+            textColor=colors.HexColor("#0F172A"),
+        )
+        secao_titulo_style = ParagraphStyle(
+            "CartaSecTitulo",
+            parent=styles["Normal"],
+            fontSize=10.5,
+            leading=15,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor("#0F172A"),
+        )
+        assin_style = ParagraphStyle(
+            "CartaAssin",
+            parent=styles["Normal"],
+            fontSize=10,
+            leading=14,
+            fontName="Helvetica",
+            textColor=colors.HexColor("#1E293B"),
+        )
+        sec_chk_style = ParagraphStyle(
             "LaudoSec",
             parent=styles["Normal"],
-            fontSize=9,
-            leading=12,
+            fontSize=8.5,
+            leading=11,
             fontName="Helvetica-Bold",
             textColor=colors.whitesmoke,
         )
-        label_style = ParagraphStyle(
-            "LaudoLabel",
+        body_chk_style = ParagraphStyle(
+            "LaudoBodyChk",
             parent=styles["Normal"],
-            fontSize=8,
-            leading=10,
-            fontName="Helvetica-Bold",
-            textColor=colors.HexColor("#475569"),
-        )
-        body_style = ParagraphStyle(
-            "LaudoBody",
-            parent=styles["Normal"],
-            fontSize=9.2,
-            leading=13.5,
+            fontSize=8.8,
+            leading=12.5,
             textColor=colors.HexColor("#0F172A"),
         )
-        conclusao_style = ParagraphStyle(
-            "LaudoConc",
-            parent=styles["Normal"],
-            fontSize=10.5,
-            leading=14,
-            fontName="Helvetica-Bold",
-            textColor=colors.HexColor(cor_hex),
+
+        elements: list[Any] = []
+
+        # Logo opcional da empresa no topo (se cadastrada)
+        logo_b64 = (tenant or {}).get("logo_base64")
+        img_logo = cls._decode_rl_image(logo_b64, 130, 46) if logo_b64 else None
+        if img_logo is not None:
+            elements.extend([img_logo, Spacer(1, 10)])
+
+        elements.append(Paragraph(f"Laudo {data_hifen} {seq_num}", titulo_top_style))
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph(f"Espigão do Oeste, {data_extenso}.", data_style))
+        elements.append(Spacer(1, 16))
+
+        cliente_para = (
+            str(laudo.get("cliente_para") or "").strip()
+            or str(record.get("origem") or "").strip()
+            or "-"
         )
-        footer_style = ParagraphStyle(
-            "LaudoFooter",
-            parent=styles["Normal"],
-            fontSize=8,
-            leading=10.5,
-            alignment=1,
-            textColor=colors.HexColor("#64748B"),
+        assunto = str(laudo.get("titulo") or "Parecer Técnico").strip()
+        equipamento_txt = (
+            str(laudo.get("equipamento_laudo") or "").strip()
+            or str(record.get("equipamento") or "").strip()
+            or "-"
+        )
+        tomb_raw = str(laudo.get("tombamento_laudo") or "").strip()
+        if not tomb_raw and str(record.get("tombamento_tipo") or "").lower() != "sem_tombamento":
+            tomb_cand = str(record.get("tombamento") or "").strip()
+            if tomb_cand.lower() not in {"", "-", "sem tombamento", "s/t", "0000"}:
+                tomb_raw = tomb_cand
+        if tomb_raw and tomb_raw.lower() not in {"sem tombamento", "s/t", "-"}:
+            equipamento_linha = f"{equipamento_txt} — Tombamento: {tomb_raw}"
+        else:
+            equipamento_linha = equipamento_txt
+
+        elements.append(Paragraph(f"<b>Para:</b> {html.escape(cliente_para)}", campo_style))
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph(f"<b>Assunto:</b> {html.escape(assunto)}", campo_style))
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph(f"<b>Equipamento:</b> {html.escape(equipamento_linha)}", campo_style))
+        elements.append(Spacer(1, 14))
+
+        prob_relatado = (
+            str(laudo.get("diagnostico") or "").strip()
+            or str(record.get("problema") or "").strip()
+            or "-"
+        )
+        prob_identificado = str(laudo.get("parecer") or "").strip() or "-"
+        conc_rec = (
+            str(laudo.get("recomendacoes") or "").strip()
+            or str(laudo.get("conclusao") or "").strip()
+            or "-"
         )
 
-        emissao_str = cls._format_date_br(laudo.get("emitido_em"))
-        if emissao_str == "-":
-            emissao_str = datetime.now().strftime("%d/%m/%Y")
+        elements.append(Paragraph("Problema Relatado:", secao_titulo_style))
+        elements.append(Spacer(1, 3))
+        elements.append(cls._safe_multiline_paragraph(prob_relatado, campo_style))
+        elements.append(Spacer(1, 12))
 
-        elements = cls._construir_cabecalho_timbrado(
-            tenant,
-            titulo_doc=str(laudo.get("titulo") or "LAUDO TÉCNICO"),
-            subtitulo_doc=(
-                f"Laudo Nº {laudo.get('numero') or '-'} • O.S. #{record.get('id', '-')} • Emitido em {emissao_str}"
-            ),
-            cor_hex=cor_hex,
+        elements.append(Paragraph("Problema Identificado:", secao_titulo_style))
+        elements.append(Spacer(1, 3))
+        elements.append(cls._safe_multiline_paragraph(prob_identificado, campo_style))
+        elements.append(Spacer(1, 12))
+
+        elements.append(Paragraph("Conclusão e Recomendação:", secao_titulo_style))
+        elements.append(Spacer(1, 3))
+        elements.append(cls._safe_multiline_paragraph(conc_rec, campo_style))
+        elements.append(Spacer(1, 20))
+
+        elements.append(Paragraph("Estamos à disposição para sanar qualquer dúvida.", campo_style))
+        elements.append(Spacer(1, 12))
+        elements.append(Paragraph("Atenciosamente,", campo_style))
+        elements.append(Spacer(1, 18))
+
+        tec_nome = str(laudo.get("tecnico_responsavel") or "").strip() or "Vitor Figueiró da Silva"
+        tec_cargo = str(laudo.get("registro_profissional") or "").strip() or "T.I"
+        tec_email = (
+            str(laudo.get("email_tecnico") or "").strip()
+            or "vitor.figueiro@centralinformatica.com.br"
         )
+        tec_fone = str((tenant or {}).get("telefone") or "").strip() or "Fone: 69 3481-2185 | Cel.: 69 9926-2829"
+        if not tec_fone.lower().startswith("fone"):
+            tec_fone = f"Fone: {tec_fone}"
 
-        ident_rows = [
-            [Paragraph("1. IDENTIFICAÇÃO DO EQUIPAMENTO E SOLICITANTE", sec_style), "", "", ""],
-            [
-                Paragraph("Equipamento:", label_style),
-                cls._safe_paragraph(record.get("equipamento"), body_style),
-                Paragraph("Categoria:", label_style),
-                cls._safe_paragraph(record.get("categoria") or "Geral", body_style),
-            ],
-            [
-                Paragraph("Tombamento:", label_style),
-                cls._safe_paragraph(record.get("tombamento"), body_style),
-                Paragraph("Serial / MAC:", label_style),
-                cls._safe_paragraph(record.get("serial_mac") or "-", body_style),
-            ],
-            [
-                Paragraph("Cliente / Origem:", label_style),
-                cls._safe_paragraph(record.get("origem"), body_style),
-                Paragraph("O.S. Coleta:", label_style),
-                cls._safe_paragraph(
-                    f"{record.get('os_coleta') or '-'} ({cls._format_date_br(record.get('data_coleta'))})",
-                    body_style,
-                ),
-            ],
-            [
-                Paragraph("Defeito Relatado:", label_style),
-                cls._safe_multiline_paragraph(record.get("problema") or "-", body_style),
-                "",
-                "",
-            ],
-        ]
-        t_ident = Table(ident_rows, colWidths=[90, 167, 85, 173])
-        t_ident.setStyle(
-            TableStyle(
-                [
-                    ("SPAN", (0, 0), (-1, 0)),
-                    ("SPAN", (1, 4), (3, 4)),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
-                    ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 5),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ]
-            )
+        assin_html = (
+            f"<b>{html.escape(tec_nome)}</b><br/>"
+            f"{html.escape(tec_cargo)}<br/>"
+            f"E-mail: {html.escape(tec_email)}<br/>"
+            f"{html.escape(tec_fone)}"
         )
-        elements.extend([t_ident, Spacer(1, 10)])
-
-        blocos_texto = []
-        if laudo.get("diagnostico"):
-            blocos_texto.append([Paragraph("2. DIAGNÓSTICO E SINTOMAS CONSTATADOS", sec_style)])
-            blocos_texto.append([cls._safe_multiline_paragraph(laudo.get("diagnostico"), body_style)])
-        blocos_texto.append([Paragraph("3. ANÁLISE E PARECER TÉCNICO", sec_style)])
-        blocos_texto.append([cls._safe_multiline_paragraph(laudo.get("parecer"), body_style)])
-        if laudo.get("recomendacoes"):
-            blocos_texto.append([Paragraph("4. RECOMENDAÇÕES TÉCNICAS", sec_style)])
-            blocos_texto.append([cls._safe_multiline_paragraph(laudo.get("recomendacoes"), body_style)])
-
-        for idx_row, row in enumerate(blocos_texto):
-            tbl = Table([row], colWidths=[515])
-            is_header = idx_row % 2 == 0
-            tbl.setStyle(
-                TableStyle(
-                    [
-                        (
-                            "BACKGROUND",
-                            (0, 0),
-                            (-1, -1),
-                            colors.HexColor(cor_hex) if is_header else colors.white,
-                        ),
-                        ("BOX", (0, 0), (-1, -1), 0.6, cor_borda),
-                        ("TOPPADDING", (0, 0), (-1, -1), 6),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                    ]
-                )
-            )
-            elements.append(tbl)
-            if not is_header:
-                elements.append(Spacer(1, 8))
-
-        conclusao_box = Table(
-            [
-                [
-                    Paragraph("CONCLUSÃO DO LAUDO:", label_style),
-                    Paragraph(html.escape(str(laudo.get("conclusao") or "Reparado / Aprovado")), conclusao_style),
-                ]
-            ],
-            colWidths=[130, 385],
-        )
-        conclusao_box.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), cor_clara),
-                    ("BOX", (0, 0), (-1, -1), 1.2, colors.HexColor(cor_hex)),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 7),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ]
-            )
-        )
-        elements.extend([conclusao_box, Spacer(1, 10)])
+        elements.append(Paragraph(assin_html, assin_style))
 
         checklist = record.get("checklist") or []
-        if laudo.get("incluir_checklist", True) and checklist:
-            chk_rows = [[Paragraph("CHECKLIST DE ENSAIOS / BANCADA", sec_style), Paragraph("RESULTADO", sec_style)]]
+        if laudo.get("incluir_checklist", False) and checklist:
+            elements.append(Spacer(1, 18))
+            chk_rows = [[Paragraph("CHECKLIST DE BANCADA", sec_chk_style), Paragraph("RESULTADO", sec_chk_style)]]
             for item in checklist:
                 chk_rows.append(
                     [
-                        cls._safe_paragraph(item.get("item"), body_style),
-                        cls._safe_paragraph("Aprovado / OK" if item.get("concluido") else "Não marcado", body_style),
+                        cls._safe_paragraph(item.get("item"), body_chk_style),
+                        cls._safe_paragraph("OK" if item.get("concluido") else "Não marcado", body_chk_style),
                     ]
                 )
-            t_chk = Table(chk_rows, colWidths=[410, 105])
+            t_chk = Table(chk_rows, colWidths=[390, 100])
             t_chk.setStyle(
                 TableStyle(
                     [
@@ -935,40 +962,7 @@ class PDFReportGenerator:
                     ]
                 )
             )
-            elements.extend([t_chk, Spacer(1, 14)])
-
-        tec_resp = str(laudo.get("tecnico_responsavel") or "Técnico Responsável")
-        reg_prof = str(laudo.get("registro_profissional") or "").strip()
-        linha_tec = f"{tec_resp}<br/>{reg_prof}" if reg_prof else tec_resp
-
-        assinatura = record.get("assinatura_entrega")
-        img_ass = (
-            cls._decode_rl_image(assinatura.get("imagem_base64"), 165, 50)
-            if isinstance(assinatura, dict)
-            else None
-        )
-        rec_nome = (
-            f"Ciência do Cliente: {assinatura.get('nome')}"
-            if isinstance(assinatura, dict) and assinatura.get("nome")
-            else "Ciência / Assinatura do Cliente"
-        )
-        t_ass = Table(
-            [
-                [Spacer(1, 24), img_ass if img_ass is not None else Spacer(1, 24)],
-                [
-                    Paragraph(f"______________________________________<br/>{html.escape(linha_tec).replace('&lt;br/&gt;', '<br/>')}", footer_style),
-                    Paragraph(f"______________________________________<br/>{html.escape(rec_nome)}", footer_style),
-                ],
-            ],
-            colWidths=[257, 258],
-        )
-        t_ass.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "BOTTOM")]))
-        elements.extend([Spacer(1, 10), t_ass])
-
-        rodape = (tenant or {}).get("rodape_documento") or (
-            f"Laudo Técnico {laudo.get('numero') or ''} emitido via SysFix."
-        )
-        elements.extend([Spacer(1, 14), Paragraph(html.escape(rodape), footer_style)])
+            elements.append(t_chk)
 
         doc.build(elements)
         buffer.seek(0)

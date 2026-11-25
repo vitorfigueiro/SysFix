@@ -899,6 +899,11 @@ class ColetaModel:
         visivel_cliente = bool(dados_laudo.get("visivel_cliente", True))
         modelo_origem = SecurityValidator.sanitizar_texto(dados_laudo.get("modelo_nome"))[:100]
         modelo_id = SecurityValidator.sanitizar_texto(dados_laudo.get("modelo_id"))[:60]
+        data_laudo = SecurityValidator.sanitizar_texto(dados_laudo.get("data_laudo"))[:20]
+        cliente_para = SecurityValidator.sanitizar_texto(dados_laudo.get("cliente_para"))[:140]
+        equipamento_laudo = SecurityValidator.sanitizar_texto(dados_laudo.get("equipamento_laudo"))[:160]
+        tombamento_laudo = SecurityValidator.sanitizar_texto(dados_laudo.get("tombamento_laudo"))[:80]
+        email_tecnico = SecurityValidator.sanitizar_texto(dados_laudo.get("email_tecnico"))[:120]
 
         agora = _now_iso()
         laudos = list(reg.get("laudos") or [])
@@ -920,6 +925,11 @@ class ColetaModel:
                         "visivel_cliente": visivel_cliente,
                         "modelo_nome": modelo_origem or item.get("modelo_nome", ""),
                         "modelo_id": modelo_id or item.get("modelo_id", ""),
+                        "data_laudo": data_laudo or item.get("data_laudo", ""),
+                        "cliente_para": cliente_para,
+                        "equipamento_laudo": equipamento_laudo,
+                        "tombamento_laudo": tombamento_laudo,
+                        "email_tecnico": email_tecnico or item.get("email_tecnico", ""),
                         "atualizado_em": agora,
                         "atualizado_por": SecurityValidator.sanitizar_texto(actor),
                     }
@@ -945,6 +955,11 @@ class ColetaModel:
                 "visivel_cliente": visivel_cliente,
                 "modelo_nome": modelo_origem,
                 "modelo_id": modelo_id,
+                "data_laudo": data_laudo,
+                "cliente_para": cliente_para,
+                "equipamento_laudo": equipamento_laudo,
+                "tombamento_laudo": tombamento_laudo,
+                "email_tecnico": email_tecnico,
                 "emitido_em": agora,
                 "atualizado_em": agora,
                 "criado_por": SecurityValidator.sanitizar_texto(actor),

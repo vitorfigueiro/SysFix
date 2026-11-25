@@ -442,39 +442,53 @@ function popularSelectModelosLaudo() {
   select.innerHTML = modelos.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.nome)}</option>`).join('');
 }
 
+function _limparTombamentoPadrao(reg) {
+  if (!reg) return '';
+  if (String(reg.tombamento_tipo || '').toLowerCase() === 'sem_tombamento') return '';
+  const t = String(reg.tombamento || '').trim();
+  if (!t || ['-', 'sem tombamento', 's/t', '0000'].includes(t.toLowerCase())) return '';
+  return t;
+}
+
 function abrirModalLaudo(laudoExistente = null) {
   if (!registroSelecionadoId || !registroSelecionadoDados) {
     mostrarToast('Selecione um equipamento primeiro.', 'erro');
     return;
   }
-  popularSelectModelosLaudo();
+  const reg = registroSelecionadoDados;
   laudoEmEdicaoId = laudoExistente ? laudoExistente.id : null;
-  document.getElementById('ld_upload_modelo').value = '';
   document.getElementById('modalLaudoHeader').textContent = laudoExistente
     ? `✏️ Editar Laudo ${laudoExistente.numero}`
-    : `📋 Emitir Laudo — O.S. #${registroSelecionadoId}`;
+    : `📋 Emitir Parecer / Laudo — O.S. #${registroSelecionadoId}`;
 
   if (laudoExistente) {
-    document.getElementById('ld_titulo').value = laudoExistente.titulo || '';
+    document.getElementById('ld_data').value = laudoExistente.data_laudo || converterDataParaInput(laudoExistente.emitido_em) || obterDataHojeISO();
+    document.getElementById('ld_cliente').value = laudoExistente.cliente_para || reg.origem || '';
+    document.getElementById('ld_equipamento').value = laudoExistente.equipamento_laudo || reg.equipamento || '';
+    document.getElementById('ld_tombamento').value = laudoExistente.tombamento_laudo || _limparTombamentoPadrao(reg);
+    document.getElementById('ld_titulo').value = laudoExistente.titulo || 'Parecer Técnico';
     document.getElementById('ld_conclusao').value = laudoExistente.conclusao || 'Reparado / Aprovado';
     document.getElementById('ld_diagnostico').value = laudoExistente.diagnostico || '';
     document.getElementById('ld_parecer').value = laudoExistente.parecer || '';
     document.getElementById('ld_recomendacoes').value = laudoExistente.recomendacoes || '';
-    document.getElementById('ld_tecnico').value = laudoExistente.tecnico_responsavel || '';
-    document.getElementById('ld_reg_prof').value = laudoExistente.registro_profissional || '';
-    document.getElementById('ld_inc_checklist').checked = laudoExistente.incluir_checklist !== false;
+    document.getElementById('ld_tecnico').value = laudoExistente.tecnico_responsavel || 'Vitor Figueiró da Silva';
+    document.getElementById('ld_reg_prof').value = laudoExistente.registro_profissional || 'T.I';
+    document.getElementById('ld_inc_checklist').checked = Boolean(laudoExistente.incluir_checklist);
     document.getElementById('ld_visivel_cliente').checked = laudoExistente.visivel_cliente !== false;
   } else {
-    document.getElementById('ld_titulo').value = 'LAUDO TÉCNICO';
+    document.getElementById('ld_data').value = obterDataHojeISO();
+    document.getElementById('ld_cliente').value = reg.origem || '';
+    document.getElementById('ld_equipamento').value = reg.equipamento || '';
+    document.getElementById('ld_tombamento').value = _limparTombamentoPadrao(reg);
+    document.getElementById('ld_titulo').value = 'Parecer Técnico';
     document.getElementById('ld_conclusao').value = 'Reparado / Aprovado';
-    document.getElementById('ld_diagnostico').value = '';
+    document.getElementById('ld_diagnostico').value = reg.problema || '';
     document.getElementById('ld_parecer').value = '';
     document.getElementById('ld_recomendacoes').value = '';
-    document.getElementById('ld_tecnico').value = sessaoAtual?.user?.nome || '';
-    document.getElementById('ld_reg_prof').value = '';
-    document.getElementById('ld_inc_checklist').checked = true;
+    document.getElementById('ld_tecnico').value = 'Vitor Figueiró da Silva';
+    document.getElementById('ld_reg_prof').value = 'T.I';
+    document.getElementById('ld_inc_checklist').checked = false;
     document.getElementById('ld_visivel_cliente').checked = true;
-    aplicarModeloSelecionadoNoLaudo();
   }
   document.getElementById('modalLaudo').classList.remove('hidden');
 }
@@ -487,7 +501,7 @@ function fecharModalLaudo() {
 function aplicarObjetoModeloNoFormularioLaudo(modelo) {
   if (!modelo || !registroSelecionadoDados) return;
   const reg = registroSelecionadoDados;
-  document.getElementById('ld_titulo').value = substituirVariaveisLaudoNoCliente(modelo.titulo || 'LAUDO TÉCNICO', reg);
+  document.getElementById('ld_titulo').value = substituirVariaveisLaudoNoCliente(modelo.titulo || 'Parecer Técnico', reg);
   document.getElementById('ld_conclusao').value = modelo.conclusao_padrao || 'Reparado / Aprovado';
   document.getElementById('ld_diagnostico').value = substituirVariaveisLaudoNoCliente(modelo.diagnostico || '', reg);
   document.getElementById('ld_parecer').value = substituirVariaveisLaudoNoCliente(modelo.corpo || '', reg);
@@ -495,55 +509,33 @@ function aplicarObjetoModeloNoFormularioLaudo(modelo) {
 }
 
 function aplicarModeloSelecionadoNoLaudo() {
-  const idSel = document.getElementById('ld_modelo_select')?.value;
-  const modelos = sessaoAtual?.tenant?.modelos_laudo || presetsTiCache?.modelos_laudo_padrao || [];
-  const modelo = modelos.find(m => m.id === idSel) || modelos[0];
-  if (modelo) aplicarObjetoModeloNoFormularioLaudo(modelo);
+  return;
 }
 
 async function importarModeloDiretoNoLaudo(event) {
-  const file = event.target.files && event.target.files[0];
-  if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    mostrarToast('O arquivo de modelo excede o limite de 5 MB.', 'erro');
-    event.target.value = '';
-    return;
-  }
-  try {
-    const b64 = await lerArquivoBase64(file);
-    const res = await apiFetch('/laudos/importar-modelo', {
-      method: 'POST',
-      body: JSON.stringify({ filename: file.name, conteudo_base64: b64 })
-    });
-    if (!res.ok) {
-      mostrarToast(await extrairErroResposta(res, 'Erro ao ler modelo pronto.'), 'erro');
-      return;
-    }
-    const data = await res.json();
-    aplicarObjetoModeloNoFormularioLaudo(data.modelo);
-    mostrarToast(`Modelo "${data.modelo.nome}" carregado no laudo!`, 'sucesso');
-  } catch (e) {
-    mostrarToast('Falha ao importar arquivo de modelo.', 'erro');
-  } finally {
-    event.target.value = '';
-  }
+  if (event?.target) event.target.value = '';
 }
 
 async function salvarLaudoModal(abrirPdfDepois = false) {
   if (!registroSelecionadoId) return;
   const payload = {
-    titulo: document.getElementById('ld_titulo').value.trim(),
+    data_laudo: document.getElementById('ld_data')?.value || obterDataHojeISO(),
+    cliente_para: document.getElementById('ld_cliente')?.value.trim() || '',
+    equipamento_laudo: document.getElementById('ld_equipamento')?.value.trim() || '',
+    tombamento_laudo: document.getElementById('ld_tombamento')?.value.trim() || '',
+    titulo: document.getElementById('ld_titulo').value.trim() || 'Parecer Técnico',
     conclusao: document.getElementById('ld_conclusao').value,
     diagnostico: document.getElementById('ld_diagnostico').value.trim(),
     parecer: document.getElementById('ld_parecer').value.trim(),
     recomendacoes: document.getElementById('ld_recomendacoes').value.trim(),
-    tecnico_responsavel: document.getElementById('ld_tecnico').value.trim(),
-    registro_profissional: document.getElementById('ld_reg_prof').value.trim(),
+    tecnico_responsavel: document.getElementById('ld_tecnico').value.trim() || 'Vitor Figueiró da Silva',
+    registro_profissional: document.getElementById('ld_reg_prof').value.trim() || 'T.I',
+    email_tecnico: sessaoAtual?.user?.email || 'vitor.figueiro@centralinformatica.com.br',
     incluir_checklist: document.getElementById('ld_inc_checklist').checked,
     visivel_cliente: document.getElementById('ld_visivel_cliente').checked,
   };
-  if (!payload.titulo || !payload.parecer) {
-    mostrarToast('Preencha o título e o parecer técnico do laudo.', 'erro');
+  if (!payload.parecer) {
+    mostrarToast('Preencha o campo "2. Problema Identificado".', 'erro');
     return;
   }
 
@@ -1075,10 +1067,32 @@ async function carregarPainelLaudos() {
     }
   }
 
+  const dataInp = document.getElementById('cl_data');
+  if (dataInp && !dataInp.value) dataInp.value = obterDataHojeISO();
   const tecInp = document.getElementById('cl_tecnico');
-  if (tecInp && !tecInp.value && sessaoAtual?.user?.nome) {
-    tecInp.value = sessaoAtual.user.nome;
+  if (tecInp && !tecInp.value) tecInp.value = 'Vitor Figueiró da Silva';
+  const regInp = document.getElementById('cl_reg_prof');
+  if (regInp && !regInp.value) regInp.value = 'T.I';
+  if (!criadorLaudoEditando) {
+    preencherDadosOsNoCriadorLaudo();
   }
+  atualizarPreviewCriadorLaudo();
+}
+
+function preencherDadosOsNoCriadorLaudo() {
+  const reg = _obterEquipamentoSelecionadoCriador();
+  if (!reg) {
+    atualizarPreviewCriadorLaudo();
+    return;
+  }
+  const elCli = document.getElementById('cl_cliente');
+  const elEq = document.getElementById('cl_equipamento');
+  const elTomb = document.getElementById('cl_tombamento');
+  const elDiag = document.getElementById('cl_diagnostico');
+  if (elCli) elCli.value = reg.origem || '';
+  if (elEq) elEq.value = reg.equipamento || '';
+  if (elTomb) elTomb.value = _limparTombamentoPadrao(reg);
+  if (elDiag && !elDiag.value.trim() && reg.problema) elDiag.value = reg.problema;
   atualizarPreviewCriadorLaudo();
 }
 
@@ -1275,49 +1289,81 @@ async function baixarLaudoDocxSalvo(registroId, laudoId, numero) {
   }
 }
 
+function _formatarDataExtensoBR(isoStr) {
+  const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const raw = String(isoStr || obterDataHojeISO()).split('T')[0];
+  const p = raw.split('-');
+  if (p.length === 3) {
+    const ano = p[0];
+    const mes = Number(p[1]) || 1;
+    const dia = String(Number(p[2]) || 1).padStart(2, '0');
+    return {
+      hifen: `${dia}-${String(mes).padStart(2, '0')}-${ano}`,
+      extenso: `${dia} de ${meses[mes] || 'Janeiro'} de ${ano}`,
+    };
+  }
+  return { hifen: raw, extenso: raw };
+}
+
 function atualizarPreviewCriadorLaudo() {
   const box = document.getElementById('cl_preview_box');
   if (!box) return;
 
   const tenant = sessaoAtual?.tenant || {};
-  const cor = tenant.cor_documento || '#4C1D95';
   const reg = _obterEquipamentoSelecionadoCriador();
-  const titulo = (document.getElementById('cl_titulo')?.value || 'LAUDO TÉCNICO').trim();
-  const conclusao = document.getElementById('cl_conclusao')?.value || 'Reparado / Aprovado';
-  const diag = (document.getElementById('cl_diagnostico')?.value || '').trim();
-  const parecer = (document.getElementById('cl_parecer')?.value || '').trim();
-  const rec = (document.getElementById('cl_recomendacoes')?.value || '').trim();
-  const tec = (document.getElementById('cl_tecnico')?.value || sessaoAtual?.user?.nome || '-').trim();
-  const regProf = (document.getElementById('cl_reg_prof')?.value || '').trim();
+  const dtInfo = _formatarDataExtensoBR(document.getElementById('cl_data')?.value || obterDataHojeISO());
+  const cliente = (document.getElementById('cl_cliente')?.value || reg?.origem || '-').trim();
+  const assunto = (document.getElementById('cl_titulo')?.value || 'Parecer Técnico').trim();
+  const equip = (document.getElementById('cl_equipamento')?.value || reg?.equipamento || '-').trim();
+  const tomb = (document.getElementById('cl_tombamento')?.value || '').trim();
+  const equipLinha = tomb ? `${equip} — Tombamento: ${tomb}` : equip;
+  const probRel = (document.getElementById('cl_diagnostico')?.value || '').trim();
+  const probId = (document.getElementById('cl_parecer')?.value || '').trim();
+  const concRec = (document.getElementById('cl_recomendacoes')?.value || '').trim();
+  const tec = (document.getElementById('cl_tecnico')?.value || 'Vitor Figueiró da Silva').trim();
+  const cargo = (document.getElementById('cl_reg_prof')?.value || 'T.I').trim();
+  const emailTec = sessaoAtual?.user?.email || 'vitor.figueiro@centralinformatica.com.br';
+  const foneRaw = (tenant.telefone || '').trim();
+  const foneLinha = foneRaw ? (foneRaw.toLowerCase().startsWith('fone') ? foneRaw : `Fone: ${foneRaw}`) : 'Fone: 69 3481-2185 | Cel.: 69 9926-2829';
 
   box.innerHTML = `
-    <div class="rounded-lg p-3 text-white flex items-center justify-between gap-2" style="background:${escapeHtml(cor)}">
+    <div class="space-y-3 text-slate-900 font-sans leading-relaxed">
       <div>
-        <div class="text-[10px] uppercase opacity-80">${escapeHtml(tenant.nome || 'SysFix')}${tenant.cnpj ? ` • ${escapeHtml(tenant.cnpj)}` : ''}</div>
-        <div class="text-sm font-extrabold">${escapeHtml(titulo)}</div>
+        <div class="text-sm font-extrabold">Laudo ${escapeHtml(dtInfo.hifen)} 01</div>
+        <div class="text-xs text-slate-700">Espigão do Oeste, ${escapeHtml(dtInfo.extenso)}.</div>
       </div>
-      <span class="px-2 py-0.5 rounded bg-white/20 text-[10px] font-bold">${criadorLaudoEditando ? escapeHtml(criadorLaudoEditando.numero) : 'PRÉVIA'}</span>
-    </div>
-    <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 grid grid-cols-2 gap-1.5 text-[11px]">
-      <div><b>O.S.:</b> ${reg ? `#${reg.id}` : 'Selecione uma O.S.'}</div>
-      <div><b>Conclusão:</b> ${escapeHtml(conclusao)}</div>
-      <div><b>Equipamento:</b> ${escapeHtml(reg?.equipamento || '-')}</div>
-      <div><b>Tombamento:</b> ${escapeHtml(reg?.tombamento || '-')}</div>
-      <div><b>Cliente / Origem:</b> ${escapeHtml(reg?.origem || '-')}</div>
-      <div><b>Data:</b> ${escapeHtml(formatarDataBR(obterDataHojeISO()))}</div>
-    </div>
-    ${diag ? `<div><div class="text-[10px] font-extrabold uppercase text-slate-500">Diagnóstico</div><p class="whitespace-pre-line text-[11px] mt-0.5">${escapeHtml(diag)}</p></div>` : ''}
-    <div>
-      <div class="text-[10px] font-extrabold uppercase text-slate-500">Parecer Técnico</div>
-      <p class="whitespace-pre-line text-[11px] mt-0.5">${escapeHtml(parecer || 'Comece a redigir o parecer técnico ou selecione um modelo pronto ao lado...')}</p>
-    </div>
-    ${rec ? `<div><div class="text-[10px] font-extrabold uppercase text-slate-500">Recomendações</div><p class="whitespace-pre-line text-[11px] mt-0.5">${escapeHtml(rec)}</p></div>` : ''}
-    <div class="pt-3 border-t border-slate-200 flex justify-between items-end text-[10px] text-slate-500">
-      <div>
-        <div class="font-bold text-slate-800">${escapeHtml(tec)}</div>
-        ${regProf ? `<div>${escapeHtml(regProf)}</div>` : ''}
+
+      <div class="space-y-1 text-xs pt-1">
+        <div><b>Para:</b> ${escapeHtml(cliente)}</div>
+        <div><b>Assunto:</b> ${escapeHtml(assunto)}</div>
+        <div><b>Equipamento:</b> ${escapeHtml(equipLinha)}</div>
       </div>
-      <span>${escapeHtml(tenant.rodape_documento || 'Documento técnico emitido via SysFix')}</span>
+
+      <div class="space-y-2.5 text-xs pt-1">
+        <div>
+          <div class="font-bold">Problema Relatado:</div>
+          <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(probRel || '...')}</div>
+        </div>
+        <div>
+          <div class="font-bold">Problema Identificado:</div>
+          <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(probId || '...')}</div>
+        </div>
+        <div>
+          <div class="font-bold">Conclusão e Recomendação:</div>
+          <div class="whitespace-pre-line text-slate-700 mt-0.5">${escapeHtml(concRec || '...')}</div>
+        </div>
+      </div>
+
+      <div class="pt-3 space-y-2 text-xs text-slate-800">
+        <div>Estamos à disposição para sanar qualquer dúvida.</div>
+        <div>Atenciosamente,</div>
+        <div class="pt-2">
+          <div class="font-bold">${escapeHtml(tec)}</div>
+          <div>${escapeHtml(cargo)}</div>
+          <div>E-mail: ${escapeHtml(emailTec)}</div>
+          <div>${escapeHtml(foneLinha)}</div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -1325,17 +1371,18 @@ function atualizarPreviewCriadorLaudo() {
 function limparCriadorLaudo() {
   criadorLaudoEditando = null;
   document.getElementById('cl_edit_badge')?.classList.add('hidden');
-  document.getElementById('cl_titulo').value = 'LAUDO TÉCNICO';
+  const elData = document.getElementById('cl_data');
+  if (elData) elData.value = obterDataHojeISO();
+  document.getElementById('cl_titulo').value = 'Parecer Técnico';
   document.getElementById('cl_conclusao').value = 'Reparado / Aprovado';
   document.getElementById('cl_diagnostico').value = '';
   document.getElementById('cl_parecer').value = '';
   document.getElementById('cl_recomendacoes').value = '';
-  document.getElementById('cl_tecnico').value = sessaoAtual?.user?.nome || '';
-  document.getElementById('cl_reg_prof').value = '';
-  document.getElementById('cl_inc_checklist').checked = true;
+  document.getElementById('cl_tecnico').value = 'Vitor Figueiró da Silva';
+  document.getElementById('cl_reg_prof').value = 'T.I';
+  document.getElementById('cl_inc_checklist').checked = false;
   document.getElementById('cl_visivel_cliente').checked = true;
-  document.getElementById('cl_upload_modelo').value = '';
-  atualizarPreviewCriadorLaudo();
+  preencherDadosOsNoCriadorLaudo();
 }
 
 async function salvarLaudoCriador(abrirPdfDepois = false) {
@@ -1345,19 +1392,23 @@ async function salvarLaudoCriador(abrirPdfDepois = false) {
     return;
   }
   const payload = {
-    titulo: document.getElementById('cl_titulo').value.trim(),
+    data_laudo: document.getElementById('cl_data')?.value || obterDataHojeISO(),
+    cliente_para: document.getElementById('cl_cliente')?.value.trim() || '',
+    equipamento_laudo: document.getElementById('cl_equipamento')?.value.trim() || '',
+    tombamento_laudo: document.getElementById('cl_tombamento')?.value.trim() || '',
+    titulo: document.getElementById('cl_titulo').value.trim() || 'Parecer Técnico',
     conclusao: document.getElementById('cl_conclusao').value,
     diagnostico: document.getElementById('cl_diagnostico').value.trim(),
     parecer: document.getElementById('cl_parecer').value.trim(),
     recomendacoes: document.getElementById('cl_recomendacoes').value.trim(),
-    tecnico_responsavel: document.getElementById('cl_tecnico').value.trim(),
-    registro_profissional: document.getElementById('cl_reg_prof').value.trim(),
+    tecnico_responsavel: document.getElementById('cl_tecnico').value.trim() || 'Vitor Figueiró da Silva',
+    registro_profissional: document.getElementById('cl_reg_prof').value.trim() || 'T.I',
+    email_tecnico: sessaoAtual?.user?.email || 'vitor.figueiro@centralinformatica.com.br',
     incluir_checklist: document.getElementById('cl_inc_checklist').checked,
     visivel_cliente: document.getElementById('cl_visivel_cliente').checked,
-    modelo_id: criadorModeloIdAtivo || document.getElementById('cl_modelo_select')?.value || '',
   };
-  if (!payload.titulo || !payload.parecer) {
-    mostrarToast('Informe o título e o parecer técnico do laudo.', 'erro');
+  if (!payload.parecer) {
+    mostrarToast('Preencha o campo "2. Problema Identificado".', 'erro');
     return;
   }
 
@@ -1437,14 +1488,22 @@ function editarLaudoNoCriador(registroId, laudoId) {
   document.getElementById('cl_os_busca').value = '';
   popularSelectEquipamentosCriador();
   document.getElementById('cl_os_select').value = String(registroId);
-  document.getElementById('cl_titulo').value = item.titulo || 'LAUDO TÉCNICO';
+  const elData = document.getElementById('cl_data');
+  if (elData) elData.value = item.data_laudo || converterDataParaInput(item.emitido_em) || obterDataHojeISO();
+  const elCli = document.getElementById('cl_cliente');
+  if (elCli) elCli.value = item.cliente_para || item.origem || '';
+  const elEq = document.getElementById('cl_equipamento');
+  if (elEq) elEq.value = item.equipamento_laudo || item.equipamento || '';
+  const elTomb = document.getElementById('cl_tombamento');
+  if (elTomb) elTomb.value = item.tombamento_laudo || _limparTombamentoPadrao(item);
+  document.getElementById('cl_titulo').value = item.titulo || 'Parecer Técnico';
   document.getElementById('cl_conclusao').value = item.conclusao || 'Reparado / Aprovado';
   document.getElementById('cl_diagnostico').value = item.diagnostico || '';
   document.getElementById('cl_parecer').value = item.parecer || '';
   document.getElementById('cl_recomendacoes').value = item.recomendacoes || '';
-  document.getElementById('cl_tecnico').value = item.tecnico_responsavel || '';
-  document.getElementById('cl_reg_prof').value = item.registro_profissional || '';
-  document.getElementById('cl_inc_checklist').checked = item.incluir_checklist !== false;
+  document.getElementById('cl_tecnico').value = item.tecnico_responsavel || 'Vitor Figueiró da Silva';
+  document.getElementById('cl_reg_prof').value = item.registro_profissional || 'T.I';
+  document.getElementById('cl_inc_checklist').checked = Boolean(item.incluir_checklist);
   document.getElementById('cl_visivel_cliente').checked = item.visivel_cliente !== false;
   alternarLaudoViewTab('criar');
   atualizarPreviewCriadorLaudo();

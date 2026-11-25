@@ -1630,37 +1630,43 @@
               </button>
             </div>
 
-            <div class="grid sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70">
-              <div class="space-y-1.5">
-                <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200">1. Filtrar &amp; Selecionar Equipamento / O.S. *</label>
-                <input type="text" id="cl_os_busca" oninput="popularSelectEquipamentosCriador()" placeholder="🔎 Buscar por ID, equipamento, tombamento..." class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
-                <select id="cl_os_select" onchange="atualizarPreviewCriadorLaudo()" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none"></select>
+            <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
+              <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200">Vincular Equipamento / O.S. *</label>
+              <div class="grid sm:grid-cols-2 gap-2">
+                <input type="text" id="cl_os_busca" oninput="popularSelectEquipamentosCriador()" placeholder="🔎 Buscar por ID, equipamento, cliente..." class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg outline-none">
+                <select id="cl_os_select" onchange="preencherDadosOsNoCriadorLaudo()" class="w-full px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none"></select>
               </div>
-              <div class="space-y-1.5">
-                <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200">2. Carregar Modelo ou Arquivo</label>
-                <div class="flex gap-1.5">
-                  <select id="cl_modelo_select" class="flex-1 px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none"></select>
-                  <button type="button" onclick="aplicarModeloNoCriadorLaudo()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold rounded-lg">Preencher</button>
-                </div>
-                <input type="file" id="cl_upload_modelo" accept=".docx,.pdf,.odt,.rtf,.txt,.md,.html,.htm,.json" onchange="importarModeloNoCriadorLaudo(event)" class="w-full text-[11px]">
-              </div>
-            </div>
-
-            <div id="cl_docx_design_banner" class="hidden p-3 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 text-[11px] text-emerald-900 dark:text-emerald-200 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div class="font-extrabold">📄 Design Original Word (.docx) Ativo: <span id="cl_docx_design_nome" class="font-mono"></span></div>
-                <div class="text-[10px] opacity-90">Preencha os 3 campos abaixo (Problema Relatado, Problema Identificado e Conclusão/Recomendação) e clique em <b>Baixar Word (.docx)</b> para gerar o documento idêntico ao seu modelo!</div>
-              </div>
-              <button type="button" onclick="limparDesignDocxCriador()" class="px-2 py-1 rounded-lg bg-white/80 dark:bg-[#141024] border border-emerald-300 dark:border-emerald-700 text-[10px] font-bold">✕ Remover .docx</button>
             </div>
 
             <div class="grid sm:grid-cols-2 gap-3">
               <div>
-                <label class="block text-[11px] font-semibold mb-1">Assunto / Título do Documento *</label>
-                <input type="text" id="cl_titulo" oninput="atualizarPreviewCriadorLaudo()" value="LAUDO TÉCNICO" placeholder="Ex: Parecer Técnico / Laudo de Equipamento" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+                <label class="block text-[11px] font-semibold mb-1">Data do Laudo *</label>
+                <input type="date" id="cl_data" oninput="atualizarPreviewCriadorLaudo()" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold mb-1">Conclusão / Parecer Final *</label>
+                <label class="block text-[11px] font-semibold mb-1">Para (Cliente) *</label>
+                <input type="text" id="cl_cliente" oninput="atualizarPreviewCriadorLaudo()" placeholder="Nome do cliente / setor" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Equipamento *</label>
+                <input type="text" id="cl_equipamento" oninput="atualizarPreviewCriadorLaudo()" placeholder="Ex: Impressora Epson L6270" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Tombamento (se tiver)</label>
+                <input type="text" id="cl_tombamento" oninput="atualizarPreviewCriadorLaudo()" placeholder="Deixe vazio se não tiver" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Assunto</label>
+                <input type="text" id="cl_titulo" oninput="atualizarPreviewCriadorLaudo()" value="Parecer Técnico" placeholder="Ex: Parecer Técnico" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Status da Conclusão</label>
                 <select id="cl_conclusao" onchange="atualizarPreviewCriadorLaudo()" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
                   <option value="Reparado / Aprovado">Reparado / Aprovado</option>
                   <option value="Aguardando Aprovação de Orçamento">Aguardando Aprovação de Orçamento</option>
@@ -1673,35 +1679,35 @@
             </div>
 
             <div>
-              <label class="block text-[11px] font-semibold mb-1">1. Problema Relatado / Diagnóstico Inicial</label>
-              <textarea id="cl_diagnostico" rows="2" oninput="atualizarPreviewCriadorLaudo()" placeholder="Descreva o problema relatado pelo cliente/setor..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+              <label class="block text-[11px] font-semibold mb-1">1. Problema Relatado</label>
+              <textarea id="cl_diagnostico" rows="2" oninput="atualizarPreviewCriadorLaudo()" placeholder="Descreva o problema relatado..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
             </div>
 
             <div>
-              <label class="block text-[11px] font-semibold mb-1">2. Problema Identificado / Parecer Técnico *</label>
-              <textarea id="cl_parecer" rows="5" oninput="atualizarPreviewCriadorLaudo()" placeholder="Descreva o problema identificado na bancada, testes realizados e análise..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+              <label class="block text-[11px] font-semibold mb-1">2. Problema Identificado *</label>
+              <textarea id="cl_parecer" rows="4" oninput="atualizarPreviewCriadorLaudo()" placeholder="Descreva o problema identificado na análise..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
             </div>
 
             <div>
               <label class="block text-[11px] font-semibold mb-1">3. Conclusão e Recomendação</label>
-              <textarea id="cl_recomendacoes" rows="2" oninput="atualizarPreviewCriadorLaudo()" placeholder="Descreva a conclusão técnica e recomendação final..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+              <textarea id="cl_recomendacoes" rows="3" oninput="atualizarPreviewCriadorLaudo()" placeholder="Descreva a conclusão e recomendação..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
             </div>
 
             <div class="grid sm:grid-cols-2 gap-3">
               <div>
-                <label class="block text-[11px] font-semibold mb-1">Técnico Responsável</label>
-                <input type="text" id="cl_tecnico" oninput="atualizarPreviewCriadorLaudo()" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+                <label class="block text-[11px] font-semibold mb-1">Assinatura (Técnico)</label>
+                <input type="text" id="cl_tecnico" oninput="atualizarPreviewCriadorLaudo()" value="Vitor Figueiró da Silva" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold mb-1">Registro Profissional (CRT / CREA / Cargo)</label>
-                <input type="text" id="cl_reg_prof" oninput="atualizarPreviewCriadorLaudo()" placeholder="Ex: CRT-BR / Analista de Redes" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+                <label class="block text-[11px] font-semibold mb-1">Setor / Cargo</label>
+                <input type="text" id="cl_reg_prof" oninput="atualizarPreviewCriadorLaudo()" value="T.I" placeholder="T.I" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
             </div>
 
             <div class="flex flex-wrap gap-4 pt-1">
               <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="cl_inc_checklist" checked onchange="atualizarPreviewCriadorLaudo()" class="rounded border-violet-300 text-violet-600">
-                <span>Incluir checklist técnico no PDF</span>
+                <input type="checkbox" id="cl_inc_checklist" onchange="atualizarPreviewCriadorLaudo()" class="rounded border-violet-300 text-violet-600">
+                <span>Incluir checklist no PDF</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" id="cl_visivel_cliente" checked class="rounded border-violet-300 text-violet-600">
@@ -1715,9 +1721,6 @@
               </button>
               <button type="button" onclick="salvarLaudoCriador(true)" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm">
                 🖨️ Salvar e Imprimir / PDF
-              </button>
-              <button type="button" id="btnBaixarLaudoDocxCriador" onclick="baixarLaudoDocxCriador()" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-sm">
-                📄 Baixar Word (.docx) no Design Original
               </button>
             </div>
           </form>
@@ -2179,27 +2182,35 @@
         <button onclick="fecharModalLaudo()" class="text-slate-400 hover:text-violet-600 font-bold text-sm">✕</button>
       </div>
 
-      <div class="grid sm:grid-cols-2 gap-3 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 text-xs">
+      <div class="grid sm:grid-cols-2 gap-3 text-xs">
         <div>
-          <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200 mb-1">Aplicar Modelo Salvo da Empresa</label>
-          <div class="flex gap-1.5">
-            <select id="ld_modelo_select" class="flex-1 px-2.5 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-lg bg-white dark:bg-[#141024] outline-none"></select>
-            <button type="button" onclick="aplicarModeloSelecionadoNoLaudo()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold rounded-lg">Preencher</button>
-          </div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Data do Laudo *</label>
+          <input type="date" id="ld_data" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
         </div>
         <div>
-          <label class="block text-[11px] font-bold text-violet-800 dark:text-violet-200 mb-1">Ou Enviar Modelo Pronto (.docx, .pdf, .odt, .rtf, .txt, .md, .html, .json)</label>
-          <input type="file" id="ld_upload_modelo" accept=".docx,.pdf,.odt,.rtf,.txt,.md,.html,.htm,.json" onchange="importarModeloDiretoNoLaudo(event)" class="w-full text-[11px]">
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Para (Cliente) *</label>
+          <input type="text" id="ld_cliente" placeholder="Nome do cliente / setor" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
         </div>
       </div>
 
       <div class="grid sm:grid-cols-2 gap-3 text-xs">
         <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Título do Documento *</label>
-          <input type="text" id="ld_titulo" required placeholder="LAUDO TÉCNICO" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Equipamento *</label>
+          <input type="text" id="ld_equipamento" placeholder="Ex: Impressora Epson L6270" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Conclusão / Parecer Final *</label>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Tombamento (se tiver)</label>
+          <input type="text" id="ld_tombamento" placeholder="Deixe vazio se não tiver" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-3 text-xs">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Assunto</label>
+          <input type="text" id="ld_titulo" required value="Parecer Técnico" placeholder="Parecer Técnico" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Status da Conclusão</label>
           <select id="ld_conclusao" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
             <option value="Reparado / Aprovado">Reparado / Aprovado</option>
             <option value="Aguardando Aprovação de Orçamento">Aguardando Aprovação de Orçamento</option>
@@ -2212,28 +2223,28 @@
       </div>
 
       <div class="text-xs">
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Diagnóstico &amp; Sintomas Constatados</label>
-        <textarea id="ld_diagnostico" rows="2" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">1. Problema Relatado</label>
+        <textarea id="ld_diagnostico" rows="2" placeholder="Descreva o problema relatado..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
       </div>
 
       <div class="text-xs">
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Análise e Parecer Técnico *</label>
-        <textarea id="ld_parecer" rows="5" required placeholder="Descreva testes, medições e conclusão detalhada..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">2. Problema Identificado *</label>
+        <textarea id="ld_parecer" rows="4" required placeholder="Descreva o problema identificado na bancada..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
       </div>
 
       <div class="text-xs">
-        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Recomendações Técnicas</label>
-        <textarea id="ld_recomendacoes" rows="2" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
+        <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">3. Conclusão e Recomendação</label>
+        <textarea id="ld_recomendacoes" rows="3" placeholder="Descreva a conclusão e recomendação..." class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none"></textarea>
       </div>
 
       <div class="grid sm:grid-cols-2 gap-3 text-xs">
         <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Técnico Responsável</label>
-          <input type="text" id="ld_tecnico" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Assinatura (Técnico)</label>
+          <input type="text" id="ld_tecnico" value="Vitor Figueiró da Silva" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Registro Profissional (CRT / CREA / Cargo)</label>
-          <input type="text" id="ld_reg_prof" placeholder="Ex: CRT-BR 00000 / Analista TI" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+          <label class="block text-[11px] font-semibold text-slate-600 dark:text-violet-200 mb-1">Setor / Cargo</label>
+          <input type="text" id="ld_reg_prof" value="T.I" placeholder="T.I" class="w-full px-3 py-2 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
         </div>
       </div>
 
@@ -2542,7 +2553,7 @@
   </div>
 
   <script src="/static/app.js?v=2.8.6"></script>
-  <script src="/static/laudos_ops.js?v=2.8.5"></script>
+  <script src="/static/laudos_ops.js?v=2.8.7"></script>
   <script src="/static/automation_cyber.js?v=2.8.3"></script>
   <script src="/static/auth_security_ui.js?v=2.8.2"></script>
 </body>

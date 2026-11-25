@@ -400,7 +400,7 @@ class ChecklistSchema(BaseModel):
 
 
 class LaudoSchema(BaseModel):
-    titulo: str
+    titulo: Optional[str] = "Parecer Técnico"
     conclusao: Optional[str] = "Reparado / Aprovado"
     diagnostico: Optional[str] = ""
     parecer: str
@@ -411,6 +411,11 @@ class LaudoSchema(BaseModel):
     visivel_cliente: bool = True
     modelo_nome: Optional[str] = ""
     modelo_id: Optional[str] = ""
+    data_laudo: Optional[str] = ""
+    cliente_para: Optional[str] = ""
+    equipamento_laudo: Optional[str] = ""
+    tombamento_laudo: Optional[str] = ""
+    email_tecnico: Optional[str] = ""
 
 
 class GerarLaudoDocxSchema(BaseModel):

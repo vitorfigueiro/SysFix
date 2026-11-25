@@ -1151,16 +1151,18 @@
       <div class="max-w-7xl mx-auto space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🛡️ Setor Cibersegurança, Auditoria &amp; Governança</h2>
-            <p class="text-xs text-slate-500 dark:text-violet-300/80">Auditoria defensiva autorizada pelo gestor, gestão de vulnerabilidades, conformidade CIS v8/NIST/OWASP/LGPD e base de conhecimento.</p>
+            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">🛡️ Setor Cibersegurança, Defesa Ativa &amp; Governança</h2>
+            <p class="text-xs text-slate-500 dark:text-violet-300/80">Byte-Scanner detalhado, Purple-Bot (Ataques × Mitigações), Auto-Shield (Automações &amp; Falhas), Wiki-Core e Gov-Key por operador.</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex flex-wrap gap-1 bg-white dark:bg-[#141024] p-1 rounded-xl border border-violet-200 dark:border-violet-800">
-              <button id="btnCyberTab_auditoria" type="button" onclick="alternarCyberTab('auditoria')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">🔍 Auditoria de Rede</button>
-              <button id="btnCyberTab_achados" type="button" onclick="alternarCyberTab('achados')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🐞 Vulnerabilidades</button>
-              <button id="btnCyberTab_checklists" type="button" onclick="alternarCyberTab('checklists')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📋 CIS / NIST / LGPD</button>
-              <button id="btnCyberTab_conhecimento" type="button" onclick="alternarCyberTab('conhecimento')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📚 Conhecimento</button>
-              <button id="btnCyberTab_governanca" type="button" onclick="alternarCyberTab('governanca')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🔐 Governança</button>
+              <button id="btnCyberTab_auditoria" type="button" onclick="alternarCyberTab('auditoria')" class="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white">🔍 Byte-Scanner</button>
+              <button id="btnCyberTab_laboratorio" type="button" onclick="alternarCyberTab('laboratorio')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🎯 Purple-Bot</button>
+              <button id="btnCyberTab_automacoes" type="button" onclick="alternarCyberTab('automacoes')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🛡️ Auto-Shield</button>
+              <button id="btnCyberTab_achados" type="button" onclick="alternarCyberTab('achados')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🐞 Vulnerabilidades</button>
+              <button id="btnCyberTab_checklists" type="button" onclick="alternarCyberTab('checklists')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📋 CIS / NIST</button>
+              <button id="btnCyberTab_conhecimento" type="button" onclick="alternarCyberTab('conhecimento')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">📰 Wiki-Core</button>
+              <button id="btnCyberTab_governanca" type="button" onclick="alternarCyberTab('governanca')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200">🔐 Gov-Key</button>
             </div>
             <button id="btnPdfCyber" type="button" onclick="baixarRelatorioCyberPdf()" class="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm">
               📄 Relatório PDF
@@ -1180,10 +1182,10 @@
               Minimizar
             </button>
           </div>
-          <div id="cyberBotsBody" class="grid sm:grid-cols-2 lg:grid-cols-5 gap-2.5"></div>
+          <div id="cyberBotsBody" class="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5"></div>
         </div>
 
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div id="cyberKpiStrip" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm">
             <span class="text-[11px] font-bold text-emerald-600 uppercase">Maturidade CIS/NIST</span>
             <div id="kpiCybMaturidade" class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">0%</div>
@@ -1213,13 +1215,13 @@
               <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Requer liberação explícita do administrador na aba Governança e alvo dentro da lista autorizada.</p>
               <div>
                 <label class="block text-[11px] font-semibold mb-1">Alvo (Domínio, IP ou Sub-rede CIDR) *</label>
-                <input type="text" id="cyb_aud_alvo" required placeholder="Ex: portal.empresa.com.br ou 192.168.10.0/24" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+                <input type="text" id="cyb_aud_alvo" required oninput="autoAjustarModoByteScanner(this.value)" placeholder="Ex: portal.empresa.com.br ou 192.168.10.0/24" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <div>
                 <label class="block text-[11px] font-semibold mb-1">Modo da Auditoria Defensiva</label>
                 <select id="cyb_aud_tipo" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
-                  <option value="rede_privada">🌐 Varredura Defensiva de Rede / Portas (IP ou CIDR)</option>
                   <option value="web_tls">🔒 Web / TLS / Certificados &amp; Headers OWASP</option>
+                  <option value="rede_privada">🌐 Varredura Defensiva de Rede / Portas (IP ou CIDR)</option>
                 </select>
               </div>
               <label class="flex items-center gap-2 cursor-pointer">
@@ -1227,7 +1229,7 @@
                 <span>Registrar vulnerabilidades encontradas na fila</span>
               </label>
               <button id="btnExecutarAuditoriaCyber" type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white font-bold rounded-xl shadow-sm">
-                🚀 Executar Auditoria Autorizada
+                🚀 Executar Varredura Completa
               </button>
             </form>
 
@@ -1245,9 +1247,100 @@
             </div>
           </div>
 
+          <div class="lg:col-span-2 space-y-4 text-xs">
+            <div id="painelDetalheAuditoriaCyber" class="hidden bg-white dark:bg-[#141024] p-5 rounded-2xl border-2 border-violet-400/80 dark:border-violet-700 shadow-md space-y-4"></div>
+
+            <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Histórico de Varreduras, Portas Expostas &amp; Scores</h3>
+                <span class="text-[11px] text-slate-500 dark:text-violet-300/80">Clique em "Ver Tudo Encontrado" para inspecionar</span>
+              </div>
+              <div id="listaAuditoriasCyber" class="space-y-2.5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Aba Purple-Bot: Laboratório Didático Ataques × Busca de Falhas × Mitigações -->
+        <div id="cyberTab_laboratorio" class="grid lg:grid-cols-3 gap-5 hidden">
+          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+            <div>
+              <span class="px-2 py-0.5 rounded-full bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 text-[10px] font-extrabold uppercase">Purple Team Didático</span>
+              <h3 class="text-sm font-extrabold text-slate-900 dark:text-white mt-1.5">🎯 Escolha o Vetor de Ataque</h3>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Entenda de forma didática como cada ataque explora falhas, como caçar a vulnerabilidade e como blindar sua rede sem risco destrutivo.</p>
+            </div>
+            <div id="listaCenariosDidaticos" class="space-y-2"></div>
+          </div>
+
+          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4 text-xs">
+            <div id="detalheCenarioDidatico" class="space-y-4"></div>
+            <div id="resultadoSimulacaoDidatica" class="hidden p-4 rounded-xl bg-violet-50/80 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-2.5"></div>
+          </div>
+        </div>
+
+        <!-- Aba Auto-Shield: Automações de Proteção de Rede & Busca Contínua por Falhas -->
+        <div id="cyberTab_automacoes" class="grid lg:grid-cols-3 gap-5 hidden">
+          <div class="space-y-4">
+            <form id="formCriarAutomacaoCyber" onsubmit="criarAutomacaoCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+              <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🛡️ Auto-Shield — Nova Automação de Defesa</h3>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Programe rotinas defensivas para caçar senhas fracas/sem 2FA, dispositivos IoT/CFTV inseguros, SSL expirando e portas críticas expostas.</p>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Nome da Rotina *</label>
+                <input type="text" id="aut_cyb_nome" required placeholder="Ex: Caça Diária de Contas sem 2FA e Senha Padrão" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Tipo de Busca / Proteção</label>
+                <select id="aut_cyb_tipo" onchange="ajustarPlaceholderAlvoAutomacao()" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="auditoria_contas_2fa_senhas">🔐 Caça-Falhas de Identidade (2FA &amp; Senhas Provisórias)</option>
+                  <option value="auditoria_iot_cftv_hardening">📷 Busca de Falhas em Câmeras, DVRs, Alarmes &amp; IoT</option>
+                  <option value="conformidade_backup_cis">🛡️ Verificação de Backup Imutável 3-2-1-1-0 &amp; CIS/LGPD</option>
+                  <option value="monitor_ssl_headers">🌐 Vigia de Certificado HTTPS &amp; Headers OWASP</option>
+                  <option value="varredura_portas_criticas">📡 Busca de Portas Críticas na Rede Local (RFC1918)</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] font-semibold mb-1">Alvo</label>
+                  <input type="text" id="aut_cyb_alvo" value="Ambiente Interno" placeholder="Ambiente Interno" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold mb-1">Frequência</label>
+                  <select id="aut_cyb_freq" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                    <option value="Diária">Diária</option>
+                    <option value="A cada 6h">A cada 6h</option>
+                    <option value="Semanal">Semanal</option>
+                    <option value="Mensal">Mensal</option>
+                    <option value="Sob Demanda">Sob Demanda</option>
+                  </select>
+                </div>
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="aut_cyb_auto_achados" checked class="rounded text-violet-600">
+                <span>Abrir alerta automaticamente na fila se encontrar falha</span>
+              </label>
+              <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-sm">
+                ➕ Salvar Tarefa Automatizada
+              </button>
+            </form>
+
+            <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-2.5 text-xs">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">🛡️ Scripts Prontos de Blindagem de Rede</h3>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Baixe scripts defensivos auditáveis para bloquear protocolos inseguros (SMBv1, Telnet 23) e agendar monitoramento local.</p>
+              <div class="space-y-1.5">
+                <button type="button" onclick="baixarScriptProtecaoCyber('firewall_windows_ps1')" class="w-full py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-left text-violet-900 dark:text-violet-200 hover:bg-violet-100">⬇️ Blindagem Firewall Windows &amp; Anti-SMBv1 (.ps1)</button>
+                <button type="button" onclick="baixarScriptProtecaoCyber('hardening_linux_ufw_sh')" class="w-full py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-left text-violet-900 dark:text-violet-200 hover:bg-violet-100">⬇️ Hardening Linux UFW &amp; Anti-BruteForce SSH (.sh)</button>
+                <button type="button" onclick="baixarScriptProtecaoCyber('tarefa_agendada_monitor_ps1')" class="w-full py-2 px-3 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-700 font-bold text-left text-violet-900 dark:text-violet-200 hover:bg-violet-100">⬇️ Monitor Agendado Diário SSL &amp; Rede (.ps1)</button>
+              </div>
+            </div>
+          </div>
+
           <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Histórico de Auditorias e Scores</h3>
-            <div id="listaAuditoriasCyber" class="space-y-2.5"></div>
+            <div class="flex flex-wrap justify-between items-center gap-2">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Robôs &amp; Tarefas de Defesa Configuradas</h3>
+                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Clique em <b>Rodar Agora</b> para executar a caça por falhas imediatamente e atualizar o score.</p>
+              </div>
+            </div>
+            <div id="listaAutomacoesCyber" class="space-y-2.5"></div>
           </div>
         </div>
 
@@ -1303,63 +1396,120 @@
           <div id="listaChecklistCyber" class="space-y-2"></div>
         </div>
 
-        <!-- Aba 4: Base de Conhecimento & Playbooks -->
-        <div id="cyberTab_conhecimento" class="grid lg:grid-cols-3 gap-5 hidden">
-          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-            <div class="flex flex-wrap justify-between items-center gap-2">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">Base de Conhecimento &amp; Hardening</h3>
-              <input type="text" id="kb_busca" oninput="carregarConhecimentoCyber()" placeholder="🔎 Buscar guia (Zero Trust, CFTV, BGP, LGPD...)" class="px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none w-72">
+        <!-- Aba 4: Wiki-Core — Notícias Reais + Playbooks Internos -->
+        <div id="cyberTab_conhecimento" class="space-y-5 hidden">
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex flex-wrap gap-1.5">
+              <button id="btnWikiSecao_noticias" type="button" onclick="alternarWikiSecao('noticias')" class="px-3.5 py-2 rounded-xl font-extrabold bg-violet-600 text-white shadow-sm">
+                🌐 Notícias Reais do Mundo Cibernético
+              </button>
+              <button id="btnWikiSecao_internos" type="button" onclick="alternarWikiSecao('internos')" class="px-3.5 py-2 rounded-xl font-bold bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-700">
+                🏢 Publicados Internamente &amp; Playbooks
+              </button>
             </div>
-            <div id="listaConhecimentoCyber" class="space-y-3"></div>
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="text" id="kb_busca" oninput="carregarConhecimentoCyber(false)" placeholder="🔎 Filtrar notícias ou playbooks..." class="px-3 py-1.5 text-xs border border-violet-200 dark:border-violet-800 rounded-xl outline-none w-64">
+              <button type="button" onclick="carregarConhecimentoCyber(true)" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                🔄 Atualizar Feed
+              </button>
+            </div>
           </div>
 
-          <form id="formCriarKbCyber" onsubmit="criarArtigoKbCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs h-fit">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Publicar Playbook Interno</h3>
-            <div>
-              <label class="block text-[11px] font-semibold mb-1">Título *</label>
-              <input type="text" id="kb_titulo" required placeholder="Ex: Playbook Isolamento Ransomware" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+          <div id="blocoWikiNoticiasReais" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
+              <div>
+                <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🌐 Radar Global de Notícias &amp; CVEs Exploradas</h3>
+                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Fontes oficiais externas (CISA KEV, CERT.br, The Hacker News e BleepingComputer).</p>
+              </div>
+              <span id="badgeStatusNoticiasCyber" class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Sincronizando...</span>
             </div>
-            <div>
-              <label class="block text-[11px] font-semibold mb-1">Categoria</label>
-              <input type="text" id="kb_cat" value="Playbook Interno" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+            <div id="listaNoticiasMundoCyber" class="grid md:grid-cols-2 gap-3"></div>
+          </div>
+
+          <div id="blocoWikiInternos" class="grid lg:grid-cols-3 gap-5 hidden">
+            <div class="lg:col-span-2 space-y-4 text-xs">
+              <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-violet-100 dark:border-violet-900/60 pb-2">
+                  <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🏢 Documentos &amp; Playbooks Publicados Internamente</h3>
+                  <span id="contadorInternosWiki" class="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/60 text-violet-800 dark:text-violet-200 text-[10px] font-bold">0 publicados</span>
+                </div>
+                <div id="listaPlaybooksInternosCyber" class="space-y-3"></div>
+              </div>
+
+              <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">📘 Biblioteca Técnica de Referência (Hardening &amp; Normas)</h3>
+                <div id="listaConhecimentoCyber" class="space-y-3"></div>
+              </div>
             </div>
-            <div>
-              <label class="block text-[11px] font-semibold mb-1">Resumo</label>
-              <input type="text" id="kb_resumo" placeholder="Objetivo e quando acionar..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold mb-1">Procedimento / Conteúdo *</label>
-              <textarea id="kb_conteudo" required rows="5" placeholder="1. Desconectar host da rede..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold mb-1">Tags</label>
-              <input type="text" id="kb_tags" placeholder="incidente, soc, firewall" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
-            </div>
-            <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">📚 Publicar Guia</button>
-          </form>
+
+            <form id="formCriarKbCyber" onsubmit="criarArtigoKbCyber(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs h-fit">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">✍️ Publicar Playbook Interno</h3>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Título *</label>
+                <input type="text" id="kb_titulo" required placeholder="Ex: Playbook Isolamento Ransomware" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Categoria</label>
+                <input type="text" id="kb_cat" value="Playbook Interno" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Resumo</label>
+                <input type="text" id="kb_resumo" placeholder="Objetivo e quando acionar..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Procedimento / Conteúdo *</label>
+                <textarea id="kb_conteudo" required rows="5" placeholder="1. Desconectar host da rede..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Tags</label>
+                <input type="text" id="kb_tags" placeholder="incidente, soc, firewall" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl">📚 Publicar Internamente</button>
+            </form>
+          </div>
         </div>
 
-        <!-- Aba 5: Governança & Autorização do Gestor (Admin) -->
+        <!-- Aba 5: Gov-Key — Autorização por Pessoa/Operador -->
         <div id="cyberTab_governanca" class="bg-white dark:bg-[#141024] p-6 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4 text-xs hidden">
-          <div class="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200">
-            <b>⚠️ Governança &amp; Segurança Jurídica:</b> A auditoria ativa de rede só executa quando autorizada formalmente pelo Administrador/Gestor e exclusivamente contra domínios/IPs listados no escopo aprovado (com bloqueio anti-SSRF automático).
+          <div class="p-3.5 rounded-xl bg-violet-50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 text-slate-800 dark:text-violet-100">
+            <b>🔐 Gov-Key — Autorização por Pessoa/Operador:</b> Defina exatamente <b>a quem é permitido realizar tarefas</b> de cibersegurança (varreduras no Byte-Scanner, automações de proteção e caça por falhas). A proteção Anti-SSRF permanece sempre ativa automaticamente.
           </div>
           <p id="gov_info_auditoria" class="text-xs font-semibold text-violet-700 dark:text-violet-300"></p>
-          <form id="formGovernancaCyber" onsubmit="salvarGovernancaCyber(event)" class="space-y-3 max-w-2xl">
-            <label class="flex items-center gap-2.5 p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 cursor-pointer font-bold">
+          <form id="formGovernancaCyber" onsubmit="salvarGovernancaCyber(event)" class="space-y-4 max-w-3xl">
+            <label class="flex items-center gap-2.5 p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-800/70 cursor-pointer font-bold text-slate-900 dark:text-white">
               <input type="checkbox" id="gov_permitir_auditoria" class="rounded text-violet-600">
-              <span>Autorizar equipe com permissão a auditar alvos dentro do escopo desta empresa</span>
+              <span>Habilitar tarefas ativas de segurança e auditoria para os operadores autorizados abaixo</span>
             </label>
-            <div>
-              <label class="block text-[11px] font-semibold mb-1">Escopo Autorizado (1 domínio, IP ou CIDR por linha)</label>
-              <textarea id="gov_escopo" rows="4" placeholder="192.168.10.0/24&#10;portal.suaempresa.com.br" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl font-mono outline-none"></textarea>
+
+            <div class="p-4 rounded-2xl bg-violet-50/60 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span class="block text-xs font-extrabold text-slate-900 dark:text-white">👥 Quem pode realizar tarefas de Cibersegurança?</span>
+                  <span class="text-[11px] text-slate-500 dark:text-violet-300/80">Marque os colaboradores autorizados pelo gestor (Administradores possuem chave mestre por padrão).</span>
+                </div>
+                <div class="flex gap-1.5">
+                  <button type="button" onclick="selecionarOperadoresGovKey('cyber')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-[11px] font-bold text-violet-700 dark:text-violet-200">Equipe Cyber</button>
+                  <button type="button" onclick="selecionarOperadoresGovKey('todos')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-[11px] font-bold text-violet-700 dark:text-violet-200">Marcar Todos</button>
+                </div>
+              </div>
+              <div id="listaOperadoresGovKey" class="grid sm:grid-cols-2 gap-2.5"></div>
             </div>
+
             <div>
-              <label class="block text-[11px] font-semibold mb-1">Termo / Observação de Autorização</label>
-              <input type="text" id="gov_termo" placeholder="Autorizado pela diretoria de TI para auditoria interna trimestral." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              <label class="block text-[11px] font-semibold mb-1">Termo / Observação da Autorização do Gestor</label>
+              <input type="text" id="gov_termo" placeholder="Ex: Equipe técnica autorizada pela gerência de TI para auditorias preventivas." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
             </div>
+
+            <details class="p-3 rounded-xl border border-violet-200/80 dark:border-violet-800/70 bg-white dark:bg-[#141024]">
+              <summary class="cursor-pointer font-bold text-[11px] text-slate-600 dark:text-violet-300">⚙️ Avançado (Opcional): Restringir também a domínios ou sub-redes específicas</summary>
+              <div class="pt-2.5 space-y-1">
+                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Deixe em branco para permitir que os operadores selecionados acima auditem qualquer domínio válido ou rede privada RFC1918 da operação.</p>
+                <textarea id="gov_escopo" rows="3" placeholder="Opcional — ex: suaempresa.com.br ou 192.168.1.0/24" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl font-mono outline-none"></textarea>
+              </div>
+            </details>
+
             <button type="submit" class="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-sm">
-              🔐 Salvar Política de Governança
+              🔐 Salvar Permissões do Gov-Key
             </button>
           </form>
         </div>
@@ -2314,9 +2464,9 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.8.0"></script>
-  <script src="/static/laudos_ops.js?v=2.8.0"></script>
-  <script src="/static/automation_cyber.js?v=2.8.0"></script>
-  <script src="/static/auth_security_ui.js?v=2.8.0"></script>
+  <script src="/static/app.js?v=2.8.2"></script>
+  <script src="/static/laudos_ops.js?v=2.8.2"></script>
+  <script src="/static/automation_cyber.js?v=2.8.2"></script>
+  <script src="/static/auth_security_ui.js?v=2.8.2"></script>
 </body>
 </html>

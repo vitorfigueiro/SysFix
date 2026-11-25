@@ -485,8 +485,24 @@ class AutomacaoAtivoSchema(BaseModel):
 
 class CyberGovernancaSchema(BaseModel):
     permitir_auditoria_rede: bool = False
+    usuarios_autorizados: List[str] = []
+    restringir_usuarios: Optional[bool] = None
     escopo_autorizado: List[str] = []
     observacao_termo: Optional[str] = ""
+
+
+class CyberAutomacaoDefesaSchema(BaseModel):
+    nome: str
+    tipo: str = "auditoria_contas_2fa_senhas"
+    alvo: Optional[str] = "Ambiente Interno"
+    frequencia: Optional[str] = "Diária"
+    auto_registrar_achados: bool = True
+    ativo: bool = True
+
+
+class CyberSimulacaoDidaticaSchema(BaseModel):
+    cenario_id: str
+    registrar_plano: bool = False
 
 
 class CyberExecutarAuditoriaSchema(BaseModel):
@@ -2551,6 +2567,28 @@ def obter_resumo_cyber_api(
     return _get_security_ops_service().resumo_cyber(current_user["tenant"])
 
 
+@app.get("/api/cyber/equipe-opcoes")
+def listar_equipe_opcoes_govkey_api(
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    membros = _get_auth_service().list_team_members(current_user)
+    return [
+        {
+            "uid": m.get("uid"),
+            "nome": m.get("nome"),
+            "email": m.get("email"),
+            "role": m.get("role"),
+            "ativo": m.get("ativo", True),
+            "mfa_enabled": bool(m.get("mfa_enabled")),
+            "pode_cyber": m.get("role") == "admin"
+            or bool((m.get("permissoes") or {}).get("executar_auditoria_rede"))
+            or bool((m.get("permissoes") or {}).get("gerenciar_auditoria_cyber")),
+        }
+        for m in membros
+        if m.get("ativo", True)
+    ]
+
+
 @app.put("/api/cyber/governanca")
 def atualizar_governanca_cyber_api(
     payload: CyberGovernancaSchema,
@@ -2562,6 +2600,8 @@ def atualizar_governanca_cyber_api(
             permitir_auditoria_rede=payload.permitir_auditoria_rede,
             escopo_autorizado=payload.escopo_autorizado,
             observacao_termo=payload.observacao_termo or "",
+            usuarios_autorizados=payload.usuarios_autorizados,
+            restringir_usuarios=payload.restringir_usuarios,
         )
         return {"sucesso": True, "tenant": tenant, "governanca": tenant["cyber_governanca"]}
     except AuthorizationError as aze:
@@ -2592,6 +2632,9 @@ def executar_auditoria_cyber_api(
             tipo_auditoria=payload.tipo_auditoria,
             registrar_achados=payload.registrar_achados,
             actor=current_user.get("nome") or current_user.get("email") or "",
+            user_uid=current_user.get("uid") or "",
+            user_email=current_user.get("email") or "",
+            is_admin=current_user.get("role") == "admin",
         )
         return {"sucesso": True, **res}
     except PermissionError as pe:
@@ -2712,6 +2755,143 @@ def salvar_checklist_cyber_api(
             actor=current_user.get("nome") or current_user.get("email") or "",
         )
         return {"sucesso": True, "itens": itens}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.get("/api/cyber/wiki")
+def obter_wiki_separado_cyber_api(
+    busca: Optional[str] = "",
+    atualizar_noticias: bool = False,
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_wiki_separado(
+        current_user["tenant_id"],
+        busca=busca or "",
+        atualizar_noticias=bool(atualizar_noticias),
+    )
+
+
+@app.get("/api/cyber/laboratorio")
+def listar_laboratorio_cyber_api(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_cenarios_didaticos()
+
+
+@app.post("/api/cyber/laboratorio/simular")
+def simular_laboratorio_cyber_api(
+    payload: CyberSimulacaoDidaticaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    try:
+        if payload.registrar_plano and not usuario_tem_permissao(
+            current_user, "gerenciar_auditoria_cyber"
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Você não possui permissão para registrar planos na fila de vulnerabilidades.",
+            )
+        usuarios_tenant = _get_auth_service().user_store.list_users_by_tenant(
+            current_user["tenant_id"]
+        )
+        res = _get_security_ops_service().simular_cenario_didatico(
+            tenant=current_user["tenant"],
+            cenario_id=payload.cenario_id,
+            users_list=usuarios_tenant,
+            registrar_plano=payload.registrar_plano,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, **res}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.get("/api/cyber/automacoes")
+def listar_automacoes_defesa_api(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_automacoes_defesa(current_user["tenant_id"])
+
+
+@app.post("/api/cyber/automacoes")
+def criar_automacao_defesa_api(
+    payload: CyberAutomacaoDefesaSchema,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_auditoria_cyber", "executar_auditoria_rede")
+    ),
+):
+    try:
+        item = _get_security_ops_service().criar_automacao_defesa(
+            tenant=current_user["tenant"],
+            payload=payload.model_dump(),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+            user_uid=current_user.get("uid") or "",
+            user_email=current_user.get("email") or "",
+            is_admin=current_user.get("role") == "admin",
+        )
+        return {"sucesso": True, "item": item}
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.post("/api/cyber/automacoes/{item_id}/executar")
+def executar_automacao_defesa_api(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("executar_auditoria_rede", "gerenciar_auditoria_cyber")
+    ),
+):
+    try:
+        usuarios_tenant = _get_auth_service().user_store.list_users_by_tenant(
+            current_user["tenant_id"]
+        )
+        res = _get_security_ops_service().executar_automacao_defesa(
+            tenant=current_user["tenant"],
+            item_id=item_id,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+            user_uid=current_user.get("uid") or "",
+            user_email=current_user.get("email") or "",
+            is_admin=current_user.get("role") == "admin",
+            users_list=usuarios_tenant,
+        )
+        return {"sucesso": True, **res}
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.delete("/api/cyber/automacoes/{item_id}")
+def excluir_automacao_defesa_api(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    if not _get_security_ops_service().excluir_automacao_defesa(
+        current_user["tenant_id"], item_id
+    ):
+        raise HTTPException(status_code=404, detail="Automação não encontrada.")
+    return {"sucesso": True}
+
+
+@app.get("/api/cyber/automacoes/script")
+def baixar_script_protecao_cyber_api(
+    tipo: str = Query("firewall_windows_ps1"),
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    try:
+        conteudo, media_type, filename = _get_security_ops_service().gerar_script_protecao_rede(tipo)
+        return Response(
+            content=conteudo,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
 

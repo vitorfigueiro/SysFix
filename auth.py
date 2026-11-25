@@ -560,6 +560,8 @@ def sanitizar_tenant(tenant: dict) -> dict:
     gov_raw = tenant.get("cyber_governanca")
     gov = {
         "permitir_auditoria_rede": bool(gov_raw.get("permitir_auditoria_rede")) if isinstance(gov_raw, dict) else False,
+        "usuarios_autorizados": list(gov_raw.get("usuarios_autorizados") or []) if isinstance(gov_raw, dict) else [],
+        "restringir_usuarios": bool(gov_raw.get("restringir_usuarios")) if isinstance(gov_raw, dict) else False,
         "escopo_autorizado": list(gov_raw.get("escopo_autorizado") or []) if isinstance(gov_raw, dict) else [],
         "observacao_termo": str(gov_raw.get("observacao_termo") or "") if isinstance(gov_raw, dict) else "",
         "autorizado_por": str(gov_raw.get("autorizado_por") or "") if isinstance(gov_raw, dict) else "",
@@ -1593,6 +1595,8 @@ class AuthService:
         permitir_auditoria_rede: bool,
         escopo_autorizado: list[str] | None = None,
         observacao_termo: str = "",
+        usuarios_autorizados: list[str] | None = None,
+        restringir_usuarios: bool | None = None,
     ) -> dict[str, Any]:
         if admin_ctx.get("role") != "admin":
             raise AuthorizationError(
@@ -1607,15 +1611,27 @@ class AuthService:
                 vistos.add(txt.lower())
                 escopo_limpo.append(txt[:120])
 
+        usuarios_limpos: list[str] = []
+        vistos_usr: set[str] = set()
+        for u in usuarios_autorizados or []:
+            txt = SecurityValidator.sanitizar_texto(u).strip()
+            chave = txt.lower()
+            if txt and chave not in vistos_usr:
+                vistos_usr.add(chave)
+                usuarios_limpos.append(txt[:120])
+
         permitir = bool(permitir_auditoria_rede)
-        if permitir and not escopo_limpo:
-            raise ValueError(
-                "Para habilitar auditorias de rede, informe pelo menos uma faixa privada (ex.: 192.168.1.0/24) ou domínio autorizado."
-            )
+        restringir = (
+            bool(restringir_usuarios)
+            if restringir_usuarios is not None
+            else bool(usuarios_limpos)
+        )
 
         autor = admin_ctx.get("nome") or admin_ctx.get("email") or "Gestor"
         gov = {
             "permitir_auditoria_rede": permitir,
+            "usuarios_autorizados": usuarios_limpos[:100],
+            "restringir_usuarios": restringir,
             "escopo_autorizado": escopo_limpo[:30],
             "observacao_termo": SecurityValidator.sanitizar_texto(observacao_termo)[:300],
             "autorizado_por": SecurityValidator.sanitizar_texto(autor) if permitir else "",

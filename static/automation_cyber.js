@@ -394,16 +394,20 @@ async function carregarResumoCyber() {
   // Lista de auditorias recentes
   const listaAud = document.getElementById('listaAuditoriasCyber');
   const auds = Array.isArray(d.ultimas_auditorias) ? d.ultimas_auditorias : [];
+  window.cyberAuditoriasCache = auds;
   if (listaAud) {
     listaAud.innerHTML = auds.length === 0
       ? '<p class="text-slate-400">Nenhuma auditoria executada ou importada ainda.</p>'
-      : auds.map(a => `
+      : auds.map((a, idx) => `
         <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 flex flex-wrap justify-between items-center gap-2">
           <div>
             <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(a.alvo)} <span class="text-[10px] font-semibold text-violet-600">(${escapeHtml(a.tipo)})</span></div>
             <div class="text-[11px] text-slate-500 dark:text-violet-300/80">Hosts: ${a.hosts_ativos} • Portas/Itens: ${a.portas_expostas} • Achados: ${a.achados_count} • Por ${escapeHtml(a.executado_por)}</div>
           </div>
-          <span class="px-2.5 py-1 rounded-full text-xs font-extrabold ${a.score >= 80 ? 'bg-emerald-100 text-emerald-800' : (a.score >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')}">Score ${a.score}/100</span>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 rounded-full text-xs font-extrabold ${a.score >= 80 ? 'bg-emerald-100 text-emerald-800' : (a.score >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')}">Score ${a.score}/100</span>
+            <button type="button" onclick="abrirDetalheAuditoriaCyber(${idx})" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold transition-all">🔎 Ver Tudo Encontrado</button>
+          </div>
         </div>
       `).join('');
   }
@@ -509,12 +513,219 @@ async function executarAuditoriaCyber(event) {
     }
     const data = await res.json();
     mostrarToast(`Byte-Scanner concluído! Score ${data.auditoria.score}/100 (${data.achados_criados} falha(s) registrada(s)).`, 'sucesso');
+    renderizarDetalheAuditoriaCyber(data.auditoria);
     await Promise.all([carregarResumoCyber(), carregarAchadosCyber()]);
   } catch (e) {
     mostrarToast('Falha ao executar auditoria defensiva.', 'erro');
   } finally {
     if (btn) btn.disabled = false;
     renderizarCyberBotsDock(false);
+  }
+}
+
+let ultimaAuditoriaDetalhadaCyber = null;
+
+function abrirDetalheAuditoriaCyber(idx) {
+  const lista = Array.isArray(window.cyberAuditoriasCache) ? window.cyberAuditoriasCache : [];
+  if (lista[idx]) {
+    renderizarDetalheAuditoriaCyber(lista[idx]);
+  }
+}
+
+function fecharDetalheAuditoriaCyber() {
+  document.getElementById('painelDetalheAuditoriaCyber')?.classList.add('hidden');
+}
+
+function renderizarDetalheAuditoriaCyber(a) {
+  const box = document.getElementById('painelDetalheAuditoriaCyber');
+  if (!box || !a) return;
+  ultimaAuditoriaDetalhadaCyber = a;
+  const det = a.detalhes || {};
+  const achados = Array.isArray(a.achados) ? a.achados : (Array.isArray(det.achados) ? det.achados : []);
+
+  const corSev = (sev) => sev === 'Crítica'
+    ? 'bg-rose-100 text-rose-800 border-rose-300'
+    : (sev === 'Alta'
+      ? 'bg-orange-100 text-orange-800 border-orange-300'
+      : (sev === 'Média' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-sky-100 text-sky-800 border-sky-300'));
+
+  let corpoHtml = '';
+
+  if (a.tipo === 'web_tls') {
+    const tls = det.tls || {};
+    const hdrs = det.headers || {};
+    const todosHdrs = det.todos_headers || {};
+    const ips = Array.isArray(det.ips_resolvidos) && det.ips_resolvidos.length > 0 ? det.ips_resolvidos.join(', ') : '---';
+    const sans = Array.isArray(tls.sans) && tls.sans.length > 0 ? tls.sans.join(', ') : '---';
+
+    const hdrRows = Object.entries(hdrs).map(([k, v]) => {
+      const ok = v && v !== 'Ausente';
+      return `
+        <tr class="border-b border-violet-100 dark:border-violet-900/50">
+          <td class="p-2 font-mono font-semibold text-slate-800 dark:text-violet-100">${escapeHtml(k)}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${ok ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">${ok ? '✅ Presente' : '❌ Ausente'}</span></td>
+          <td class="p-2 font-mono text-[10px] text-slate-600 dark:text-violet-300 break-all">${escapeHtml(String(v || 'Ausente'))}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const todosHdrRows = Object.entries(todosHdrs).map(([k, v]) =>
+      `<div class="text-[10px] font-mono break-all"><span class="font-bold text-violet-700 dark:text-violet-300">${escapeHtml(k)}:</span> ${escapeHtml(String(v))}</div>`
+    ).join('');
+
+    corpoHtml = `
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/70 dark:border-violet-800/70">
+          <span class="text-[10px] font-bold text-slate-400 uppercase block">IPs Resolvidos (DNS)</span>
+          <span class="font-mono font-bold text-slate-800 dark:text-white">${escapeHtml(ips)}</span>
+        </div>
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/70 dark:border-violet-800/70">
+          <span class="text-[10px] font-bold text-slate-400 uppercase block">HTTP Status &amp; Latência</span>
+          <span class="font-bold text-slate-800 dark:text-white">${escapeHtml(String(det.http_status || det.http_erro || '---'))}${det.tempo_resposta_ms ? ` (${det.tempo_resposta_ms} ms)` : ''}</span>
+        </div>
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/70 dark:border-violet-800/70">
+          <span class="text-[10px] font-bold text-slate-400 uppercase block">Servidor / Tecnologia</span>
+          <span class="font-bold text-slate-800 dark:text-white">${escapeHtml([det.servidor, det.x_powered_by].filter(Boolean).join(' • ') || 'Oculto (boa prática)')}</span>
+        </div>
+      </div>
+
+      <div class="p-3.5 rounded-xl bg-violet-50/50 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
+        <div class="font-extrabold text-violet-900 dark:text-violet-200">🔐 Certificado SSL/TLS</div>
+        ${tls.erro ? `<p class="text-rose-600 font-bold">Erro TLS: ${escapeHtml(tls.erro)}</p>` : `
+          <div class="grid sm:grid-cols-2 gap-2 text-[11px]">
+            <div><b>Protocolo / Cifra:</b> ${escapeHtml(tls.versao || '---')} ${tls.cifra ? `(${escapeHtml(tls.cifra)}${tls.bits ? ` ${tls.bits} bits` : ''})` : ''}</div>
+            <div><b>Titular (CN):</b> ${escapeHtml(tls.titular_cn || '---')}</div>
+            <div><b>Emissor:</b> ${escapeHtml(tls.emissor || '---')}</div>
+            <div><b>Validade:</b> ${escapeHtml(tls.valido_ate || '---')} ${tls.dias_para_expirar !== undefined ? `<b>(${tls.dias_para_expirar} dias restantes)</b>` : ''}</div>
+            <div class="sm:col-span-2"><b>Domínios cobertos (SANs):</b> <span class="font-mono text-[10px]">${escapeHtml(sans)}</span></div>
+          </div>
+        `}
+      </div>
+
+      <div class="space-y-2">
+        <div class="font-extrabold text-slate-900 dark:text-white">🛡️ Headers de Segurança OWASP</div>
+        <div class="overflow-x-auto rounded-xl border border-violet-200 dark:border-violet-800">
+          <table class="w-full text-left text-[11px] border-collapse">
+            <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold">
+              <tr><th class="p-2">Header</th><th class="p-2">Status</th><th class="p-2">Valor Detectado</th></tr>
+            </thead>
+            <tbody>${hdrRows || '<tr><td colspan="3" class="p-2 text-slate-400">Nenhum header coletado.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+
+      ${todosHdrRows ? `
+        <details class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0816] border border-violet-200/70 dark:border-violet-800/70">
+          <summary class="cursor-pointer font-bold text-violet-800 dark:text-violet-300">📑 Ver todos os cabeçalhos HTTP recebidos (${Object.keys(todosHdrs).length})</summary>
+          <div class="mt-2 space-y-1 max-h-48 overflow-y-auto custom-scrollbar">${todosHdrRows}</div>
+        </details>
+      ` : ''}
+    `;
+  } else {
+    const hosts = Array.isArray(det.hosts) ? det.hosts : [];
+    const hostsHtml = hosts.length === 0
+      ? '<p class="text-slate-500 dark:text-violet-300/80">Nenhum host ativo com portas abertas encontrado na faixa varrida (se o servidor estiver na nuvem, use o Coletor LAN Local abaixo para redes privadas).</p>'
+      : hosts.map(h => {
+        const portas = Array.isArray(h.portas) ? h.portas : [];
+        const pRows = portas.map(p => `
+          <tr class="border-b border-violet-100 dark:border-violet-900/50">
+            <td class="p-2 font-mono font-extrabold text-violet-700 dark:text-violet-300">${escapeHtml(String(p.porta ?? p))}</td>
+            <td class="p-2 font-semibold text-slate-800 dark:text-white">${escapeHtml(p.servico || 'Desconhecido')}</td>
+            <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${corSev(p.severidade || 'Informativa')}">${escapeHtml(p.severidade || 'Info')}</span></td>
+            <td class="p-2 font-mono text-[10px] text-slate-600 dark:text-violet-300">${escapeHtml(p.banner || (p.latencia_ms ? `${p.latencia_ms} ms` : '---'))}</td>
+            <td class="p-2 text-[10px] text-slate-600 dark:text-violet-200">${escapeHtml(p.recomendacao || '')}</td>
+          </tr>
+        `).join('');
+        return `
+          <div class="p-3.5 rounded-xl bg-violet-50/50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="font-extrabold text-slate-900 dark:text-white">
+                🖥️ Host: <span class="font-mono text-violet-700 dark:text-violet-300">${escapeHtml(h.ip || 'Host')}</span>
+                ${h.hostname ? `<span class="ml-1.5 text-[11px] font-semibold text-slate-500">(${escapeHtml(h.hostname)})</span>` : ''}
+              </div>
+              <span class="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/60 text-violet-800 dark:text-violet-200 text-[10px] font-bold">
+                ${portas.length} porta(s) aberta(s)${h.latencia_ms ? ` • ${h.latencia_ms} ms` : ''}
+              </span>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-violet-200/80 dark:border-violet-800/70 bg-white dark:bg-[#141024]">
+              <table class="w-full text-left text-[11px] border-collapse">
+                <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold">
+                  <tr><th class="p-2">Porta</th><th class="p-2">Serviço</th><th class="p-2">Risco</th><th class="p-2">Banner / Latência</th><th class="p-2">Recomendação</th></tr>
+                </thead>
+                <tbody>${pRows}</tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+    corpoHtml = `
+      <div class="grid grid-cols-3 gap-2.5">
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/70 dark:border-violet-800/70">
+          <span class="text-[10px] font-bold text-slate-400 uppercase block">IPs Verificados</span>
+          <span class="text-base font-extrabold text-slate-900 dark:text-white">${escapeHtml(String(det.hosts_verificados ?? a.hosts_ativos ?? 0))}</span>
+        </div>
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/70 dark:border-violet-800/70">
+          <span class="text-[10px] font-bold text-slate-400 uppercase block">Hosts Ativos</span>
+          <span class="text-base font-extrabold text-violet-700 dark:text-violet-300">${escapeHtml(String(a.hosts_ativos ?? hosts.length))}</span>
+        </div>
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/70 dark:border-violet-800/70">
+          <span class="text-[10px] font-bold text-slate-400 uppercase block">Portas Abertas</span>
+          <span class="text-base font-extrabold text-rose-600 dark:text-rose-400">${escapeHtml(String(a.portas_expostas ?? 0))}</span>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div class="font-extrabold text-slate-900 dark:text-white">📡 Hosts &amp; Portas Encontradas na Varredura</div>
+        ${hostsHtml}
+      </div>
+    `;
+  }
+
+  const achadosHtml = achados.length === 0
+    ? '<p class="text-emerald-700 dark:text-emerald-300 font-semibold">✅ Nenhuma vulnerabilidade crítica ou pendência detectada nesta varredura.</p>'
+    : achados.map(item => `
+      <div class="p-2.5 rounded-xl bg-white dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-1">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="font-bold text-slate-900 dark:text-white">${escapeHtml(item.titulo || 'Achado')}</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${corSev(item.severidade || 'Média')}">${escapeHtml(item.severidade || 'Média')}</span>
+        </div>
+        ${item.recomendacao ? `<p class="text-[11px] text-slate-600 dark:text-violet-200">🛠️ <b>Mitigação:</b> ${escapeHtml(item.recomendacao)}</p>` : ''}
+      </div>
+    `).join('');
+
+  box.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🔎 Relatório Completo da Varredura: ${escapeHtml(a.alvo)}</h3>
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold ${a.score >= 80 ? 'bg-emerald-100 text-emerald-800' : (a.score >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')}">Score ${a.score}/100</span>
+        </div>
+        <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Modo: <b>${escapeHtml(a.tipo)}</b> • Executado por ${escapeHtml(a.executado_por || 'Sistema')} • ${formatarDataBR(a.executado_em)}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="copiarRelatorioAuditoriaCyber()" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold">📋 Copiar Relatório</button>
+        <button type="button" onclick="fecharDetalheAuditoriaCyber()" class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold">✕ Fechar</button>
+      </div>
+    </div>
+    ${corpoHtml}
+    <div class="space-y-2 pt-2 border-t border-violet-100 dark:border-violet-900/60">
+      <div class="font-extrabold text-slate-900 dark:text-white">🐞 Vulnerabilidades &amp; Pontos de Atenção Encontrados (${achados.length})</div>
+      <div class="space-y-2">${achadosHtml}</div>
+    </div>
+  `;
+  box.classList.remove('hidden');
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function copiarRelatorioAuditoriaCyber() {
+  const a = ultimaAuditoriaDetalhadaCyber;
+  if (!a) return;
+  const texto = JSON.stringify(a, null, 2);
+  try {
+    await navigator.clipboard.writeText(texto);
+    mostrarToast('Relatório completo da varredura copiado!', 'sucesso');
+  } catch (e) {
+    mostrarToast('Não foi possível copiar automaticamente.', 'erro');
   }
 }
 
@@ -540,6 +751,7 @@ async function importarAuditoriaLanJson(event) {
     const data = await res.json();
     mostrarToast(`Coleta local importada! Score ${data.auditoria.score}/100 (${data.achados_criados} achados).`, 'sucesso');
     event.target.value = '';
+    renderizarDetalheAuditoriaCyber(data.auditoria);
     await Promise.all([carregarResumoCyber(), carregarAchadosCyber()]);
   } catch (e) {
     mostrarToast('Arquivo JSON de coleta inválido.', 'erro');

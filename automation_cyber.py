@@ -584,7 +584,26 @@ class NetworkAuditEngine:
     def auditar_web_tls(url: str, host: str) -> dict[str, Any]:
         NetworkAuditEngine._validar_dns_anti_ssrf(host)
         achados: list[dict[str, Any]] = []
-        detalhes: dict[str, Any] = {"host": host, "url": url, "tls": {}, "headers": {}}
+        ips_resolvidos: list[str] = []
+        try:
+            infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+            seen_ip: set[str] = set()
+            for info in infos:
+                ip_txt = str(info[4][0])
+                if ip_txt not in seen_ip:
+                    seen_ip.add(ip_txt)
+                    ips_resolvidos.append(ip_txt)
+        except OSError:
+            pass
+
+        detalhes: dict[str, Any] = {
+            "host": host,
+            "url": url,
+            "ips_resolvidos": ips_resolvidos[:10],
+            "tls": {},
+            "headers": {},
+            "todos_headers": {},
+        }
         score = 100
 
         # 1. Verificação passiva de certificado SSL/TLS
@@ -594,9 +613,24 @@ class NetworkAuditEngine:
                 with ctx.wrap_socket(sock, server_hostname=host) as ssock:
                     cert = ssock.getpeercert() or {}
                     versao_tls = ssock.version() or ""
+                    cifra_info = ssock.cipher()
                     detalhes["tls"]["versao"] = versao_tls
+                    if cifra_info:
+                        detalhes["tls"]["cifra"] = str(cifra_info[0])
+                        detalhes["tls"]["bits"] = int(cifra_info[2]) if len(cifra_info) > 2 and cifra_info[2] else 0
+                    subj_map = {k: v for pair in cert.get("subject", ()) for k, v in pair}
+                    iss_map = {k: v for pair in cert.get("issuer", ()) for k, v in pair}
+                    detalhes["tls"]["titular_cn"] = str(subj_map.get("commonName") or "")[:120]
+                    detalhes["tls"]["emissor"] = str(
+                        iss_map.get("organizationName") or iss_map.get("commonName") or ""
+                    )[:120]
+                    sans = [str(v) for k, v in cert.get("subjectAltName", ()) if k == "DNS"]
+                    detalhes["tls"]["sans"] = sans[:15]
+                    if cert.get("notBefore"):
+                        detalhes["tls"]["valido_de"] = str(cert.get("notBefore"))
                     not_after = cert.get("notAfter")
                     if not_after:
+                        detalhes["tls"]["valido_ate"] = str(not_after)
                         exp_dt = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
                         dias_rest = (exp_dt - datetime.utcnow()).days
                         detalhes["tls"]["dias_para_expirar"] = dias_rest
@@ -626,22 +660,31 @@ class NetworkAuditEngine:
                 "recomendacao": "Confirmar porta 443 ativa e cadeia de certificação válida.",
             })
 
-        # 2. Cabeçalhos HTTP defensivos (requisição única sem seguir redirects para fora do escopo)
+        # 2. Cabeçalhos HTTP defensivos (requisição única)
         try:
+            t0 = time.monotonic()
             req = urllib.request.Request(
                 url,
                 method="GET",
-                headers={"User-Agent": "SysFix-SecurityAuditor/2.3"},
+                headers={"User-Agent": "SysFix-SecurityAuditor/2.8"},
             )
             with urllib.request.urlopen(req, timeout=5.0) as resp:
+                detalhes["tempo_resposta_ms"] = int((time.monotonic() - t0) * 1000)
                 hdrs = {k.lower(): v for k, v in resp.headers.items()}
                 detalhes["http_status"] = getattr(resp, "status", 200)
+                detalhes["url_final"] = str(getattr(resp, "geturl", lambda: url)() or url)[:200]
+                detalhes["servidor"] = str(hdrs.get("server") or "")[:120]
+                detalhes["x_powered_by"] = str(hdrs.get("x-powered-by") or "")[:120]
+                detalhes["todos_headers"] = {
+                    k[:60]: str(v)[:240] for k, v in list(hdrs.items())[:30]
+                }
                 obrigatorios = [
                     ("strict-transport-security", "HSTS ausente (Strict-Transport-Security)", "Média", 10, "Ativar header HSTS para forçar conexões HTTPS."),
                     ("content-security-policy", "CSP ausente (Content-Security-Policy)", "Média", 10, "Definir Content-Security-Policy para mitigar XSS."),
                     ("x-content-type-options", "X-Content-Type-Options ausente", "Baixa", 6, "Definir X-Content-Type-Options: nosniff."),
                     ("x-frame-options", "X-Frame-Options ausente", "Baixa", 6, "Definir X-Frame-Options: DENY ou SAMEORIGIN contra clickjacking."),
                     ("referrer-policy", "Referrer-Policy ausente", "Informativa", 4, "Definir Referrer-Policy: strict-origin-when-cross-origin."),
+                    ("permissions-policy", "Permissions-Policy ausente", "Informativa", 2, "Definir Permissions-Policy para restringir câmera/microfone/geolocalização."),
                 ]
                 for h_key, msg, sev, pen, rec in obrigatorios:
                     presente = h_key in hdrs
@@ -664,6 +707,7 @@ class NetworkAuditEngine:
                 "recomendacao": "Verificar se o site está online e acessível publicamente.",
             })
 
+        detalhes["achados"] = achados
         return {
             "score": max(0, min(100, score)),
             "hosts_ativos": 1,
@@ -677,6 +721,26 @@ class NetworkAuditEngine:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(timeout)
             return s.connect_ex((ip_str, porta)) == 0
+
+    @staticmethod
+    def _sondar_porta_detalhada(ip_str: str, porta: int, timeout: float = 0.35) -> tuple[bool, int, str]:
+        t0 = time.monotonic()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            if s.connect_ex((ip_str, porta)) != 0:
+                return False, 0, ""
+            lat_ms = max(1, int((time.monotonic() - t0) * 1000))
+            banner = ""
+            try:
+                s.settimeout(0.25)
+                raw = s.recv(160)
+                if raw:
+                    banner = SecurityValidator.sanitizar_texto(
+                        raw.decode("utf-8", errors="ignore")
+                    )[:120]
+            except OSError:
+                pass
+            return True, lat_ms, banner
 
     @classmethod
     def auditar_rede_privada(cls, cidr: str) -> dict[str, Any]:
@@ -692,16 +756,37 @@ class NetworkAuditEngine:
 
         def _scan_host(ip_str: str) -> dict[str, Any] | None:
             abertas = []
+            lat_min = 0
             for p in portas:
                 try:
-                    if cls._sondar_porta(ip_str, p):
-                        servico, sev, _ = _PORTAS_AUDITORIA_DEFENSIVA[p]
-                        abertas.append({"porta": p, "servico": servico, "severidade": sev})
+                    ok, lat_ms, banner = cls._sondar_porta_detalhada(ip_str, p)
+                    if ok:
+                        servico, sev, rec = _PORTAS_AUDITORIA_DEFENSIVA[p]
+                        if not lat_min or lat_ms < lat_min:
+                            lat_min = lat_ms
+                        abertas.append({
+                            "porta": p,
+                            "servico": servico,
+                            "severidade": sev,
+                            "banner": banner,
+                            "latencia_ms": lat_ms,
+                            "recomendacao": rec,
+                        })
                 except OSError:
                     continue
             if not abertas:
                 return None
-            return {"ip": ip_str, "portas": abertas}
+            hostname = ""
+            try:
+                hostname = socket.gethostbyaddr(ip_str)[0][:120]
+            except OSError:
+                pass
+            return {
+                "ip": ip_str,
+                "hostname": hostname,
+                "latencia_ms": lat_min,
+                "portas": abertas,
+            }
 
         with ThreadPoolExecutor(max_workers=16) as pool:
             futs = [pool.submit(_scan_host, ip_str) for ip_str in hosts]
@@ -731,7 +816,12 @@ class NetworkAuditEngine:
             "score": score,
             "hosts_ativos": len(descobertos),
             "portas_expostas": total_portas,
-            "detalhes": {"cidr": cidr, "hosts_verificados": len(hosts), "hosts": descobertos},
+            "detalhes": {
+                "cidr": cidr,
+                "hosts_verificados": len(hosts),
+                "hosts": descobertos,
+                "achados": achados,
+            },
             "achados_detectados": achados,
         }
 
@@ -976,6 +1066,7 @@ class AutomationCyberService:
             "hosts_ativos": resultado["hosts_ativos"],
             "portas_expostas": resultado["portas_expostas"],
             "achados_count": len(resultado["achados_detectados"]),
+            "achados": resultado["achados_detectados"],
             "detalhes": resultado["detalhes"],
             "executado_por": SecurityValidator.sanitizar_texto(actor) or "Sistema",
             "executado_em": agora,
@@ -1046,7 +1137,8 @@ class AutomationCyberService:
             "hosts_ativos": len(hosts),
             "portas_expostas": total_portas,
             "achados_count": len(achados_detectados),
-            "detalhes": {"hosts": hosts[:100]},
+            "achados": achados_detectados,
+            "detalhes": {"hosts": hosts[:100], "achados": achados_detectados},
             "executado_por": SecurityValidator.sanitizar_texto(actor) or "Sistema",
             "executado_em": agora,
         }

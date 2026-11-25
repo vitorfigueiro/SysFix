@@ -1150,3 +1150,481 @@ class PDFReportGenerator:
         doc.build(elements)
         buffer.seek(0)
         return buffer
+
+    @classmethod
+    def recibo_venda_loja(
+        cls,
+        venda: dict,
+        tenant: dict | None = None,
+    ) -> io.BytesIO:
+        """Gera Recibo de Venda PDV + Certificado de Garantia com Serial/IMEI."""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=A4, rightMargin=38, leftMargin=38, topMargin=32, bottomMargin=32
+        )
+        styles = getSampleStyleSheet()
+        cor_hex = cls._cor_tema_hex(tenant)
+        cor_clara = colors.HexColor("#F5F3FF")
+        cor_borda = colors.HexColor("#DDD6FE")
+
+        sec_style = ParagraphStyle(
+            "LojaRecSec", parent=styles["Normal"], fontSize=8.5, leading=11, fontName="Helvetica-Bold", textColor=colors.whitesmoke
+        )
+        lbl_style = ParagraphStyle(
+            "LojaRecLbl", parent=styles["Normal"], fontSize=8, leading=10, fontName="Helvetica-Bold", textColor=colors.HexColor("#475569")
+        )
+        val_style = ParagraphStyle(
+            "LojaRecVal", parent=styles["Normal"], fontSize=8.5, leading=11, textColor=colors.HexColor("#0F172A")
+        )
+        footer_style = ParagraphStyle(
+            "LojaRecFoot", parent=styles["Normal"], fontSize=7.5, leading=10, alignment=1, textColor=colors.HexColor("#64748B")
+        )
+
+        codigo = str(venda.get("codigo") or venda.get("id") or "VND")
+        elements = cls._construir_cabecalho_timbrado(
+            tenant,
+            titulo_doc=f"COMPROVANTE DE VENDA & GARANTIA ({codigo})",
+            subtitulo_doc=(
+                f"Doc: {venda.get('tipo_documento') or 'Recibo Interno'}"
+                + (f" Nº {venda.get('numero_nf')}" if venda.get("numero_nf") else "")
+                + f" • Data: {cls._format_date_br(venda.get('data_venda'))}"
+            ),
+            cor_hex=cor_hex,
+        )
+
+        info_rows = [
+            [Paragraph("DADOS DO CLIENTE E PAGAMENTO", sec_style), "", "", ""],
+            [
+                Paragraph("Cliente:", lbl_style),
+                cls._safe_paragraph(venda.get("cliente_nome") or "Consumidor Final", val_style),
+                Paragraph("CPF / CNPJ:", lbl_style),
+                cls._safe_paragraph(venda.get("cliente_doc") or "-", val_style),
+            ],
+            [
+                Paragraph("Vendedor:", lbl_style),
+                cls._safe_paragraph(venda.get("vendedor") or "-", val_style),
+                Paragraph("Filial / Tabela:", lbl_style),
+                cls._safe_paragraph(
+                    f"{venda.get('filial') or 'Matriz'} ({str(venda.get('tabela_preco') or 'varejo').upper()})",
+                    val_style,
+                ),
+            ],
+            [
+                Paragraph("Pagamento:", lbl_style),
+                cls._safe_paragraph(
+                    f"{venda.get('forma_pagamento') or 'Pix'} ({venda.get('parcelas') or 1}x)",
+                    val_style,
+                ),
+                Paragraph("Status:", lbl_style),
+                cls._safe_paragraph(venda.get("status") or "Concluída", val_style),
+            ],
+        ]
+        t_info = Table(info_rows, colWidths=[78, 180, 82, 175])
+        t_info.setStyle(
+            TableStyle(
+                [
+                    ("SPAN", (0, 0), (-1, 0)),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                    ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        elements.extend([t_info, Spacer(1, 10)])
+
+        it_rows = [[
+            Paragraph("Produto / Serviço", sec_style),
+            Paragraph("Serial / IMEI", sec_style),
+            Paragraph("Garantia", sec_style),
+            Paragraph("Qtd", sec_style),
+            Paragraph("Unit.", sec_style),
+            Paragraph("Subtotal", sec_style),
+        ]]
+        for it in venda.get("itens") or []:
+            gar = (
+                f"{it.get('garantia_meses')}m (até {cls._format_date_br(it.get('garantia_ate'))})"
+                if int(it.get("garantia_meses") or 0) > 0
+                else "Sem garantia"
+            )
+            it_rows.append([
+                cls._safe_paragraph(it.get("nome"), val_style),
+                cls._safe_paragraph(it.get("serial_imei") or "-", val_style),
+                cls._safe_paragraph(gar, val_style),
+                cls._safe_paragraph(str(it.get("quantidade") or 1), val_style),
+                cls._safe_paragraph(cls._format_moeda(it.get("preco_unitario")), val_style),
+                cls._safe_paragraph(cls._format_moeda(it.get("total_item")), val_style),
+            ])
+        t_itens = Table(it_rows, colWidths=[175, 95, 90, 30, 62, 63], repeatRows=1)
+        t_itens.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, cor_clara]),
+                    ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        elements.extend([t_itens, Spacer(1, 10)])
+
+        tot_rows = [
+            [
+                Paragraph("Subtotal:", lbl_style),
+                cls._safe_paragraph(cls._format_moeda(venda.get("subtotal")), val_style),
+                Paragraph("Desconto:", lbl_style),
+                cls._safe_paragraph(cls._format_moeda(venda.get("desconto")), val_style),
+                Paragraph("TOTAL PAGO:", lbl_style),
+                Paragraph(f"<b>{html.escape(cls._format_moeda(venda.get('total')))}</b>", val_style),
+            ]
+        ]
+        t_tot = Table(tot_rows, colWidths=[58, 100, 58, 95, 72, 132])
+        t_tot.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), cor_clara),
+                    ("BOX", (0, 0), (-1, -1), 1.0, colors.HexColor(cor_hex)),
+                    ("GRID", (0, 0), (-1, -1), 0.4, cor_borda),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        elements.extend([t_tot, Spacer(1, 10)])
+
+        if venda.get("observacoes"):
+            elements.append(cls._safe_multiline_paragraph(f"Observações: {venda.get('observacoes')}", val_style))
+            elements.append(Spacer(1, 8))
+
+        elements.append(
+            Paragraph(
+                "<b>TERMO DE GARANTIA:</b> A garantia cobre exclusivamente defeitos de fabricação pelo prazo indicado ao lado de cada item, "
+                "mediante conferência do Número de Série / IMEI registrado neste documento e preservação dos lacres originais. "
+                "Não cobre mau uso, oxidação, descarga elétrica ou violação física.",
+                footer_style,
+            )
+        )
+        rodape = (tenant or {}).get("rodape_documento") or f"Comprovante comercial {codigo} — SysFix Loja de TI"
+        elements.extend([Spacer(1, 12), Paragraph(html.escape(rodape), footer_style)])
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer
+
+    @classmethod
+    def orcamento_loja(
+        cls,
+        orc: dict,
+        tenant: dict | None = None,
+    ) -> io.BytesIO:
+        """Gera Proposta Comercial / Orçamento de Montagem de PC em PDF."""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=A4, rightMargin=38, leftMargin=38, topMargin=32, bottomMargin=32
+        )
+        styles = getSampleStyleSheet()
+        cor_hex = cls._cor_tema_hex(tenant)
+        cor_clara = colors.HexColor("#F5F3FF")
+        cor_borda = colors.HexColor("#DDD6FE")
+
+        sec_style = ParagraphStyle(
+            "LojaOrcSec", parent=styles["Normal"], fontSize=8.5, leading=11, fontName="Helvetica-Bold", textColor=colors.whitesmoke
+        )
+        lbl_style = ParagraphStyle(
+            "LojaOrcLbl", parent=styles["Normal"], fontSize=8, leading=10, fontName="Helvetica-Bold", textColor=colors.HexColor("#475569")
+        )
+        val_style = ParagraphStyle(
+            "LojaOrcVal", parent=styles["Normal"], fontSize=8.5, leading=11, textColor=colors.HexColor("#0F172A")
+        )
+        footer_style = ParagraphStyle(
+            "LojaOrcFoot", parent=styles["Normal"], fontSize=7.5, leading=10, alignment=1, textColor=colors.HexColor("#64748B")
+        )
+
+        codigo = str(orc.get("codigo") or "ORC")
+        elements = cls._construir_cabecalho_timbrado(
+            tenant,
+            titulo_doc=f"PROPOSTA COMERCIAL / ORÇAMENTO ({codigo})",
+            subtitulo_doc=f"Validade: {cls._format_date_br(orc.get('valido_ate'))} • Status: {orc.get('status') or 'Enviado'}",
+            cor_hex=cor_hex,
+        )
+
+        info_rows = [
+            [Paragraph("IDENTIFICAÇÃO DA PROPOSTA", sec_style), "", "", ""],
+            [
+                Paragraph("Título:", lbl_style),
+                cls._safe_paragraph(orc.get("titulo"), val_style),
+                Paragraph("Tipo:", lbl_style),
+                cls._safe_paragraph(orc.get("tipo"), val_style),
+            ],
+            [
+                Paragraph("Cliente:", lbl_style),
+                cls._safe_paragraph(orc.get("cliente_nome"), val_style),
+                Paragraph("CPF/CNPJ/Tel:", lbl_style),
+                cls._safe_paragraph(
+                    " • ".join(p for p in (orc.get("cliente_doc"), orc.get("cliente_telefone")) if p) or "-",
+                    val_style,
+                ),
+            ],
+            [
+                Paragraph("Consultor:", lbl_style),
+                cls._safe_paragraph(orc.get("vendedor") or "-", val_style),
+                Paragraph("Condições:", lbl_style),
+                cls._safe_paragraph(orc.get("condicoes_pagamento") or "-", val_style),
+            ],
+        ]
+        t_info = Table(info_rows, colWidths=[72, 185, 78, 180])
+        t_info.setStyle(
+            TableStyle(
+                [
+                    ("SPAN", (0, 0), (-1, 0)),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                    ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        elements.extend([t_info, Spacer(1, 10)])
+
+        it_rows = [[
+            Paragraph("Componente / Serviço", sec_style),
+            Paragraph("Garantia", sec_style),
+            Paragraph("Qtd", sec_style),
+            Paragraph("Unitário", sec_style),
+            Paragraph("Total", sec_style),
+        ]]
+        for it in orc.get("itens") or []:
+            it_rows.append([
+                cls._safe_paragraph(it.get("nome"), val_style),
+                cls._safe_paragraph(f"{it.get('garantia_meses') or 0} meses", val_style),
+                cls._safe_paragraph(str(it.get("quantidade") or 1), val_style),
+                cls._safe_paragraph(cls._format_moeda(it.get("preco_unitario")), val_style),
+                cls._safe_paragraph(cls._format_moeda(it.get("total_item")), val_style),
+            ])
+        t_itens = Table(it_rows, colWidths=[265, 65, 35, 75, 75], repeatRows=1)
+        t_itens.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, cor_clara]),
+                    ("GRID", (0, 0), (-1, -1), 0.5, cor_borda),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        elements.extend([t_itens, Spacer(1, 10)])
+
+        tot_rows = [[
+            Paragraph("Subtotal:", lbl_style),
+            cls._safe_paragraph(cls._format_moeda(orc.get("subtotal")), val_style),
+            Paragraph("Desconto:", lbl_style),
+            cls._safe_paragraph(cls._format_moeda(orc.get("desconto")), val_style),
+            Paragraph("TOTAL PROPOSTA:", lbl_style),
+            Paragraph(f"<b>{html.escape(cls._format_moeda(orc.get('total')))}</b>", val_style),
+        ]]
+        t_tot = Table(tot_rows, colWidths=[55, 95, 55, 90, 95, 125])
+        t_tot.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), cor_clara),
+                    ("BOX", (0, 0), (-1, -1), 1.0, colors.HexColor(cor_hex)),
+                    ("GRID", (0, 0), (-1, -1), 0.4, cor_borda),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        elements.extend([t_tot, Spacer(1, 12)])
+
+        if orc.get("observacoes"):
+            elements.append(cls._safe_multiline_paragraph(f"Observações: {orc.get('observacoes')}", val_style))
+            elements.append(Spacer(1, 10))
+
+        t_ass = Table(
+            [
+                [Spacer(1, 22), Spacer(1, 22)],
+                [
+                    Paragraph("______________________________________<br/>Consultor / Loja", footer_style),
+                    Paragraph("______________________________________<br/>Aprovação do Cliente", footer_style),
+                ],
+            ],
+            colWidths=[257, 258],
+        )
+        t_ass.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
+        elements.append(t_ass)
+
+        rodape = (tenant or {}).get("rodape_documento") or f"Proposta {codigo} gerada via SysFix Loja de TI."
+        elements.extend([Spacer(1, 12), Paragraph(html.escape(rodape), footer_style)])
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer
+
+    @classmethod
+    def relatorio_gerencial_loja(
+        cls,
+        resumo: dict,
+        vendas: list[dict],
+        rmas: list[dict],
+        tenant: dict | None = None,
+        incluir_custos: bool = True,
+    ) -> io.BytesIO:
+        """Gera Relatório Gerencial Consolidado da Loja de TI (Vendas, Curva ABC e RMAs)."""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=32, bottomMargin=32
+        )
+        styles = getSampleStyleSheet()
+        cor_hex = cls._cor_tema_hex(tenant)
+        sec_style = ParagraphStyle(
+            "LojaRelSec", parent=styles["Normal"], fontSize=8.5, leading=11, fontName="Helvetica-Bold", textColor=colors.whitesmoke
+        )
+        cell_st = ParagraphStyle(
+            "LojaRelCell", parent=styles["Normal"], fontSize=8, leading=10.5, textColor=colors.HexColor("#1E293B")
+        )
+        footer_st = ParagraphStyle(
+            "LojaRelFoot", parent=styles["Normal"], fontSize=8, leading=10, alignment=1, textColor=colors.HexColor("#64748B")
+        )
+
+        sub = f"Vendas no mês: {resumo.get('total_vendas_mes', 0)} | Orç. Abertos: {resumo.get('orcamentos_abertos', 0)} | RMAs Abertos: {resumo.get('rmas_abertos', 0)}"
+        if incluir_custos:
+            sub += f" | Fat. Mês: {cls._format_moeda(resumo.get('faturamento_mes', 0))}"
+
+        elements = cls._construir_cabecalho_timbrado(
+            tenant,
+            titulo_doc="RELATÓRIO GERENCIAL — LOJA DE TI",
+            subtitulo_doc=sub,
+            cor_hex=cor_hex,
+        )
+
+        curva = resumo.get("curva_abc") or []
+        if curva:
+            abc_rows = [[
+                Paragraph("Classe ABC", sec_style),
+                Paragraph("Produto / Item", sec_style),
+                Paragraph("Qtd Vendida", sec_style),
+                Paragraph("Participação", sec_style),
+                Paragraph("Receita" if incluir_custos else "Status", sec_style),
+            ]]
+            for item in curva:
+                abc_rows.append([
+                    cls._safe_paragraph(f"Classe {item.get('classe')}", cell_st),
+                    cls._safe_paragraph(item.get("nome"), cell_st),
+                    cls._safe_paragraph(str(item.get("quantidade") or 0), cell_st),
+                    cls._safe_paragraph(f"{item.get('participacao_percent') or 0}%", cell_st),
+                    cls._safe_paragraph(
+                        cls._format_moeda(item.get("receita")) if incluir_custos else "Ativo",
+                        cell_st,
+                    ),
+                ])
+            t_abc = Table(abc_rows, colWidths=[68, 225, 65, 72, 93], repeatRows=1)
+            t_abc.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F3FF")]),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDD6FE")),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            elements.extend([t_abc, Spacer(1, 12)])
+
+        if vendas:
+            v_rows = [[
+                Paragraph("Código", sec_style),
+                Paragraph("Cliente", sec_style),
+                Paragraph("Pagamento", sec_style),
+                Paragraph("Vendedor", sec_style),
+                Paragraph("Total" if incluir_custos else "Status", sec_style),
+            ]]
+            for v in vendas[:30]:
+                v_rows.append([
+                    cls._safe_paragraph(v.get("codigo"), cell_st),
+                    cls._safe_paragraph(v.get("cliente_nome"), cell_st),
+                    cls._safe_paragraph(v.get("forma_pagamento"), cell_st),
+                    cls._safe_paragraph(v.get("vendedor"), cell_st),
+                    cls._safe_paragraph(
+                        cls._format_moeda(v.get("total")) if incluir_custos else v.get("status"),
+                        cell_st,
+                    ),
+                ])
+            t_v = Table(v_rows, colWidths=[92, 165, 100, 88, 78], repeatRows=1)
+            t_v.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F3FF")]),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDD6FE")),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            elements.extend([t_v, Spacer(1, 12)])
+
+        if rmas:
+            r_rows = [[
+                Paragraph("RMA", sec_style),
+                Paragraph("Produto / Serial", sec_style),
+                Paragraph("Cliente / Fornecedor", sec_style),
+                Paragraph("Status", sec_style),
+            ]]
+            for r in rmas[:20]:
+                r_rows.append([
+                    cls._safe_paragraph(r.get("codigo"), cell_st),
+                    cls._safe_paragraph(f"{r.get('produto')} ({r.get('serial_imei') or '-'})", cell_st),
+                    cls._safe_paragraph(r.get("cliente_fornecedor") or "-", cell_st),
+                    cls._safe_paragraph(r.get("status"), cell_st),
+                ])
+            t_r = Table(r_rows, colWidths=[85, 185, 148, 105], repeatRows=1)
+            t_r.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_hex)),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F3FF")]),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDD6FE")),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            elements.extend([t_r, Spacer(1, 12)])
+
+        rodape = (tenant or {}).get("rodape_documento") or "Relatório Gerencial de Loja de TI — SysFix"
+        elements.append(Paragraph(html.escape(rodape), footer_st))
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer
+
+
+def gerar_recibo_venda_pdf(venda: dict, tenant: dict | None = None) -> io.BytesIO:
+    return PDFReportGenerator.recibo_venda_loja(venda, tenant=tenant)
+
+
+def gerar_orcamento_loja_pdf(orcamento: dict, tenant: dict | None = None) -> io.BytesIO:
+    return PDFReportGenerator.orcamento_loja(orcamento, tenant=tenant)
+
+
+def gerar_relatorio_loja_pdf(
+    resumo: dict,
+    vendas: list[dict],
+    rmas: list[dict],
+    tenant: dict | None = None,
+    incluir_custos: bool = True,
+) -> io.BytesIO:
+    return PDFReportGenerator.relatorio_gerencial_loja(
+        resumo=resumo,
+        vendas=vendas,
+        rmas=rmas,
+        tenant=tenant,
+        incluir_custos=incluir_custos,
+    )

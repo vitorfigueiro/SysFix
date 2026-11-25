@@ -25,7 +25,7 @@ from config import get_cors_origins, get_public_client_config, get_storage_backe
 from database import init_db
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from importer import (
     MAX_IMPORT_BYTES,
@@ -34,6 +34,12 @@ from importer import (
     gerar_modelo_importacao,
     normalizar_registros_importacao,
     parse_import_file,
+)
+from loja_ti import (
+    LojaTIService,
+    filtrar_custos_orcamento,
+    filtrar_custos_rma,
+    filtrar_custos_venda,
 )
 from mensagens import obter_mensagem_erro
 from models import ColetaModel
@@ -100,6 +106,49 @@ async def add_static_revalidation_headers(request: Request, call_next):
     return response
 
 
+_FIRST_LOGIN_EXEMPT_PREFIXES = (
+    "/api/config",
+    "/api/health",
+    "/api/public/",
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/onboarding",
+    "/api/auth/me",
+    "/api/auth/mfa/",
+    "/api/auth/primeiro-acesso-senha",
+    "/api/auth/alterar-senha",
+)
+
+
+@app.middleware("http")
+async def enforce_first_login_password_change(request: Request, call_next):
+    path = request.url.path or ""
+    if path.startswith("/api/") and not any(path.startswith(p) for p in _FIRST_LOGIN_EXEMPT_PREFIXES):
+        auth_header = request.headers.get("Authorization")
+        if auth_header:
+            try:
+                token = _extract_bearer_token(auth_header)
+                mfa_tok = request.headers.get("X-SysFix-MFA")
+                user_ctx = _get_auth_service().authenticate_token(
+                    token, mfa_token=mfa_tok if isinstance(mfa_tok, str) else None
+                )
+                if user_ctx.get("must_change_password"):
+                    return JSONResponse(
+                        status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+                        content={
+                            "detail": {
+                                "codigo": "PASSWORD_CHANGE_REQUIRED",
+                                "mensagem": "Por segurança, defina sua senha pessoal antes de acessar o sistema.",
+                                "email": user_ctx.get("email", ""),
+                                "nome": user_ctx.get("nome", ""),
+                            }
+                        },
+                    )
+            except Exception:
+                pass
+    return await call_next(request)
+
+
 def _extract_request_client_info(request: Any) -> tuple[str, str]:
     if not isinstance(request, Request):
         return "", ""
@@ -115,6 +164,10 @@ def _get_auth_service() -> AuthService:
 
 def _get_ops_service() -> OpsModulesService:
     return OpsModulesService()
+
+
+def _get_loja_service() -> LojaTIService:
+    return LojaTIService()
 
 
 def _get_security_ops_service() -> AutomationCyberService:
@@ -331,6 +384,11 @@ class ChangePasswordSchema(BaseModel):
     nova_senha: str
 
 
+class FirstAccessPasswordSchema(BaseModel):
+    nova_senha: str
+    confirmar_senha: Optional[str] = None
+
+
 class OnboardingSchema(BaseModel):
     nome_empresa: str
     nome_usuario: Optional[str] = ""
@@ -342,6 +400,7 @@ class TeamMemberCreateSchema(BaseModel):
     senha: str
     role: Optional[str] = "tecnico"
     permissoes: Optional[dict[str, bool]] = None
+    exigir_troca_senha: bool = True
 
 
 class TeamMemberUpdateSchema(BaseModel):
@@ -349,6 +408,7 @@ class TeamMemberUpdateSchema(BaseModel):
     role: Optional[str] = None
     ativo: Optional[bool] = None
     permissoes: Optional[dict[str, bool]] = None
+    must_change_password: Optional[bool] = None
 
 
 class TenantSettingsSchema(BaseModel):
@@ -420,13 +480,117 @@ class AssinaturaSchema(BaseModel):
 class EstoqueItemSchema(BaseModel):
     nome: Optional[str] = None
     codigo: Optional[str] = None
+    codigo_barras: Optional[str] = None
+    marca: Optional[str] = None
+    ncm: Optional[str] = None
+    fornecedor: Optional[str] = None
     categoria: Optional[str] = None
     almoxarifado: Optional[str] = None
     unidade: Optional[str] = None
     quantidade: Optional[int] = 0
     estoque_minimo: Optional[int] = 0
     custo_unitario: Optional[Union[float, int, str]] = 0.0
+    preco_venda: Optional[Union[float, int, str]] = 0.0
+    preco_atacado_b2b: Optional[Union[float, int, str]] = 0.0
+    garantia_meses: Optional[int] = 3
+    controlar_serial: Optional[bool] = False
     localizacao: Optional[str] = None
+
+
+class LojaClienteSchema(BaseModel):
+    nome: Optional[str] = None
+    tipo: Optional[str] = "Cliente PF"
+    documento: Optional[str] = ""
+    tabela_preco: Optional[str] = "varejo"
+    telefone: Optional[str] = ""
+    email: Optional[str] = ""
+    contato: Optional[str] = ""
+    endereco: Optional[str] = ""
+    limite_credito: Optional[Union[float, int, str]] = 0.0
+    observacoes: Optional[str] = ""
+
+
+class LojaVendaSchema(BaseModel):
+    cliente_id: Optional[str] = ""
+    cliente_nome: Optional[str] = "Consumidor Final"
+    cliente_doc: Optional[str] = ""
+    tabela_preco: Optional[str] = "varejo"
+    forma_pagamento: Optional[str] = "Pix"
+    parcelas: Optional[int] = 1
+    desconto: Optional[Union[float, int, str]] = 0.0
+    tipo_documento: Optional[str] = "Recibo Interno"
+    numero_nf: Optional[str] = ""
+    filial: Optional[str] = "Matriz"
+    vendedor: Optional[str] = ""
+    comissao_percent: Optional[Union[float, int]] = 0.0
+    observacoes: Optional[str] = ""
+    itens: List[dict]
+
+
+class LojaVendaCancelarSchema(BaseModel):
+    motivo: Optional[str] = "Cancelamento no PDV"
+
+
+class LojaOrcamentoSchema(BaseModel):
+    titulo: Optional[str] = "Proposta Comercial / Montagem PC"
+    tipo: Optional[str] = "Montagem PC / Hardware"
+    cliente_id: Optional[str] = ""
+    cliente_nome: str
+    cliente_doc: Optional[str] = ""
+    cliente_telefone: Optional[str] = ""
+    vendedor: Optional[str] = ""
+    tabela_preco: Optional[str] = "varejo"
+    desconto: Optional[Union[float, int, str]] = 0.0
+    validade_dias: Optional[int] = 7
+    condicoes_pagamento: Optional[str] = ""
+    observacoes: Optional[str] = ""
+    itens: List[dict]
+
+
+class LojaOrcamentoStatusSchema(BaseModel):
+    status: str
+
+
+class LojaOrcamentoConverterVendaSchema(BaseModel):
+    forma_pagamento: Optional[str] = "Pix"
+    parcelas: Optional[int] = 1
+    tipo_documento: Optional[str] = "Recibo Interno"
+    numero_nf: Optional[str] = ""
+    desconto: Optional[Union[float, int, str]] = None
+
+
+class LojaOrcamentoConverterOsSchema(BaseModel):
+    localizacao: Optional[str] = "Bancada TI"
+
+
+class LojaCaixaAbrirSchema(BaseModel):
+    valor_abertura: Union[float, int, str] = 0.0
+    filial: Optional[str] = "Matriz"
+    observacao: Optional[str] = ""
+
+
+class LojaCaixaMovSchema(BaseModel):
+    tipo: str
+    valor: Union[float, int, str]
+    motivo: Optional[str] = ""
+
+
+class LojaCaixaFecharSchema(BaseModel):
+    saldo_informado: Union[float, int, str]
+    observacao: Optional[str] = ""
+
+
+class LojaRmaSchema(BaseModel):
+    tipo: Optional[str] = "RMA Cliente"
+    produto: Optional[str] = None
+    serial_imei: Optional[str] = ""
+    venda_codigo: Optional[str] = ""
+    cliente_fornecedor: Optional[str] = ""
+    defeito: Optional[str] = ""
+    protocolo_fabricante: Optional[str] = ""
+    valor_credito: Optional[Union[float, int, str]] = 0.0
+    status: Optional[str] = "Aberto"
+    resolucao: Optional[str] = ""
 
 
 class EstoqueMovimentoSchema(BaseModel):
@@ -481,8 +645,24 @@ class AutomacaoAtivoSchema(BaseModel):
 
 class CyberGovernancaSchema(BaseModel):
     permitir_auditoria_rede: bool = False
+    usuarios_autorizados: List[str] = []
+    restringir_usuarios: Optional[bool] = None
     escopo_autorizado: List[str] = []
     observacao_termo: Optional[str] = ""
+
+
+class CyberAutomacaoDefesaSchema(BaseModel):
+    nome: str
+    tipo: str = "auditoria_contas_2fa_senhas"
+    alvo: Optional[str] = "Ambiente Interno"
+    frequencia: Optional[str] = "Diária"
+    auto_registrar_achados: bool = True
+    ativo: bool = True
+
+
+class CyberSimulacaoDidaticaSchema(BaseModel):
+    cenario_id: str
+    registrar_plano: bool = False
 
 
 class CyberExecutarAuditoriaSchema(BaseModel):
@@ -843,6 +1023,32 @@ def alterar_senha_usuario_api(
         raise HTTPException(status_code=400, detail=str(ve))
     except LookupError as le:
         raise HTTPException(status_code=404, detail=str(le))
+
+
+@app.post("/api/auth/primeiro-acesso-senha")
+def primeiro_acesso_definir_senha_api(
+    payload: FirstAccessPasswordSchema,
+    current_user: dict[str, Any] = Depends(get_current_user),
+    request: Request = None,
+):
+    try:
+        ip, ua = _extract_request_client_info(request)
+        return _get_auth_service().complete_first_login_password_change(
+            user_ctx=current_user,
+            nova_senha=payload.nova_senha,
+            confirmar_senha=payload.confirmar_senha,
+            client_ip=ip,
+            user_agent=ua,
+        )
+    except AuthenticationError as ae:
+        raise HTTPException(status_code=400, detail=str(ae))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except Exception:
+        logger.exception("Erro ao definir senha no primeiro acesso")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
 # ==============================================================================
@@ -1346,6 +1552,7 @@ def criar_usuario_empresa(
             senha=payload.senha,
             role=payload.role or "tecnico",
             permissoes=payload.permissoes,
+            exigir_troca_senha=bool(payload.exigir_troca_senha),
         )
         return {"sucesso": True, "usuario": membro}
     except AuthorizationError as aze:
@@ -1371,6 +1578,7 @@ def atualizar_usuario_empresa(
             role=payload.role,
             ativo=payload.ativo,
             permissoes=payload.permissoes,
+            must_change_password=payload.must_change_password,
         )
         return {"sucesso": True, "usuario": membro}
     except AuthorizationError as aze:
@@ -1917,6 +2125,7 @@ def listar_laudos_criador_api(
         )
         visiveis = sum(1 for l in laudos if l.get("visivel_cliente"))
         return {
+            "mostrar_dashboard": usuario_tem_permissao(current_user, "ver_dashboard_laudos"),
             "resumo": {
                 "total_laudos": len(laudos),
                 "aprovados": aprovados,
@@ -2242,7 +2451,9 @@ def listar_estoque_ops(
 
 @app.get("/api/ops/estoque/resumo")
 def obter_resumo_estoque_ops(
-    current_user: dict[str, Any] = Depends(require_permission("ver_estoque")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_dashboard_estoque", "ver_estoque")
+    ),
 ):
     return _get_ops_service().resumo_estoque(
         current_user["tenant_id"],
@@ -2342,7 +2553,7 @@ def excluir_item_estoque_ops(
 
 @app.get("/api/ops/preventivas")
 def listar_preventivas_ops(
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_garantias_rma")),
 ):
     return _get_ops_service().listar_preventivas(current_user["tenant_id"])
 
@@ -2350,7 +2561,7 @@ def listar_preventivas_ops(
 @app.post("/api/ops/preventivas")
 def criar_preventiva_ops(
     payload: PreventivaSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_garantias_rma")),
 ):
     try:
         item = _get_ops_service().criar_preventiva(
@@ -2370,7 +2581,7 @@ def criar_preventiva_ops(
 def concluir_preventiva_ops(
     item_id: str,
     payload: PreventivaConcluirSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_garantias_rma")),
 ):
     try:
         data_exec = (
@@ -2400,7 +2611,7 @@ def concluir_preventiva_ops(
 @app.delete("/api/ops/preventivas/{item_id}")
 def excluir_preventiva_ops(
     item_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_preventivas")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_garantias_rma")),
 ):
     if not _get_ops_service().excluir_preventiva(current_user["tenant_id"], item_id):
         raise HTTPException(status_code=404, detail="Agenda preventiva não encontrada.")
@@ -2409,7 +2620,7 @@ def excluir_preventiva_ops(
 
 @app.get("/api/ops/clientes")
 def listar_clientes_ops(
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_loja")),
 ):
     return _get_ops_service().listar_clientes(current_user["tenant_id"])
 
@@ -2417,7 +2628,7 @@ def listar_clientes_ops(
 @app.post("/api/ops/clientes")
 def criar_cliente_ops(
     payload: ClientePopSchema,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_loja")),
 ):
     try:
         item = _get_ops_service().criar_cliente(
@@ -2427,17 +2638,17 @@ def criar_cliente_ops(
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception:
-        logger.exception("Erro ao criar cliente/POP")
+        logger.exception("Erro ao criar cliente")
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
 @app.delete("/api/ops/clientes/{item_id}")
 def excluir_cliente_ops(
     item_id: str,
-    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_pops")),
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_loja")),
 ):
     if not _get_ops_service().excluir_cliente(current_user["tenant_id"], item_id):
-        raise HTTPException(status_code=404, detail="Cliente/POP não encontrado.")
+        raise HTTPException(status_code=404, detail="Registro não encontrado.")
     return {"sucesso": True}
 
 
@@ -2449,10 +2660,13 @@ def excluir_cliente_ops(
 @app.get("/api/automacao/ativos")
 def listar_ativos_automacao(
     pilar: Optional[str] = None,
-    current_user: dict[str, Any] = Depends(require_permission("ver_automacao")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_automacao", "ver_dashboard_automacao")
+    ),
 ):
     svc = _get_security_ops_service()
     return {
+        "mostrar_dashboard": usuario_tem_permissao(current_user, "ver_dashboard_automacao"),
         "resumo": svc.resumo_automacao(current_user["tenant_id"]),
         "ativos": svc.listar_automacao(current_user["tenant_id"], pilar=pilar),
     }
@@ -2539,9 +2753,35 @@ def baixar_relatorio_automacao_pdf(
 
 @app.get("/api/cyber/resumo")
 def obter_resumo_cyber_api(
-    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_ciberseguranca", "ver_dashboard_cyber")
+    ),
 ):
-    return _get_security_ops_service().resumo_cyber(current_user["tenant"])
+    dados = _get_security_ops_service().resumo_cyber(current_user["tenant"])
+    dados["mostrar_dashboard"] = usuario_tem_permissao(current_user, "ver_dashboard_cyber")
+    return dados
+
+
+@app.get("/api/cyber/equipe-opcoes")
+def listar_equipe_opcoes_govkey_api(
+    current_user: dict[str, Any] = Depends(require_admin),
+):
+    membros = _get_auth_service().list_team_members(current_user)
+    return [
+        {
+            "uid": m.get("uid"),
+            "nome": m.get("nome"),
+            "email": m.get("email"),
+            "role": m.get("role"),
+            "ativo": m.get("ativo", True),
+            "mfa_enabled": bool(m.get("mfa_enabled")),
+            "pode_cyber": m.get("role") == "admin"
+            or bool((m.get("permissoes") or {}).get("executar_auditoria_rede"))
+            or bool((m.get("permissoes") or {}).get("gerenciar_auditoria_cyber")),
+        }
+        for m in membros
+        if m.get("ativo", True)
+    ]
 
 
 @app.put("/api/cyber/governanca")
@@ -2555,6 +2795,8 @@ def atualizar_governanca_cyber_api(
             permitir_auditoria_rede=payload.permitir_auditoria_rede,
             escopo_autorizado=payload.escopo_autorizado,
             observacao_termo=payload.observacao_termo or "",
+            usuarios_autorizados=payload.usuarios_autorizados,
+            restringir_usuarios=payload.restringir_usuarios,
         )
         return {"sucesso": True, "tenant": tenant, "governanca": tenant["cyber_governanca"]}
     except AuthorizationError as aze:
@@ -2585,6 +2827,9 @@ def executar_auditoria_cyber_api(
             tipo_auditoria=payload.tipo_auditoria,
             registrar_achados=payload.registrar_achados,
             actor=current_user.get("nome") or current_user.get("email") or "",
+            user_uid=current_user.get("uid") or "",
+            user_email=current_user.get("email") or "",
+            is_admin=current_user.get("role") == "admin",
         )
         return {"sucesso": True, **res}
     except PermissionError as pe:
@@ -2709,6 +2954,143 @@ def salvar_checklist_cyber_api(
         raise HTTPException(status_code=400, detail=str(ve))
 
 
+@app.get("/api/cyber/wiki")
+def obter_wiki_separado_cyber_api(
+    busca: Optional[str] = "",
+    atualizar_noticias: bool = False,
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_wiki_separado(
+        current_user["tenant_id"],
+        busca=busca or "",
+        atualizar_noticias=bool(atualizar_noticias),
+    )
+
+
+@app.get("/api/cyber/laboratorio")
+def listar_laboratorio_cyber_api(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_cenarios_didaticos()
+
+
+@app.post("/api/cyber/laboratorio/simular")
+def simular_laboratorio_cyber_api(
+    payload: CyberSimulacaoDidaticaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    try:
+        if payload.registrar_plano and not usuario_tem_permissao(
+            current_user, "gerenciar_auditoria_cyber"
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Você não possui permissão para registrar planos na fila de vulnerabilidades.",
+            )
+        usuarios_tenant = _get_auth_service().user_store.list_users_by_tenant(
+            current_user["tenant_id"]
+        )
+        res = _get_security_ops_service().simular_cenario_didatico(
+            tenant=current_user["tenant"],
+            cenario_id=payload.cenario_id,
+            users_list=usuarios_tenant,
+            registrar_plano=payload.registrar_plano,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, **res}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.get("/api/cyber/automacoes")
+def listar_automacoes_defesa_api(
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    return _get_security_ops_service().listar_automacoes_defesa(current_user["tenant_id"])
+
+
+@app.post("/api/cyber/automacoes")
+def criar_automacao_defesa_api(
+    payload: CyberAutomacaoDefesaSchema,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_auditoria_cyber", "executar_auditoria_rede")
+    ),
+):
+    try:
+        item = _get_security_ops_service().criar_automacao_defesa(
+            tenant=current_user["tenant"],
+            payload=payload.model_dump(),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+            user_uid=current_user.get("uid") or "",
+            user_email=current_user.get("email") or "",
+            is_admin=current_user.get("role") == "admin",
+        )
+        return {"sucesso": True, "item": item}
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.post("/api/cyber/automacoes/{item_id}/executar")
+def executar_automacao_defesa_api(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("executar_auditoria_rede", "gerenciar_auditoria_cyber")
+    ),
+):
+    try:
+        usuarios_tenant = _get_auth_service().user_store.list_users_by_tenant(
+            current_user["tenant_id"]
+        )
+        res = _get_security_ops_service().executar_automacao_defesa(
+            tenant=current_user["tenant"],
+            item_id=item_id,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+            user_uid=current_user.get("uid") or "",
+            user_email=current_user.get("email") or "",
+            is_admin=current_user.get("role") == "admin",
+            users_list=usuarios_tenant,
+        )
+        return {"sucesso": True, **res}
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.delete("/api/cyber/automacoes/{item_id}")
+def excluir_automacao_defesa_api(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_auditoria_cyber")),
+):
+    if not _get_security_ops_service().excluir_automacao_defesa(
+        current_user["tenant_id"], item_id
+    ):
+        raise HTTPException(status_code=404, detail="Automação não encontrada.")
+    return {"sucesso": True}
+
+
+@app.get("/api/cyber/automacoes/script")
+def baixar_script_protecao_cyber_api(
+    tipo: str = Query("firewall_windows_ps1"),
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    try:
+        conteudo, media_type, filename = _get_security_ops_service().gerar_script_protecao_rede(tipo)
+        return Response(
+            content=conteudo,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
 @app.get("/api/cyber/conhecimento")
 def listar_conhecimento_cyber_api(
     busca: Optional[str] = "",
@@ -2768,6 +3150,474 @@ def baixar_relatorio_cyber_pdf(
     except Exception:
         logger.exception("Erro ao gerar relatório PDF de cibersegurança")
         raise HTTPException(status_code=500, detail="Erro ao gerar relatório de cibersegurança.")
+
+
+# ==============================================================================
+# SETOR LOJA DE TI (PDV, ORÇAMENTOS, CAIXA, GARANTIAS/RMA, CLIENTES B2B/PF)
+# ==============================================================================
+
+
+@app.get("/api/loja/resumo")
+def obter_resumo_loja_api(
+    current_user: dict[str, Any] = Depends(
+        require_any_permission(
+            "ver_dashboard_loja",
+            "ver_loja",
+            "operar_pdv_vendas",
+            "gerenciar_orcamentos_loja",
+            "gerenciar_caixa_loja",
+            "gerenciar_garantias_rma",
+            "gerenciar_clientes_loja",
+        )
+    ),
+):
+    incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+    resumo = _get_loja_service().obter_resumo(
+        current_user["tenant_id"], incluir_custos=incluir_custos
+    )
+    resumo["mostrar_dashboard"] = usuario_tem_permissao(current_user, "ver_dashboard_loja")
+    return resumo
+
+
+@app.get("/api/loja/catalogo")
+def listar_catalogo_loja_api(
+    current_user: dict[str, Any] = Depends(
+        require_any_permission(
+            "ver_loja",
+            "operar_pdv_vendas",
+            "gerenciar_orcamentos_loja",
+            "ver_estoque",
+        )
+    ),
+):
+    itens = _get_ops_service().listar_estoque(current_user["tenant_id"])
+    return [_filtrar_item_estoque(i, current_user) for i in itens]
+
+
+@app.get("/api/loja/vendas")
+def listar_vendas_loja_api(
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_loja", "operar_pdv_vendas", "gerenciar_caixa_loja")
+    ),
+):
+    incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+    vendas = _get_loja_service().listar_vendas(current_user["tenant_id"])
+    return [filtrar_custos_venda(v, incluir_custos) for v in vendas]
+
+
+@app.post("/api/loja/vendas")
+def registrar_venda_loja_api(
+    payload: LojaVendaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("operar_pdv_vendas")),
+):
+    try:
+        incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+        venda = _get_loja_service().registrar_venda(
+            current_user["tenant_id"],
+            payload.model_dump(),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "venda": filtrar_custos_venda(venda, incluir_custos)}
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao registrar venda PDV na Loja de TI")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/loja/vendas/{venda_id}/cancelar")
+def cancelar_venda_loja_api(
+    venda_id: str,
+    payload: LojaVendaCancelarSchema,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("operar_pdv_vendas", "gerenciar_caixa_loja")
+    ),
+):
+    try:
+        incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+        venda = _get_loja_service().cancelar_venda(
+            current_user["tenant_id"],
+            venda_id,
+            motivo=payload.motivo or "",
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        if not venda:
+            raise HTTPException(status_code=404, detail="Venda não encontrada.")
+        return {"sucesso": True, "venda": filtrar_custos_venda(venda, incluir_custos)}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao cancelar venda %s", venda_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/loja/vendas/{venda_id}/recibo/pdf")
+def baixar_recibo_venda_pdf_api(
+    venda_id: str,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_loja", "operar_pdv_vendas", "exportar_pdf", "compartilhar_os")
+    ),
+):
+    venda = _get_loja_service().buscar_venda(current_user["tenant_id"], venda_id)
+    if not venda:
+        raise HTTPException(status_code=404, detail="Venda não encontrada.")
+    pdf_buf = PDFReportGenerator.recibo_venda_loja(venda, tenant=current_user["tenant"])
+    codigo = venda.get("codigo") or venda_id
+    return Response(
+        content=pdf_buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="Recibo_{codigo}.pdf"'},
+    )
+
+
+@app.get("/api/loja/orcamentos")
+def listar_orcamentos_loja_api(
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_loja", "gerenciar_orcamentos_loja")
+    ),
+):
+    incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+    orcs = _get_loja_service().listar_orcamentos(current_user["tenant_id"])
+    return [filtrar_custos_orcamento(o, incluir_custos) for o in orcs]
+
+
+@app.post("/api/loja/orcamentos")
+def criar_orcamento_loja_api(
+    payload: LojaOrcamentoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_orcamentos_loja")),
+):
+    try:
+        orc = _get_loja_service().criar_orcamento(
+            current_user["tenant_id"],
+            payload.model_dump(),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "orcamento": orc}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao criar orçamento da Loja de TI")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.patch("/api/loja/orcamentos/{orc_id}")
+def atualizar_status_orcamento_loja_api(
+    orc_id: str,
+    payload: LojaOrcamentoStatusSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_orcamentos_loja")),
+):
+    try:
+        orc = _get_loja_service().atualizar_status_orcamento(
+            current_user["tenant_id"], orc_id, payload.status
+        )
+        if not orc:
+            raise HTTPException(status_code=404, detail="Orçamento não encontrado.")
+        return {"sucesso": True, "orcamento": orc}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.delete("/api/loja/orcamentos/{orc_id}")
+def excluir_orcamento_loja_api(
+    orc_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_orcamentos_loja")),
+):
+    if not _get_loja_service().excluir_orcamento(current_user["tenant_id"], orc_id):
+        raise HTTPException(status_code=404, detail="Orçamento não encontrado.")
+    return {"sucesso": True}
+
+
+@app.post("/api/loja/orcamentos/{orc_id}/converter-venda")
+def converter_orcamento_em_venda_api(
+    orc_id: str,
+    payload: LojaOrcamentoConverterVendaSchema,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("operar_pdv_vendas", "gerenciar_orcamentos_loja")
+    ),
+):
+    try:
+        res = _get_loja_service().converter_orcamento_em_venda(
+            current_user["tenant_id"],
+            orc_id,
+            payload.model_dump(),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+        res["venda"] = filtrar_custos_venda(res["venda"], incluir_custos)
+        return {"sucesso": True, **res}
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao converter orçamento %s em venda", orc_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/loja/orcamentos/{orc_id}/converter-os")
+def converter_orcamento_em_os_api(
+    orc_id: str,
+    payload: LojaOrcamentoConverterOsSchema,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("gerenciar_orcamentos_loja", "registrar_entrada")
+    ),
+):
+    try:
+        res = _get_loja_service().converter_orcamento_em_os(
+            tenant_id=current_user["tenant_id"],
+            orc_id=orc_id,
+            localizacao=payload.localizacao or "Bancada TI",
+            tenant_nome=current_user.get("tenant", {}).get("nome", "SysFix"),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        res["registro"] = _filtrar_registro_por_permissao(res["registro"], current_user)
+        return {"sucesso": True, **res}
+    except LookupError as le:
+        raise HTTPException(status_code=404, detail=str(le))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao converter orçamento %s em O.S.", orc_id)
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.get("/api/loja/orcamentos/{orc_id}/pdf")
+def baixar_orcamento_loja_pdf_api(
+    orc_id: str,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_loja", "gerenciar_orcamentos_loja", "exportar_pdf", "compartilhar_os")
+    ),
+):
+    orcs = _get_loja_service().listar_orcamentos(current_user["tenant_id"])
+    orc = next((o for o in orcs if o.get("id") == orc_id), None)
+    if not orc:
+        raise HTTPException(status_code=404, detail="Orçamento não encontrado.")
+    pdf_buf = PDFReportGenerator.orcamento_loja(orc, tenant=current_user["tenant"])
+    codigo = orc.get("codigo") or orc_id
+    return Response(
+        content=pdf_buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="Proposta_{codigo}.pdf"'},
+    )
+
+
+@app.get("/api/loja/caixa")
+def obter_caixa_loja_api(
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_caixa_loja")),
+):
+    svc = _get_loja_service()
+    tid = current_user["tenant_id"]
+    return {
+        "caixa_atual": svc.obter_caixa_atual(tid),
+        "turnos": svc.listar_turnos_caixa(tid),
+    }
+
+
+@app.post("/api/loja/caixa/abrir")
+def abrir_caixa_loja_api(
+    payload: LojaCaixaAbrirSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_caixa_loja")),
+):
+    try:
+        turno = _get_loja_service().abrir_caixa(
+            tenant_id=current_user["tenant_id"],
+            valor_abertura=payload.valor_abertura,
+            operador=current_user.get("nome") or current_user.get("email") or "",
+            observacao=payload.observacao or "",
+            filial=payload.filial or "Matriz",
+        )
+        return {"sucesso": True, "turno": turno}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.post("/api/loja/caixa/movimento")
+def movimentar_caixa_loja_api(
+    payload: LojaCaixaMovSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_caixa_loja")),
+):
+    try:
+        turno = _get_loja_service().movimentar_caixa(
+            tenant_id=current_user["tenant_id"],
+            tipo=payload.tipo,
+            valor=payload.valor,
+            motivo=payload.motivo or "",
+            operador=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "turno": turno}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.post("/api/loja/caixa/fechar")
+def fechar_caixa_loja_api(
+    payload: LojaCaixaFecharSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_caixa_loja")),
+):
+    try:
+        turno = _get_loja_service().fechar_caixa(
+            tenant_id=current_user["tenant_id"],
+            saldo_informado=payload.saldo_informado,
+            observacao=payload.observacao or "",
+            operador=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "turno": turno}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.get("/api/loja/garantia/consultar")
+def consultar_garantia_serial_api(
+    termo: str = Query(..., min_length=1),
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_loja", "gerenciar_garantias_rma", "operar_pdv_vendas")
+    ),
+):
+    try:
+        return _get_loja_service().consultar_garantia_serial(current_user["tenant_id"], termo)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.get("/api/loja/rma")
+def listar_rma_loja_api(
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_loja", "gerenciar_garantias_rma")
+    ),
+):
+    incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+    rmas = _get_loja_service().listar_rmas(current_user["tenant_id"])
+    return [filtrar_custos_rma(r, incluir_custos) for r in rmas]
+
+
+@app.post("/api/loja/rma")
+def criar_rma_loja_api(
+    payload: LojaRmaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_garantias_rma")),
+):
+    try:
+        incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+        dados = payload.model_dump()
+        if not incluir_custos:
+            dados["valor_credito"] = 0.0
+        rma = _get_loja_service().criar_rma(
+            current_user["tenant_id"],
+            dados,
+            actor=current_user.get("nome") or current_user.get("email") or "",
+        )
+        return {"sucesso": True, "item": filtrar_custos_rma(rma, incluir_custos)}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.patch("/api/loja/rma/{rma_id}")
+def atualizar_rma_loja_api(
+    rma_id: str,
+    payload: LojaRmaSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_garantias_rma")),
+):
+    try:
+        incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+        dados = payload.model_dump(exclude_unset=True)
+        if not incluir_custos:
+            dados.pop("valor_credito", None)
+        rma = _get_loja_service().atualizar_rma(current_user["tenant_id"], rma_id, dados)
+        if not rma:
+            raise HTTPException(status_code=404, detail="Registro de RMA não encontrado.")
+        return {"sucesso": True, "item": filtrar_custos_rma(rma, incluir_custos)}
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.delete("/api/loja/rma/{rma_id}")
+def excluir_rma_loja_api(
+    rma_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_garantias_rma")),
+):
+    if not _get_loja_service().excluir_rma(current_user["tenant_id"], rma_id):
+        raise HTTPException(status_code=404, detail="Registro de RMA não encontrado.")
+    return {"sucesso": True}
+
+
+@app.get("/api/loja/clientes")
+def listar_clientes_loja_api(
+    tipo: Optional[str] = None,
+    current_user: dict[str, Any] = Depends(
+        require_any_permission(
+            "ver_loja",
+            "gerenciar_clientes_loja",
+            "operar_pdv_vendas",
+            "gerenciar_orcamentos_loja",
+        )
+    ),
+):
+    itens = _get_loja_service().listar_clientes(current_user["tenant_id"], tipo=tipo)
+    if not usuario_tem_permissao(current_user, "ver_custos"):
+        for c in itens:
+            c.pop("limite_credito", None)
+    return itens
+
+
+@app.post("/api/loja/clientes")
+def criar_cliente_loja_api(
+    payload: LojaClienteSchema,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_loja")),
+):
+    try:
+        item = _get_loja_service().criar_cliente(
+            current_user["tenant_id"], payload.model_dump()
+        )
+        return {"sucesso": True, "item": item}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.delete("/api/loja/clientes/{item_id}")
+def excluir_cliente_loja_api(
+    item_id: str,
+    current_user: dict[str, Any] = Depends(require_permission("gerenciar_clientes_loja")),
+):
+    if not _get_loja_service().excluir_cliente(current_user["tenant_id"], item_id):
+        raise HTTPException(status_code=404, detail="Cliente/fornecedor não encontrado.")
+    return {"sucesso": True}
+
+
+@app.get("/api/loja/relatorio/pdf")
+def baixar_relatorio_loja_pdf_api(
+    current_user: dict[str, Any] = Depends(
+        require_any_permission("ver_loja", "ver_dashboard_loja", "exportar_pdf")
+    ),
+):
+    try:
+        svc = _get_loja_service()
+        tid = current_user["tenant_id"]
+        incluir_custos = usuario_tem_permissao(current_user, "ver_custos")
+        resumo = svc.obter_resumo(tid, incluir_custos=incluir_custos)
+        vendas = [filtrar_custos_venda(v, incluir_custos) for v in svc.listar_vendas(tid)]
+        rmas = [filtrar_custos_rma(r, incluir_custos) for r in svc.listar_rmas(tid)]
+        pdf_buf = PDFReportGenerator.relatorio_gerencial_loja(
+            resumo=resumo,
+            vendas=vendas,
+            rmas=rmas,
+            tenant=current_user["tenant"],
+            incluir_custos=incluir_custos,
+        )
+        return Response(
+            content=pdf_buf.getvalue(),
+            media_type="application/pdf",
+            headers={'Content-Disposition': 'inline; filename="Relatorio_Loja_TI_SysFix.pdf"'},
+        )
+    except Exception:
+        logger.exception("Erro ao gerar relatório PDF da Loja de TI")
+        raise HTTPException(status_code=500, detail="Erro ao gerar relatório da Loja de TI.")
 
 
 if __name__ == "__main__":

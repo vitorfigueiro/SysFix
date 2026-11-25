@@ -253,18 +253,29 @@ class OpsModulesService:
         qtd = max(0, int(payload.get("quantidade") or 0))
         minimo = max(0, int(payload.get("estoque_minimo") or 0))
         custo = SecurityValidator.validate_cost(payload.get("custo_unitario"))
+        preco_venda = SecurityValidator.validate_cost(payload.get("preco_venda"))
+        preco_b2b = SecurityValidator.validate_cost(payload.get("preco_atacado_b2b"))
+        garantia_meses = max(0, min(120, int(payload.get("garantia_meses") if payload.get("garantia_meses") is not None else 3)))
         agora = _now_iso()
         item = {
             "id": f"est_{uuid.uuid4().hex[:10]}",
             "tenant_id": tenant_id,
             "nome": nome[:140],
             "codigo": SecurityValidator.sanitizar_texto(payload.get("codigo"))[:60],
+            "codigo_barras": SecurityValidator.sanitizar_texto(payload.get("codigo_barras"))[:60],
+            "marca": SecurityValidator.sanitizar_texto(payload.get("marca"))[:60],
+            "ncm": SecurityValidator.sanitizar_texto(payload.get("ncm"))[:20],
+            "fornecedor": SecurityValidator.sanitizar_texto(payload.get("fornecedor"))[:120],
             "categoria": SecurityValidator.sanitizar_texto(payload.get("categoria")) or "Peça / Insumo",
             "almoxarifado": SecurityValidator.sanitizar_texto(payload.get("almoxarifado")) or "Almoxarifado Central",
             "unidade": SecurityValidator.sanitizar_texto(payload.get("unidade"))[:12] or "un",
             "quantidade": qtd,
             "estoque_minimo": minimo,
             "custo_unitario": custo,
+            "preco_venda": preco_venda,
+            "preco_atacado_b2b": preco_b2b,
+            "garantia_meses": garantia_meses,
+            "controlar_serial": bool(payload.get("controlar_serial", False)),
             "localizacao": SecurityValidator.sanitizar_texto(payload.get("localizacao")) or "Almoxarifado",
             "historico_movimentacoes": [
                 {
@@ -275,6 +286,7 @@ class OpsModulesService:
                     "saldo_anterior": 0,
                     "saldo_atual": qtd,
                     "os_id": None,
+                    "venda_id": None,
                     "observacao": "Cadastro inicial do item",
                     "autor": SecurityValidator.sanitizar_texto(actor) or "Sistema",
                 }
@@ -304,6 +316,14 @@ class OpsModulesService:
             updates["nome"] = nome[:140]
         if "codigo" in payload and payload["codigo"] is not None:
             updates["codigo"] = SecurityValidator.sanitizar_texto(payload["codigo"])[:60]
+        if "codigo_barras" in payload and payload["codigo_barras"] is not None:
+            updates["codigo_barras"] = SecurityValidator.sanitizar_texto(payload["codigo_barras"])[:60]
+        if "marca" in payload and payload["marca"] is not None:
+            updates["marca"] = SecurityValidator.sanitizar_texto(payload["marca"])[:60]
+        if "ncm" in payload and payload["ncm"] is not None:
+            updates["ncm"] = SecurityValidator.sanitizar_texto(payload["ncm"])[:20]
+        if "fornecedor" in payload and payload["fornecedor"] is not None:
+            updates["fornecedor"] = SecurityValidator.sanitizar_texto(payload["fornecedor"])[:120]
         if "categoria" in payload and payload["categoria"] is not None:
             updates["categoria"] = SecurityValidator.sanitizar_texto(payload["categoria"]) or "Peça / Insumo"
         if "almoxarifado" in payload and payload["almoxarifado"] is not None:
@@ -314,6 +334,14 @@ class OpsModulesService:
             updates["estoque_minimo"] = max(0, int(payload["estoque_minimo"]))
         if "custo_unitario" in payload and payload["custo_unitario"] is not None:
             updates["custo_unitario"] = SecurityValidator.validate_cost(payload["custo_unitario"])
+        if "preco_venda" in payload and payload["preco_venda"] is not None:
+            updates["preco_venda"] = SecurityValidator.validate_cost(payload["preco_venda"])
+        if "preco_atacado_b2b" in payload and payload["preco_atacado_b2b"] is not None:
+            updates["preco_atacado_b2b"] = SecurityValidator.validate_cost(payload["preco_atacado_b2b"])
+        if "garantia_meses" in payload and payload["garantia_meses"] is not None:
+            updates["garantia_meses"] = max(0, min(120, int(payload["garantia_meses"])))
+        if "controlar_serial" in payload and payload["controlar_serial"] is not None:
+            updates["controlar_serial"] = bool(payload["controlar_serial"])
         if "localizacao" in payload and payload["localizacao"] is not None:
             updates["localizacao"] = SecurityValidator.sanitizar_texto(payload["localizacao"]) or "Almoxarifado"
 
@@ -331,6 +359,7 @@ class OpsModulesService:
         os_id: int | None = None,
         observacao: str = "",
         actor: str = "",
+        venda_id: str | None = None,
     ) -> dict | None:
         item = self.store.get_item("estoque", item_id, tenant_id)
         if not item:
@@ -382,6 +411,7 @@ class OpsModulesService:
                 "saldo_anterior": atual,
                 "saldo_atual": nova_qtd,
                 "os_id": int(os_id) if os_id is not None else None,
+                "venda_id": SecurityValidator.sanitizar_texto(venda_id)[:60] if venda_id else None,
                 "observacao": SecurityValidator.sanitizar_texto(observacao)[:200],
                 "autor": SecurityValidator.sanitizar_texto(actor) or "Sistema",
             },

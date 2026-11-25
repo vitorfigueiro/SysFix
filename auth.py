@@ -51,7 +51,7 @@ ROLES_PERMITIDAS = {"admin", "tecnico"}
 
 DEFAULT_ACTIVE_SECTORS: dict[str, bool] = {
     "ti": True,
-    "provedor": True,
+    "loja": True,
     "estoque": True,
     "automacao": True,
     "ciberseguranca": True,
@@ -59,7 +59,7 @@ DEFAULT_ACTIVE_SECTORS: dict[str, bool] = {
 
 DEFAULT_BANCADA_FIELDS: dict[str, Any] = {
     "padrao": {
-        "categoria": {"label": "Categoria TI/ISP", "visivel": True, "obrigatorio": False},
+        "categoria": {"label": "Categoria TI", "visivel": True, "obrigatorio": False},
         "tombamento": {"label": "Tombamento / Serial", "visivel": True, "obrigatorio": True},
         "localizacao": {"label": "Localização Inicial", "visivel": True, "obrigatorio": True},
         "prioridade": {"label": "Prioridade / SLA", "visivel": True, "obrigatorio": False},
@@ -137,247 +137,305 @@ def _normalizar_campos_bancada(raw: Any) -> dict[str, Any]:
 PERMISSION_SECTORS = [
     {
         "key": "ti",
-        "label": "🖥️ TI & Bancada (O.S.)",
-        "descricao": "Atendimento de chamados, entradas, bancada e entregas de TI.",
+        "label": "🖥️ Bancada TI & Ordens de Serviço",
+        "descricao": "Atendimento técnico, registro de entradas/entregas de equipamentos, SLA e dashboard da bancada.",
     },
     {
-        "key": "provedor",
-        "label": "📡 Provedor de Internet (ISP / NOC)",
-        "descricao": "Comodato de CPEs (ONUs/Roteadores), preventivas de POPs e assinantes.",
+        "key": "loja",
+        "label": "🏪 Loja de TI (PDV, Orçamentos & RMA)",
+        "descricao": "Frente de caixa (PDV), propostas/montagem de PCs, garantia por serial, RMA, clientes B2B e fornecedores.",
     },
     {
         "key": "estoque",
-        "label": "📦 Estoque & Almoxarifado",
-        "descricao": "Controle de peças, insumos, almoxarifados e baixas vinculadas à O.S.",
+        "label": "📦 Estoque & Almoxarifado TI",
+        "descricao": "Peças, componentes, periféricos, garantia de itens, preços varejo/B2B e movimentação por O.S./venda.",
     },
     {
         "key": "automacao",
         "label": "🤖 Automação, CFTV & IoT",
-        "descricao": "Auditoria de câmeras, infraestrutura, sensores IoT e alarmes de segurança.",
+        "descricao": "Auditoria e hardening de câmeras IP, NVR/DVR, infraestrutura de rack, sensores IoT e alarmes.",
     },
     {
         "key": "ciberseguranca",
-        "label": "🛡️ Cibersegurança & Auditoria",
-        "descricao": "Auditoria defensiva autorizada, vulnerabilidades, CIS/NIST/LGPD e playbooks.",
+        "label": "🛡️ Cibersegurança & Governança",
+        "descricao": "Auditorias autorizadas de rede/TLS, gestão de vulnerabilidades, checklists CIS/NIST/LGPD e playbooks.",
     },
     {
         "key": "laudos",
-        "label": "📄 Laudos, Documentos & Cliente",
-        "descricao": "Laudos técnicos, comprovantes PDF, link público, assinatura e WhatsApp.",
+        "label": "📄 Laudos, Pareceres & Atendimento",
+        "descricao": "Emissão e edição de laudos técnicos em PDF, comprovantes, assinatura digital, link público e WhatsApp.",
     },
     {
         "key": "financeiro",
-        "label": "💰 Financeiro & Indicadores",
-        "descricao": "Dashboard executivo, SLA e visualização/lançamento de valores (R$).",
+        "label": "💰 Financeiro & Painel Executivo",
+        "descricao": "Dashboard executivo global, análise de custos, margens, faturamento e valores financeiros (R$).",
     },
     {
         "key": "administracao",
-        "label": "🏢 Administração & Governança",
-        "descricao": "Timbre/modelos, equipe, permissões e importação/backup de dados.",
+        "label": "🏢 Administração & Segurança",
+        "descricao": "Timbre/modelos de laudos, gestão de equipe e permissões, personalização de campos e backups.",
     },
 ]
 
 PERMISSIONS_CATALOG = [
-    # --- SETOR: TI & BANCADA (O.S.) ---
-    {
-        "key": "ver_ti",
-        "setor": "ti",
-        "label": "Acessar Bancada TI (O.S.)",
-        "descricao": "Visualizar fila de equipamentos e ficha técnica de TI.",
-        "default_tecnico": True,
-    },
+    # --- SETOR: BANCADA TI & ORDENS DE SERVIÇO ---
     {
         "key": "ver_dashboard_entradas",
         "setor": "ti",
-        "label": "Ver Dashboard de Entradas",
-        "descricao": "Visualizar indicadores de entradas de equipamentos, pendentes, SLA, localizações e evolução.",
+        "label": "Ver Dashboard da Bancada TI",
+        "descricao": "Exibe os indicadores de entradas, fila pendente, atrasos de SLA e distribuição por bancada.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "ver_ti",
+        "setor": "ti",
+        "label": "Acessar Bancada TI e Fila de O.S.",
+        "descricao": "Visualiza a fila de equipamentos em manutenção, histórico do ativo e ficha completa da O.S.",
         "default_tecnico": True,
     },
     {
         "key": "registrar_entrada",
         "setor": "ti",
-        "label": "Registrar Entradas",
-        "descricao": "Cadastrar novos equipamentos e entradas em lote.",
+        "label": "Registrar Entrada de Equipamentos",
+        "descricao": "Permite abrir novas Ordens de Serviço (individuais ou em lote) com resumo automático de coleta.",
         "default_tecnico": True,
     },
     {
         "key": "editar_entrada",
         "setor": "ti",
-        "label": "Editar Entradas e Checklist",
-        "descricao": "Alterar dados de coleta, localização e marcar checklist.",
+        "label": "Atualizar Diagnóstico, Local e Checklist",
+        "descricao": "Permite editar dados da O.S., trocar a bancada/status e marcar itens do checklist técnico.",
         "default_tecnico": True,
     },
     {
         "key": "registrar_saida",
         "setor": "ti",
-        "label": "Dar Saída / Entregar",
-        "descricao": "Finalizar ordens de serviço, garantia e entrega.",
+        "label": "Finalizar O.S. e Registrar Entrega",
+        "descricao": "Permite concluir o reparo, definir prazo de garantia e gerar o resumo automático de entrega.",
         "default_tecnico": True,
     },
     {
         "key": "excluir_registros",
         "setor": "ti",
-        "label": "Excluir Registros",
-        "descricao": "Apagar permanentemente registros de equipamentos.",
+        "label": "Excluir Registros da Bancada TI",
+        "descricao": "Ação crítica: apaga permanentemente uma Ordem de Serviço e seu histórico de passagens.",
         "default_tecnico": False,
     },
-    # --- SETOR: PROVEDOR DE INTERNET (ISP / NOC) ---
+    # --- SETOR: LOJA DE TI (PDV, ORÇAMENTOS, CAIXA & RMA) ---
     {
-        "key": "ver_provedor",
-        "setor": "provedor",
-        "label": "Acessar Setor Provedor (ISP)",
-        "descricao": "Visualizar campos de MAC/GPON SN, fluxo Comodato e painel CPEs.",
+        "key": "ver_dashboard_loja",
+        "setor": "loja",
+        "label": "Ver Dashboard Comercial da Loja de TI",
+        "descricao": "Exibe os cards de faturamento do dia/mês, ticket médio, Curva ABC e taxa de orçamentos.",
+        "default_tecnico": False,
+    },
+    {
+        "key": "ver_loja",
+        "setor": "loja",
+        "label": "Acessar Módulo Loja de TI",
+        "descricao": "Libera a aba Loja de TI para consultar vendas, propostas, catálogo comercial e garantias.",
         "default_tecnico": True,
     },
     {
-        "key": "gerenciar_preventivas",
-        "setor": "provedor",
-        "label": "Preventivas de POPs & Torres",
-        "descricao": "Agendar e concluir manutenções preventivas de infraestrutura.",
+        "key": "operar_pdv_vendas",
+        "setor": "loja",
+        "label": "Operar PDV (Vendas, NFC-e/NF-e e Baixa Automática)",
+        "descricao": "Realiza vendas no balcão/B2B com vínculo de Serial/IMEI, emissão de recibo PDF e baixa no estoque.",
         "default_tecnico": True,
     },
     {
-        "key": "gerenciar_clientes_pops",
-        "setor": "provedor",
-        "label": "POPs, Torres & Assinantes",
-        "descricao": "Cadastrar e consultar POPs, torres e clientes ISP.",
+        "key": "gerenciar_orcamentos_loja",
+        "setor": "loja",
+        "label": "Criar Orçamentos e Montagem de PCs",
+        "descricao": "Elabora propostas comerciais em PDF e converte com 1 clique em Venda ou O.S. da Bancada.",
         "default_tecnico": True,
     },
-    # --- SETOR: ESTOQUE & ALMOXARIFADO ---
+    {
+        "key": "gerenciar_caixa_loja",
+        "setor": "loja",
+        "label": "Abrir, Movimentar e Fechar Caixa (PDV)",
+        "descricao": "Controla turnos de caixa, suprimentos, sangrias, conferência de fechamento e comissões.",
+        "default_tecnico": False,
+    },
+    {
+        "key": "gerenciar_garantias_rma",
+        "setor": "loja",
+        "label": "Gerenciar Garantias por Serial & RMA",
+        "descricao": "Valida garantia antifraude por Serial/IMEI e controla trocas/RMA de clientes e distribuidores.",
+        "default_tecnico": True,
+    },
+    {
+        "key": "gerenciar_clientes_loja",
+        "setor": "loja",
+        "label": "Cadastrar Clientes PF/PJ e Fornecedores",
+        "descricao": "Gerencia carteira de clientes varejo/B2B, fornecedores/distribuidores e filiais.",
+        "default_tecnico": True,
+    },
+    # --- SETOR: ESTOQUE & ALMOXARIFADO TI ---
+    {
+        "key": "ver_dashboard_estoque",
+        "setor": "estoque",
+        "label": "Ver Dashboard do Estoque",
+        "descricao": "Exibe os indicadores de total de SKUs, unidades disponíveis, itens críticos e valor em estoque.",
+        "default_tecnico": True,
+    },
     {
         "key": "ver_estoque",
         "setor": "estoque",
-        "label": "Consultar Estoque",
-        "descricao": "Visualizar saldo de peças, insumos, almoxarifados e alertas.",
+        "label": "Consultar Catálogo e Saldos de Estoque",
+        "descricao": "Visualiza produtos, peças, almoxarifados, prazos de garantia e histórico de movimentações.",
         "default_tecnico": True,
     },
     {
         "key": "movimentar_estoque",
         "setor": "estoque",
-        "label": "Movimentar / Dar Baixa na O.S.",
-        "descricao": "Registrar entradas e saídas de estoque vinculadas às O.S.",
+        "label": "Movimentar e Dar Baixa de Peças em O.S.",
+        "descricao": "Registra entradas manuais, saídas e aplicação de peças/insumos vinculados às Ordens de Serviço.",
         "default_tecnico": True,
     },
     {
         "key": "gerenciar_estoque",
         "setor": "estoque",
-        "label": "Cadastrar e Excluir Itens",
-        "descricao": "Criar novos SKUs, definir estoque mínimo e remover itens.",
+        "label": "Cadastrar Produtos, Preços e Excluir SKUs",
+        "descricao": "Cria e edita itens de venda/peças, código de barras/NCM, preços varejo/B2B e estoque mínimo.",
         "default_tecnico": False,
     },
     # --- SETOR: AUTOMAÇÃO, CFTV & IOT ---
     {
+        "key": "ver_dashboard_automacao",
+        "setor": "automacao",
+        "label": "Ver Dashboard de Automação & CFTV",
+        "descricao": "Exibe o resumo de ativos auditados, taxa de conformidade, alertas e riscos críticos.",
+        "default_tecnico": True,
+    },
+    {
         "key": "ver_automacao",
         "setor": "automacao",
-        "label": "Consultar Auditoria de Automação",
-        "descricao": "Visualizar câmeras, infraestrutura, dispositivos IoT e alarmes.",
+        "label": "Consultar Inventário de CFTV, Infra & IoT",
+        "descricao": "Visualiza câmeras IP, NVRs, controladores IoT, alarmes e infraestrutura predial auditados.",
         "default_tecnico": True,
     },
     {
         "key": "gerenciar_automacao",
         "setor": "automacao",
-        "label": "Auditar & Cadastrar Automação/IoT",
-        "descricao": "Registrar e auditar CFTV, infraestrutura, IoT e alarmes.",
+        "label": "Auditar e Cadastrar Ativos de Automação",
+        "descricao": "Registra auditorias de segurança (senha, firmware, VLAN, backup) e atualiza conformidade.",
         "default_tecnico": True,
     },
-    # --- SETOR: CIBERSEGURANÇA & AUDITORIA ---
+    # --- SETOR: CIBERSEGURANÇA & GOVERNANÇA ---
+    {
+        "key": "ver_dashboard_cyber",
+        "setor": "ciberseguranca",
+        "label": "Ver Dashboard de Cibersegurança",
+        "descricao": "Exibe o score de maturidade CIS/NIST, contagem de achados abertos/críticos e status de governança.",
+        "default_tecnico": False,
+    },
     {
         "key": "ver_ciberseguranca",
         "setor": "ciberseguranca",
-        "label": "Acessar Painel & Base Cyber",
-        "descricao": "Consultar maturidade, checklists CIS/NIST/LGPD e base de conhecimento.",
-        "default_tecnico": True,
+        "label": "Acessar Painel Cyber & Base de Conhecimento",
+        "descricao": "Visualiza histórico de auditorias, matriz de vulnerabilidades e playbooks defensivos.",
+        "default_tecnico": False,
     },
     {
         "key": "gerenciar_auditoria_cyber",
         "setor": "ciberseguranca",
-        "label": "Gerir Achados, Checklists & KB",
-        "descricao": "Registrar vulnerabilidades, atualizar controles e importar coletas LAN.",
+        "label": "Gerir Vulnerabilidades, Checklists CIS & Guias",
+        "descricao": "Registra e mitiga achados, atualiza controles CIS/NIST/LGPD, publica playbooks e importa LAN JSON.",
         "default_tecnico": False,
     },
     {
         "key": "executar_auditoria_rede",
         "setor": "ciberseguranca",
-        "label": "Executar Auditoria Ativa (c/ Gestor)",
-        "descricao": "Disparar auditorias de rede/TLS dentro do escopo autorizado pelo gestor.",
+        "label": "Executar Auditoria Ativa (c/ Autorização)",
+        "descricao": "Dispara varreduras defensivas de portas e TLS apenas dentro do escopo liberado pelo gestor.",
         "default_tecnico": False,
     },
-    # --- SETOR: LAUDOS, DOCUMENTOS & CLIENTE ---
+    # --- SETOR: LAUDOS, PARECERES & ATENDIMENTO ---
+    {
+        "key": "ver_dashboard_laudos",
+        "setor": "laudos",
+        "label": "Ver Dashboard de Laudos Emitidos",
+        "descricao": "Exibe os cartões de resumo com total de laudos, aprovações, visibilidade pública e modelos.",
+        "default_tecnico": True,
+    },
     {
         "key": "acessar_criador_laudos",
         "setor": "laudos",
-        "label": "Acessar Criador de Laudos",
-        "descricao": "Abrir a aba separada Criador de Laudos para emitir, visualizar, editar e imprimir laudos em PDF.",
+        "label": "Acessar Aba Dedicada Criador de Laudos",
+        "descricao": "Libera a visão separada Criador de Laudos com pré-visualização em tempo real e modelos prontos.",
         "default_tecnico": True,
     },
     {
         "key": "gerenciar_laudos",
         "setor": "laudos",
-        "label": "Emitir e Anexar Laudos",
-        "descricao": "Criar, editar, imprimir e baixar pareceres e laudos técnicos.",
+        "label": "Emitir, Editar e Baixar Laudos em PDF",
+        "descricao": "Permite criar, editar, imprimir e baixar laudos ou pareceres técnicos anexados às O.S.",
         "default_tecnico": True,
     },
     {
         "key": "compartilhar_os",
         "setor": "laudos",
-        "label": "Comprovante, Link e Assinatura",
-        "descricao": "Comprovante PDF, link público, orçamento, assinatura e WhatsApp.",
+        "label": "Comprovante PDF, Link Cliente e Assinatura",
+        "descricao": "Gera comprovante de O.S., link público de acompanhamento, assinatura na tela e envio por WhatsApp.",
         "default_tecnico": True,
     },
     {
         "key": "exportar_pdf",
         "setor": "laudos",
-        "label": "Exportar Relatórios PDF",
-        "descricao": "Gerar relatórios consolidados em PDF da empresa.",
+        "label": "Exportar Relatórios Executivos em PDF",
+        "descricao": "Permite gerar e baixar relatórios consolidados em PDF da bancada, loja, automação e cyber.",
         "default_tecnico": True,
     },
-    # --- SETOR: FINANCEIRO & INDICADORES ---
+    # --- SETOR: FINANCEIRO & PAINEL EXECUTIVO ---
     {
         "key": "ver_dashboard",
         "setor": "financeiro",
-        "label": "Ver Dashboard Executivo",
-        "descricao": "Acessar indicadores, gráficos e alertas de SLA.",
+        "label": "Ver Dashboard Executivo Global",
+        "descricao": "Acessa gráficos gerenciais, ranking de técnicos e consolidado operacional completo da empresa.",
         "default_tecnico": True,
     },
     {
         "key": "ver_custos",
         "setor": "financeiro",
-        "label": "Ver e Informar Custos (R$)",
-        "descricao": "Visualizar e lançar valores nas O.S., orçamentos e estoque.",
+        "label": "Visualizar Custos, Margens e Valores (R$)",
+        "descricao": "Exibe preços de custo, lucro, totais em R$, caixa e campos financeiros nas O.S., loja e estoque.",
         "default_tecnico": True,
     },
-    # --- SETOR: ADMINISTRAÇÃO & GOVERNANÇA ---
+    # --- SETOR: ADMINISTRAÇÃO & SEGURANÇA ---
     {
         "key": "gerenciar_modelos",
         "setor": "administracao",
-        "label": "Personalizar Modelos e Timbre",
-        "descricao": "Alterar logo, CNPJ, cores, checklist padrão e modelos de laudo.",
+        "label": "Personalizar Timbre, Modelos e Checklist",
+        "descricao": "Altera logo, CNPJ, cores dos documentos PDF, checklist padrão e modelos de laudo da empresa.",
         "default_tecnico": False,
     },
     {
         "key": "gerenciar_equipe",
         "setor": "administracao",
-        "label": "Gerenciar Equipe e Empresa",
-        "descricao": "Editar configurações da empresa, setores e colaboradores.",
+        "label": "Gerenciar Equipe, Permissões e Campos da O.S.",
+        "descricao": "Cadastra colaboradores, define permissões, configura setores ativos e edita campos da Bancada TI.",
         "default_tecnico": False,
     },
     {
         "key": "importar_exportar_dados",
         "setor": "administracao",
-        "label": "Importar / Exportar Backup",
-        "descricao": "Importar planilhas/JSON e exportar backups completos.",
+        "label": "Importar Planilhas e Exportar Backups",
+        "descricao": "Importa arquivos CSV/XLSX/JSON de outros sistemas e exporta cópias de segurança da empresa.",
         "default_tecnico": False,
     },
 ]
 
 LEGACY_PERMISSION_ALIASES: dict[str, tuple[str, ...]] = {
     "gerenciar_operacoes_ti": (
-        "ver_provedor",
-        "gerenciar_preventivas",
-        "gerenciar_clientes_pops",
         "ver_estoque",
         "movimentar_estoque",
-    )
+        "ver_loja",
+        "gerenciar_clientes_loja",
+    ),
+    "ver_provedor": ("ver_loja",),
+    "gerenciar_clientes_pops": ("gerenciar_clientes_loja",),
+    "gerenciar_preventivas": ("gerenciar_garantias_rma",),
 }
 
 DEFAULT_TECH_PERMISSIONS: dict[str, bool] = {
@@ -391,42 +449,70 @@ _VALID_PERMISSION_KEYS = set(ALL_PERMISSIONS_TRUE.keys())
 ROLE_PRESETS: dict[str, dict[str, Any]] = {
     "tecnico_ti": {
         "label": "🖥️ Técnico TI (Bancada)",
-        "descricao": "O.S. de bancada, checklist, laudos e comprovante (sem Provedor, Estoque ou Custos).",
+        "descricao": "O.S. de bancada, dashboard de entradas, laudos técnicos e comprovante (sem Caixa ou Custos).",
         "permissoes": {
-            "ver_ti": True,
             "ver_dashboard_entradas": True,
+            "ver_ti": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,
+            "ver_dashboard_laudos": True,
             "acessar_criador_laudos": True,
             "gerenciar_laudos": True,
             "compartilhar_os": True,
             "exportar_pdf": True,
         },
     },
-    "tecnico_isp": {
-        "label": "📡 Técnico Provedor (ISP)",
-        "descricao": "Comodato/CPEs, preventivas de POPs, assinantes, O.S. e baixa de estoque.",
+    "vendedor_loja": {
+        "label": "🏪 Vendedor / Balcão Loja TI",
+        "descricao": "PDV, orçamentos de PCs, cadastro de clientes, garantias/RMA e consulta de estoque (sem custos de compra).",
         "permissoes": {
-            "ver_ti": True,
+            "ver_dashboard_loja": True,
+            "ver_loja": True,
+            "operar_pdv_vendas": True,
+            "gerenciar_orcamentos_loja": True,
+            "gerenciar_garantias_rma": True,
+            "gerenciar_clientes_loja": True,
+            "ver_dashboard_estoque": True,
+            "ver_estoque": True,
+            "compartilhar_os": True,
+            "exportar_pdf": True,
+        },
+    },
+    "gerente_loja": {
+        "label": "🏬 Gerente Loja de TI",
+        "descricao": "Acesso completo à Loja de TI (PDV, Caixa, Orçamentos, RMA, Custos/Margem) + Estoque e Dashboards.",
+        "permissoes": {
+            "ver_dashboard": True,
+            "ver_custos": True,
             "ver_dashboard_entradas": True,
+            "ver_ti": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,
-            "ver_provedor": True,
-            "gerenciar_preventivas": True,
-            "gerenciar_clientes_pops": True,
+            "ver_dashboard_loja": True,
+            "ver_loja": True,
+            "operar_pdv_vendas": True,
+            "gerenciar_orcamentos_loja": True,
+            "gerenciar_caixa_loja": True,
+            "gerenciar_garantias_rma": True,
+            "gerenciar_clientes_loja": True,
+            "ver_dashboard_estoque": True,
             "ver_estoque": True,
             "movimentar_estoque": True,
+            "gerenciar_estoque": True,
+            "ver_dashboard_laudos": True,
             "acessar_criador_laudos": True,
             "gerenciar_laudos": True,
             "compartilhar_os": True,
+            "exportar_pdf": True,
         },
     },
     "estoquista": {
         "label": "📦 Estoquista / Almoxarifado",
-        "descricao": "Acesso exclusivo ao setor de Estoque (cadastro, saldo, alertas e movimentações).",
+        "descricao": "Acesso dedicado ao Estoque e Almoxarifado TI (cadastro de SKUs, saldos, alertas e movimentações).",
         "permissoes": {
+            "ver_dashboard_estoque": True,
             "ver_estoque": True,
             "movimentar_estoque": True,
             "gerenciar_estoque": True,
@@ -434,31 +520,46 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
     },
     "financeiro_gestor": {
         "label": "💰 Gestor / Financeiro",
-        "descricao": "Dashboard, custos, relatórios PDF e consulta geral (sem alterar O.S.).",
+        "descricao": "Todos os dashboards, custos, margens, caixa e relatórios PDF (sem alterar O.S. operacionais).",
         "permissoes": {
             "ver_dashboard": True,
-            "ver_dashboard_entradas": True,
             "ver_custos": True,
-            "exportar_pdf": True,
+            "ver_dashboard_entradas": True,
             "ver_ti": True,
-            "ver_provedor": True,
+            "ver_dashboard_loja": True,
+            "ver_loja": True,
+            "gerenciar_caixa_loja": True,
+            "ver_dashboard_estoque": True,
             "ver_estoque": True,
+            "ver_dashboard_automacao": True,
+            "ver_automacao": True,
+            "ver_dashboard_cyber": True,
+            "ver_ciberseguranca": True,
+            "ver_dashboard_laudos": True,
+            "exportar_pdf": True,
         },
     },
     "operacional_sem_custos": {
         "label": "🔧 Operacional (Sem Custos)",
-        "descricao": "TI, Provedor, Estoque (baixa) e Laudos sem visualização financeira.",
+        "descricao": "TI, Loja de TI, Estoque (baixa), Automação e Laudos sem visualização de custos ou lucros.",
         "permissoes": {
-            "ver_ti": True,
             "ver_dashboard_entradas": True,
+            "ver_ti": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,
-            "ver_provedor": True,
-            "gerenciar_preventivas": True,
-            "gerenciar_clientes_pops": True,
+            "ver_loja": True,
+            "operar_pdv_vendas": True,
+            "gerenciar_orcamentos_loja": True,
+            "gerenciar_garantias_rma": True,
+            "gerenciar_clientes_loja": True,
+            "ver_dashboard_estoque": True,
             "ver_estoque": True,
             "movimentar_estoque": True,
+            "ver_dashboard_automacao": True,
+            "ver_automacao": True,
+            "gerenciar_automacao": True,
+            "ver_dashboard_laudos": True,
             "acessar_criador_laudos": True,
             "gerenciar_laudos": True,
             "compartilhar_os": True,
@@ -467,35 +568,39 @@ ROLE_PRESETS: dict[str, dict[str, Any]] = {
     },
     "padrao": {
         "label": "⚙️ Técnico Padrão",
-        "descricao": "Configuração padrão equilibrada.",
+        "descricao": "Configuração padrão equilibrada entre Bancada TI, Loja de TI, Estoque, Automação e Laudos.",
         "permissoes": dict(DEFAULT_TECH_PERMISSIONS),
     },
     "tecnico_automacao": {
         "label": "🤖 Técnico Automação / CFTV",
-        "descricao": "Auditoria de câmeras, infra, IoT, alarmes, O.S. de bancada e laudos.",
+        "descricao": "Auditoria de câmeras, infra, IoT, alarmes, O.S. de bancada e emissão de laudos.",
         "permissoes": {
-            "ver_ti": True,
             "ver_dashboard_entradas": True,
+            "ver_ti": True,
             "registrar_entrada": True,
             "editar_entrada": True,
             "registrar_saida": True,
+            "ver_dashboard_automacao": True,
             "ver_automacao": True,
             "gerenciar_automacao": True,
+            "ver_dashboard_laudos": True,
             "acessar_criador_laudos": True,
             "gerenciar_laudos": True,
             "compartilhar_os": True,
+            "exportar_pdf": True,
         },
     },
     "analista_cyber": {
         "label": "🛡️ Analista Cibersegurança",
-        "descricao": "Auditorias autorizadas pelo gestor, achados, checklists e base de conhecimento.",
+        "descricao": "Auditorias autorizadas pelo gestor, achados, checklists CIS/NIST/LGPD e base de conhecimento.",
         "permissoes": {
+            "ver_dashboard_cyber": True,
             "ver_ciberseguranca": True,
             "gerenciar_auditoria_cyber": True,
             "executar_auditoria_rede": True,
+            "ver_dashboard_automacao": True,
             "ver_automacao": True,
             "ver_ti": True,
-            "ver_provedor": True,
             "exportar_pdf": True,
         },
     },
@@ -651,6 +756,8 @@ def sanitizar_usuario(user: dict) -> dict:
         "permissoes": resolver_permissoes(role, user.get("permissoes")),
         "mfa_enabled": bool(user.get("mfa_enabled", False)),
         "mfa_ativado_em": str(user.get("mfa_ativado_em") or ""),
+        "must_change_password": bool(user.get("must_change_password", False)),
+        "password_changed_at": str(user.get("password_changed_at") or ""),
         "session_version": int(user.get("session_version") or 1),
         "ultimos_acessos": list(ultimos[:10]) if isinstance(ultimos, list) else [],
         "criado_em": user.get("criado_em", ""),
@@ -660,11 +767,13 @@ def sanitizar_usuario(user: dict) -> dict:
 def _normalizar_setores_ativos(setores: dict[str, Any] | None) -> dict[str, bool]:
     base = dict(DEFAULT_ACTIVE_SECTORS)
     if isinstance(setores, dict):
+        if "loja" not in setores and "provedor" in setores:
+            base["loja"] = bool(setores["provedor"])
         for key in DEFAULT_ACTIVE_SECTORS:
             if key in setores:
                 base[key] = bool(setores[key])
     if not any(base.values()):
-        raise ValueError("Mantenha pelo menos um setor ativo na empresa (TI, Provedor ou Estoque).")
+        raise ValueError("Mantenha pelo menos um setor ativo na empresa.")
     return base
 
 
@@ -678,12 +787,16 @@ def sanitizar_tenant(tenant: dict) -> dict:
     setores_raw = tenant.get("setores_ativos")
     setores = dict(DEFAULT_ACTIVE_SECTORS)
     if isinstance(setores_raw, dict):
+        if "loja" not in setores_raw and "provedor" in setores_raw:
+            setores["loja"] = bool(setores_raw["provedor"])
         for key in DEFAULT_ACTIVE_SECTORS:
             if key in setores_raw:
                 setores[key] = bool(setores_raw[key])
     gov_raw = tenant.get("cyber_governanca")
     gov = {
         "permitir_auditoria_rede": bool(gov_raw.get("permitir_auditoria_rede")) if isinstance(gov_raw, dict) else False,
+        "usuarios_autorizados": list(gov_raw.get("usuarios_autorizados") or []) if isinstance(gov_raw, dict) else [],
+        "restringir_usuarios": bool(gov_raw.get("restringir_usuarios")) if isinstance(gov_raw, dict) else False,
         "escopo_autorizado": list(gov_raw.get("escopo_autorizado") or []) if isinstance(gov_raw, dict) else [],
         "observacao_termo": str(gov_raw.get("observacao_termo") or "") if isinstance(gov_raw, dict) else "",
         "autorizado_por": str(gov_raw.get("autorizado_por") or "") if isinstance(gov_raw, dict) else "",
@@ -1050,6 +1163,8 @@ class AuthService:
                 "ativo": True,
                 "permissoes": dict(ALL_PERMISSIONS_TRUE),
                 "password_hash": hash_password(senha_valida),
+                "must_change_password": False,
+                "password_changed_at": _now_iso(),
                 "criado_em": _now_iso(),
             }
         )
@@ -1237,6 +1352,8 @@ class AuthService:
                 "tenant_id": tenant["id"],
                 "ativo": True,
                 "permissoes": dict(ALL_PERMISSIONS_TRUE),
+                "must_change_password": False,
+                "password_changed_at": _now_iso(),
                 "criado_em": _now_iso(),
             }
         )
@@ -1452,6 +1569,8 @@ class AuthService:
             user["uid"],
             {
                 "password_hash": hash_password(nova_valida),
+                "must_change_password": False,
+                "password_changed_at": _now_iso(),
                 "session_version": nova_versao,
             },
         ) or user
@@ -1459,6 +1578,59 @@ class AuthService:
             "token": create_local_token(updated),
             "session_version": nova_versao,
             "user": sanitizar_usuario(updated),
+        }
+
+    def complete_first_login_password_change(
+        self,
+        user_ctx: dict[str, Any],
+        nova_senha: str,
+        confirmar_senha: str | None = None,
+        client_ip: str = "",
+        user_agent: str = "",
+    ) -> dict[str, Any]:
+        user = self.user_store.get_user(user_ctx["uid"])
+        if not user:
+            raise LookupError("Usuário não encontrado.")
+        nova_valida = _validar_senha(nova_senha)
+        if confirmar_senha is not None and nova_valida != confirmar_senha:
+            raise ValueError("A confirmação da nova senha não confere.")
+
+        if self.backend != "firebase":
+            if verify_password(nova_valida, str(user.get("password_hash") or "")):
+                raise ValueError("A nova senha deve ser diferente da senha temporária/atual.")
+
+        nova_versao = int(user.get("session_version") or 1) + 1
+        auditoria = append_login_audit(
+            user.get("ultimos_acessos"),
+            build_login_audit_entry(
+                "Senha pessoal definida (1º acesso)",
+                ip=client_ip,
+                user_agent=user_agent,
+                metodo=self.backend,
+            ),
+        )
+        updates: dict[str, Any] = {
+            "must_change_password": False,
+            "password_changed_at": _now_iso(),
+            "session_version": nova_versao,
+            "ultimos_acessos": auditoria,
+        }
+        if self.backend == "firebase":
+            self.firebase_auth.update_user_password(user["uid"], nova_valida)
+        else:
+            updates["password_hash"] = hash_password(nova_valida)
+
+        updated = self.user_store.update_user(user["uid"], updates) or user
+        tenant = self.user_store.get_tenant(user["tenant_id"])
+        return {
+            "sucesso": True,
+            "token": create_local_token(updated) if self.backend != "firebase" else "",
+            "mfa_token": create_mfa_verified_token(updated)
+            if (self.backend == "firebase" and updated.get("mfa_enabled"))
+            else "",
+            "session_version": nova_versao,
+            "user": sanitizar_usuario(updated),
+            "tenant": sanitizar_tenant(tenant) if tenant else user_ctx.get("tenant"),
         }
 
     def create_team_member(
@@ -1469,6 +1641,7 @@ class AuthService:
         senha: str,
         role: str = "tecnico",
         permissoes: dict[str, Any] | None = None,
+        exigir_troca_senha: bool = True,
     ) -> dict[str, Any]:
         if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
             raise AuthorizationError("Você não tem permissão para adicionar membros.")
@@ -1506,6 +1679,8 @@ class AuthService:
             "tenant_id": tenant_id,
             "ativo": True,
             "permissoes": perms_finais,
+            "must_change_password": bool(exigir_troca_senha),
+            "password_changed_at": "",
             "criado_em": _now_iso(),
         }
 
@@ -1529,6 +1704,7 @@ class AuthService:
         role: str | None = None,
         ativo: bool | None = None,
         permissoes: dict[str, Any] | None = None,
+        must_change_password: bool | None = None,
     ) -> dict[str, Any]:
         if not usuario_tem_permissao(admin_ctx, "gerenciar_equipe"):
             raise AuthorizationError("Você não tem permissão para editar membros.")
@@ -1556,6 +1732,9 @@ class AuthService:
 
         if ativo is not None:
             updates["ativo"] = bool(ativo)
+
+        if must_change_password is not None:
+            updates["must_change_password"] = bool(must_change_password)
 
         novo_role = updates.get("role", target.get("role"))
         novo_ativo = updates.get("ativo", target.get("ativo", True))
@@ -1705,29 +1884,43 @@ class AuthService:
         permitir_auditoria_rede: bool,
         escopo_autorizado: list[str] | None = None,
         observacao_termo: str = "",
+        usuarios_autorizados: list[str] | None = None,
+        restringir_usuarios: bool | None = None,
     ) -> dict[str, Any]:
         if admin_ctx.get("role") != "admin":
             raise AuthorizationError(
-                "Apenas administradores/gestores podem autorizar auditorias de rede."
+                "Apenas administradores/gestores podem definir quem está autorizado no Gov-Key."
             )
 
         escopo_limpo: list[str] = []
-        vistos: set[str] = set()
+        vistos_escopo: set[str] = set()
         for item in escopo_autorizado or []:
             txt = SecurityValidator.sanitizar_texto(item)
-            if txt and txt.lower() not in vistos:
-                vistos.add(txt.lower())
+            if txt and txt.lower() not in vistos_escopo:
+                vistos_escopo.add(txt.lower())
                 escopo_limpo.append(txt[:120])
 
+        usuarios_limpos: list[str] = []
+        vistos_usr: set[str] = set()
+        for u in usuarios_autorizados or []:
+            txt = SecurityValidator.sanitizar_texto(u).strip()
+            chave = txt.lower()
+            if txt and chave not in vistos_usr:
+                vistos_usr.add(chave)
+                usuarios_limpos.append(txt[:120])
+
         permitir = bool(permitir_auditoria_rede)
-        if permitir and not escopo_limpo:
-            raise ValueError(
-                "Para habilitar auditorias de rede, informe pelo menos uma faixa privada (ex.: 192.168.1.0/24) ou domínio autorizado."
-            )
+        restringir = (
+            bool(restringir_usuarios)
+            if restringir_usuarios is not None
+            else bool(usuarios_limpos)
+        )
 
         autor = admin_ctx.get("nome") or admin_ctx.get("email") or "Gestor"
         gov = {
             "permitir_auditoria_rede": permitir,
+            "usuarios_autorizados": usuarios_limpos[:100],
+            "restringir_usuarios": restringir,
             "escopo_autorizado": escopo_limpo[:30],
             "observacao_termo": SecurityValidator.sanitizar_texto(observacao_termo)[:300],
             "autorizado_por": SecurityValidator.sanitizar_texto(autor) if permitir else "",

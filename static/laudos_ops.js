@@ -791,136 +791,10 @@ async function salvarBrandingEModelos() {
 }
 
 // ==============================================================================
-// SETOR PROVEDOR (ISP / COMODATO / PREVENTIVAS / POPS) & SETOR ESTOQUE
+// SETOR ESTOQUE & SINCRONIZAÇÃO DE CLIENTES DA LOJA DE TI
 // ==============================================================================
 
 let estoqueItensCache = [];
-let provedorCpesCache = [];
-
-function alternarProvedorTab(tab) {
-  document.getElementById('provTabCpes').classList.toggle('hidden', tab !== 'cpes');
-  document.getElementById('provTabPreventivas').classList.toggle('hidden', tab !== 'preventivas');
-  document.getElementById('provTabClientes').classList.toggle('hidden', tab !== 'clientes');
-
-  const act = 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white';
-  const inact = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200';
-  document.getElementById('btnProvTabCpes').className = tab === 'cpes' ? act : inact;
-  document.getElementById('btnProvTabPreventivas').className = tab === 'preventivas' ? act : inact;
-  document.getElementById('btnProvTabClientes').className = tab === 'clientes' ? act : inact;
-}
-
-async function carregarPainelProvedor() {
-  const prvProx = document.getElementById('prv_proxima');
-  if (prvProx && !prvProx.value) prvProx.value = obterDataHojeISO();
-
-  const podeCpes = temPermissao('ver_provedor');
-  const podePrev = temPermissao('gerenciar_preventivas');
-  const podeClientes = temPermissao('gerenciar_clientes_pops');
-
-  if (podeCpes) {
-    alternarProvedorTab('cpes');
-  } else if (podePrev) {
-    alternarProvedorTab('preventivas');
-  } else if (podeClientes) {
-    alternarProvedorTab('clientes');
-  }
-
-  const tarefas = [];
-  if (podeCpes) tarefas.push(carregarCpesProvedor());
-  if (podePrev) tarefas.push(carregarPreventivasOps());
-  if (podeClientes) tarefas.push(carregarClientesOps());
-  await Promise.all(tarefas);
-}
-
-function ehItemDeProvedor(item) {
-  const cat = String(item.categoria || '').toLowerCase();
-  const fluxo = String(item.tipo_fluxo || '').toLowerCase();
-  const temSerial = Boolean(String(item.serial_mac || '').trim());
-  return (
-    temSerial ||
-    fluxo.includes('comodato') ||
-    fluxo.includes('rma') ||
-    fluxo.includes('triagem') ||
-    cat.includes('onu') ||
-    cat.includes('roteador') ||
-    cat.includes('switch') ||
-    cat.includes('olt') ||
-    cat.includes('rádio') ||
-    cat.includes('radio')
-  );
-}
-
-async function carregarCpesProvedor() {
-  const res = await apiFetch('/equipamentos?status=todos');
-  if (!res.ok) return;
-  const todos = await res.json();
-  provedorCpesCache = Array.isArray(todos) ? todos.filter(ehItemDeProvedor) : [];
-
-  let bancada = 0;
-  let comodato = 0;
-  let rma = 0;
-  let entregues = 0;
-  provedorCpesCache.forEach(r => {
-    const st = String(r.status || '').toLowerCase();
-    const fl = String(r.tipo_fluxo || '').toLowerCase();
-    const entregue = st === 'entregue' || st === 'finalizado';
-    if (entregue) entregues++;
-    else bancada++;
-    if (fl.includes('comodato')) comodato++;
-    if (fl.includes('rma') || fl.includes('triagem')) rma++;
-  });
-
-  document.getElementById('kpiProvBancada').textContent = bancada;
-  document.getElementById('kpiProvComodato').textContent = comodato;
-  document.getElementById('kpiProvRma').textContent = rma;
-  document.getElementById('kpiProvEntregues').textContent = entregues;
-
-  renderizarPainelCpesProvedor();
-}
-
-function renderizarPainelCpesProvedor() {
-  const tbody = document.getElementById('tabelaCpesProvedor');
-  if (!tbody) return;
-  const termo = (document.getElementById('provBuscaCpe')?.value || '').trim().toLowerCase();
-  const lista = !termo
-    ? provedorCpesCache
-    : provedorCpesCache.filter(r =>
-        [r.id, r.equipamento, r.categoria, r.serial_mac, r.tombamento, r.tipo_fluxo, r.origem]
-          .some(v => String(v || '').toLowerCase().includes(termo))
-      );
-
-  if (lista.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Nenhum equipamento ISP/Comodato encontrado. Cadastre O.S. com Serial/MAC, categoria de rede ou fluxo Comodato/RMA.</td></tr>';
-    return;
-  }
-
-  const podeTI = temAcessoSetorTI();
-  tbody.innerHTML = lista.map(r => {
-    const entregue = String(r.status || '').toLowerCase() === 'entregue';
-    return `
-      <tr>
-        <td class="p-3 font-bold text-violet-600 dark:text-violet-400">#${r.id}</td>
-        <td class="p-3">
-          <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(r.equipamento)}</div>
-          <div class="text-[10px] text-slate-400">${escapeHtml(r.categoria || 'Rede / ISP')} • Tomb: ${escapeHtml(r.tombamento || '-')}</div>
-        </td>
-        <td class="p-3 font-mono text-[11px] text-slate-700 dark:text-violet-200">${escapeHtml(r.serial_mac || '---')}</td>
-        <td class="p-3"><span class="px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-200 text-[10px] font-bold">${escapeHtml(r.tipo_fluxo || 'Manutenção')}</span></td>
-        <td class="p-3 text-slate-700 dark:text-violet-200">${escapeHtml(r.origem || '-')}</td>
-        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${entregue ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${escapeHtml(r.status)}</span></td>
-        <td class="p-3 text-right">
-          ${podeTI ? `<button onclick="abrirOsDoProvedor(${r.id})" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">Abrir O.S.</button>` : '<span class="text-[10px] text-slate-400">Somente ISP</span>'}
-        </td>
-      </tr>
-    `;
-  }).join('');
-}
-
-async function abrirOsDoProvedor(id) {
-  alternarVisao('equipamentos');
-  await carregarLista('todos');
-  await selecionarItem(id);
-}
 
 async function carregarEstoqueOps() {
   const res = await apiFetch('/ops/estoque');
@@ -977,9 +851,9 @@ function renderizarTabelaEstoqueOps() {
     <tr>
       <td class="p-3">
         <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(i.nome)}</div>
-        <div class="text-[10px] text-slate-400">${escapeHtml(i.codigo || 'Sem SKU')} • ${escapeHtml(i.categoria || '')} • ${escapeHtml(i.localizacao || '')}</div>
+        <div class="text-[10px] text-slate-400">${escapeHtml(i.codigo || 'Sem SKU')}${i.marca ? ` • ${escapeHtml(i.marca)}` : ''} • ${escapeHtml(i.categoria || '')} • Gar. ${i.garantia_meses ?? 3}m</div>
       </td>
-      <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(i.almoxarifado || 'Almoxarifado Central')}</td>
+      <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(i.almoxarifado || 'Almoxarifado Central')}${Number(i.preco_venda || 0) > 0 ? `<div class="text-[10px] font-bold text-violet-600 dark:text-violet-300">Venda: R$ ${formatarMoedaBR(i.preco_venda)}</div>` : ''}</td>
       <td class="p-3">
         <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${i.estoque_baixo ? 'bg-rose-100 text-rose-700' : 'bg-emerald-50 text-emerald-700'}">${i.quantidade} ${escapeHtml(i.unidade || 'un')} ${i.estoque_baixo ? '⚠️' : ''}</span>
       </td>
@@ -1029,12 +903,18 @@ async function criarItemEstoque(event) {
   const payload = {
     nome: document.getElementById('est_nome').value.trim(),
     codigo: document.getElementById('est_codigo').value.trim(),
+    codigo_barras: document.getElementById('est_barras')?.value.trim() || '',
+    marca: document.getElementById('est_marca')?.value.trim() || '',
+    fornecedor: document.getElementById('est_fornecedor')?.value.trim() || '',
     categoria: document.getElementById('est_categoria').value,
     almoxarifado: document.getElementById('est_almoxarifado').value,
     unidade: document.getElementById('est_unidade').value,
     quantidade: Number.parseInt(document.getElementById('est_qtd').value, 10) || 0,
     estoque_minimo: Number.parseInt(document.getElementById('est_min').value, 10) || 0,
     custo_unitario: temPermissao('ver_custos') ? (Number.parseFloat(document.getElementById('est_custo').value) || 0) : 0,
+    preco_venda: Number.parseFloat(document.getElementById('est_preco_venda')?.value || '0') || 0,
+    preco_atacado_b2b: Number.parseFloat(document.getElementById('est_preco_b2b')?.value || '0') || 0,
+    garantia_meses: Number.parseInt(document.getElementById('est_garantia_meses')?.value || '3', 10) || 0,
     localizacao: document.getElementById('est_loc').value.trim(),
   };
   const res = await apiFetch('/ops/estoque', { method: 'POST', body: JSON.stringify(payload) });
@@ -1087,97 +967,13 @@ async function excluirItemEstoqueOps(itemId) {
   if (res.ok) await carregarEstoqueOps();
 }
 
-async function carregarPreventivasOps() {
-  const res = await apiFetch('/ops/preventivas');
+async function sincronizarDatalistClientes() {
+  if (!temPermissao('gerenciar_clientes_loja') && !temPermissao('ver_loja') && !temPermissao('operar_pdv_vendas')) return;
+  const res = await apiFetch('/loja/clientes');
   if (!res.ok) return;
   const itens = await res.json();
-  const box = document.getElementById('listaPreventivasOps');
-  if (!box) return;
-  if (itens.length === 0) {
-    box.innerHTML = '<p class="text-slate-400">Nenhuma manutenção preventiva agendada.</p>';
-    return;
-  }
-  box.innerHTML = itens.map(p => {
-    const corBadge = p.status_preventiva === 'Vencida'
-      ? 'bg-rose-100 text-rose-700'
-      : (p.status_preventiva === 'Próxima' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700');
-    return `
-      <div class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 flex flex-wrap justify-between items-center gap-2">
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-slate-900 dark:text-white">${escapeHtml(p.titulo)}</span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${corBadge}">${escapeHtml(p.status_preventiva)}</span>
-          </div>
-          <div class="text-[11px] text-slate-500 dark:text-violet-300/80">
-            ${escapeHtml(p.local_pop)} • A cada ${p.periodicidade_dias}d • Próxima: <b>${formatarDataBR(p.proxima_execucao)}</b>
-          </div>
-        </div>
-        <div class="flex gap-1.5">
-          <button onclick="concluirPreventivaOps('${escapeHtml(p.id)}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold">✅ Concluir</button>
-          <button onclick="excluirPreventivaOps('${escapeHtml(p.id)}')" class="px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-semibold">✕</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-async function criarPreventivaOps(event) {
-  event.preventDefault();
-  const payload = {
-    titulo: document.getElementById('prv_titulo').value.trim(),
-    local_pop: document.getElementById('prv_local').value.trim(),
-    periodicidade_dias: Number.parseInt(document.getElementById('prv_dias').value, 10) || 30,
-    proxima_execucao: document.getElementById('prv_proxima').value,
-    responsavel: document.getElementById('prv_resp').value.trim(),
-    checklist_resumo: document.getElementById('prv_checklist').value.trim(),
-  };
-  const res = await apiFetch('/ops/preventivas', { method: 'POST', body: JSON.stringify(payload) });
-  if (!res.ok) {
-    mostrarToast(await extrairErroResposta(res, 'Erro ao criar preventiva.'), 'erro');
-    return;
-  }
-  event.target.reset();
-  document.getElementById('prv_proxima').value = obterDataHojeISO();
-  mostrarToast('Preventiva agendada!', 'sucesso');
-  await carregarPreventivasOps();
-}
-
-async function concluirPreventivaOps(itemId) {
-  const obs = window.prompt('Observação da preventiva executada (opcional):', 'Inspeção e testes realizados sem alterações.') || '';
-  const res = await apiFetch(`/ops/preventivas/${encodeURIComponent(itemId)}/concluir`, {
-    method: 'POST',
-    body: JSON.stringify({ observacao: obs })
-  });
-  if (res.ok) {
-    mostrarToast('Preventiva concluída e próxima data recalculada!', 'sucesso');
-    await carregarPreventivasOps();
-  }
-}
-
-async function excluirPreventivaOps(itemId) {
-  const res = await apiFetch(`/ops/preventivas/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
-  if (res.ok) await carregarPreventivasOps();
-}
-
-async function carregarClientesOps() {
-  const res = await apiFetch('/ops/clientes');
-  if (!res.ok) return;
-  const itens = await res.json();
-  const tbody = document.getElementById('tabelaClientesOps');
-  if (tbody) {
-    tbody.innerHTML = itens.length === 0
-      ? '<tr><td colspan="4" class="p-4 text-center text-slate-400">Nenhum cliente ou POP cadastrado.</td></tr>'
-      : itens.map(c => `
-        <tr>
-          <td class="p-3 font-bold text-slate-900 dark:text-white">${escapeHtml(c.nome)}<div class="text-[10px] font-normal text-slate-400">${escapeHtml(c.endereco || '')}</div></td>
-          <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml(c.tipo)}</td>
-          <td class="p-3 text-slate-600 dark:text-violet-200">${escapeHtml([c.contato, c.telefone].filter(Boolean).join(' • ') || '-')}</td>
-          <td class="p-3 text-right"><button onclick="excluirClienteOps('${escapeHtml(c.id)}')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-semibold">Excluir</button></td>
-        </tr>
-      `).join('');
-  }
   const dl = document.getElementById('datalistOrigens');
-  if (dl) {
+  if (dl && Array.isArray(itens)) {
     const existentes = new Set(Array.from(dl.options).map(o => o.value));
     itens.forEach(c => {
       if (c.nome && !existentes.has(c.nome)) {
@@ -1187,34 +983,6 @@ async function carregarClientesOps() {
       }
     });
   }
-}
-
-async function sincronizarDatalistClientes() {
-  await carregarClientesOps();
-}
-
-async function criarClienteOps(event) {
-  event.preventDefault();
-  const payload = {
-    nome: document.getElementById('cli_nome').value.trim(),
-    tipo: document.getElementById('cli_tipo').value,
-    telefone: document.getElementById('cli_tel').value.trim(),
-    contato: document.getElementById('cli_contato').value.trim(),
-    endereco: document.getElementById('cli_end').value.trim(),
-  };
-  const res = await apiFetch('/ops/clientes', { method: 'POST', body: JSON.stringify(payload) });
-  if (!res.ok) {
-    mostrarToast(await extrairErroResposta(res, 'Erro ao cadastrar cliente/POP.'), 'erro');
-    return;
-  }
-  event.target.reset();
-  mostrarToast('Cliente/POP cadastrado e disponível no campo Origem!', 'sucesso');
-  await carregarClientesOps();
-}
-
-async function excluirClienteOps(itemId) {
-  const res = await apiFetch(`/ops/clientes/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
-  if (res.ok) await carregarClientesOps();
 }
 
 // ==============================================================================
@@ -1227,34 +995,51 @@ let criadorLaudoEditando = null;
 let laudoViewTabAtual = 'criar';
 
 function alternarLaudoViewTab(tab) {
+  const podeEmitir = temPermissao('acessar_criador_laudos') || temPermissao('gerenciar_laudos');
+  const podeModelos = temPermissao('gerenciar_modelos') || temPermissao('gerenciar_equipe');
+  const permitidos = { criar: podeEmitir, emitidos: podeEmitir, modelos: podeModelos };
+
+  if (!permitidos[tab]) {
+    tab = podeEmitir ? 'criar' : 'modelos';
+  }
   laudoViewTabAtual = tab;
+
   ['criar', 'emitidos', 'modelos'].forEach(key => {
     const sec = document.getElementById(`laudoTab_${key}`);
-    if (sec) sec.classList.toggle('hidden', key !== tab);
+    if (sec) sec.classList.toggle('hidden', key !== tab || !permitidos[key]);
     const btn = document.getElementById(`btnLaudoTab_${key}`);
-    if (btn) {
+    if (typeof aplicarEstadoAbaBotao === 'function') {
+      aplicarEstadoAbaBotao(
+        btn,
+        key === tab,
+        'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm',
+        'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40'
+      );
+    } else if (btn) {
+      const estavaOculto = btn.classList.contains('hidden');
       btn.className = key === tab
-        ? 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white'
+        ? 'px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 text-white shadow-sm'
         : 'px-3 py-1.5 text-xs font-semibold rounded-lg text-violet-800 dark:text-violet-200';
+      if (estavaOculto) btn.classList.add('hidden');
     }
   });
-  if (tab === 'modelos' && typeof carregarBrandingEModelosNaUI === 'function') {
+  if (tab === 'modelos' && podeModelos && typeof carregarBrandingEModelosNaUI === 'function') {
     carregarBrandingEModelosNaUI();
   }
 }
 
 async function carregarPainelLaudos() {
-  const podeCriar = temPermissao('acessar_criador_laudos');
-  const podeEmitidos = podeCriar || temPermissao('gerenciar_laudos');
+  const podeEmitir = temPermissao('acessar_criador_laudos') || temPermissao('gerenciar_laudos');
   const podeModelos = temPermissao('gerenciar_modelos') || temPermissao('gerenciar_equipe');
+  const podeDashLaudos = temPermissao('ver_dashboard_laudos');
+
+  document.getElementById('laudosKpiStrip')?.classList.toggle('hidden', !podeDashLaudos);
 
   let tabInicial = laudoViewTabAtual;
-  if (tabInicial === 'criar' && !podeCriar) {
-    tabInicial = podeEmitidos ? 'emitidos' : 'modelos';
-  } else if (tabInicial === 'emitidos' && !podeEmitidos) {
-    tabInicial = podeCriar ? 'criar' : 'modelos';
+  if ((tabInicial === 'criar' || tabInicial === 'emitidos') && !podeEmitir) {
+    tabInicial = 'modelos';
   } else if (tabInicial === 'modelos' && !podeModelos) {
-    tabInicial = podeCriar ? 'criar' : 'emitidos';
+    tabInicial = 'criar';
   }
   alternarLaudoViewTab(tabInicial);
 
@@ -1267,7 +1052,7 @@ async function carregarPainelLaudos() {
   }
   popularSelectModelosCriador();
 
-  if (podeEmitidos) {
+  if (podeEmitir) {
     const res = await apiFetch('/laudos');
     if (res.ok) {
       const data = await res.json();
@@ -1486,7 +1271,8 @@ function renderizarListaLaudosEmitidos() {
   const box = document.getElementById('listaLaudosEmitidos');
   if (!box) return;
   const termo = (document.getElementById('cl_busca_emitidos')?.value || '').trim().toLowerCase();
-  const podeCriar = temPermissao('acessar_criador_laudos');
+  const podeEditar = temPermissao('acessar_criador_laudos') || temPermissao('gerenciar_laudos');
+  const podeExportar = temPermissao('exportar_pdf') || podeEditar;
 
   const filtrados = laudosEmitidosCache.filter(l => {
     if (!termo) return true;
@@ -1513,9 +1299,9 @@ function renderizarListaLaudosEmitidos() {
       </div>
       <p class="text-[11px] text-slate-700 dark:text-violet-100 line-clamp-2 whitespace-pre-line">${escapeHtml(l.parecer)}</p>
       <div class="flex flex-wrap gap-1.5 pt-1">
-        <button type="button" onclick="abrirLaudoPdfDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">🖨️ Imprimir / PDF</button>
-        ${podeCriar ? `<button type="button" onclick="editarLaudoNoCriador(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-violet-800 dark:text-violet-200 text-[11px] font-semibold">✏️ Editar no Criador</button>` : ''}
-        <button type="button" onclick="excluirLaudoDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold">🗑️ Excluir</button>
+        ${podeExportar ? `<button type="button" onclick="abrirLaudoPdfDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">🖨️ Imprimir / PDF</button>` : ''}
+        ${podeEditar ? `<button type="button" onclick="editarLaudoNoCriador(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141024] border border-violet-200 dark:border-violet-700 text-violet-800 dark:text-violet-200 text-[11px] font-semibold">✏️ Editar no Criador</button>` : ''}
+        ${podeEditar ? `<button type="button" onclick="excluirLaudoDireto(${l.registro_id}, '${escapeHtml(l.id)}')" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold">🗑️ Excluir</button>` : ''}
       </div>
     </div>
   `).join('');

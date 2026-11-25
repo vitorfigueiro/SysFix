@@ -410,3 +410,6 @@ class FirebaseAuthProvider:
 
     def set_user_disabled(self, uid: str, disabled: bool) -> None:
         self.auth_client.update_user(uid, disabled=disabled)
+
+    def update_user_password(self, uid: str, new_password: str) -> None:
+        self.auth_client.update_user(uid, password=new_password)

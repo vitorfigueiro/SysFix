@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+import html
 import ipaddress
 import json
 import os
@@ -8,10 +9,12 @@ import socket
 import ssl
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +28,7 @@ _VALID_COLLECTIONS = {
     "cyber_achados",
     "cyber_checklists",
     "cyber_kb",
+    "cyber_automacoes",
 }
 
 AUTOMACAO_PILARES = {
@@ -220,6 +224,7 @@ class LocalSecurityOpsStore:
             "cyber_achados": [],
             "cyber_checklists": [],
             "cyber_kb": [],
+            "cyber_automacoes": [],
         }
 
     def _read_unlocked(self) -> dict:
@@ -415,11 +420,29 @@ def _is_forbidden_ip(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address) -> b
     )
 
 
+def _normalizar_dominio_escopo(entry: str) -> str:
+    """Extrai o hostname limpo mesmo quando o usuário digita https://dominio.com.br/caminho:443."""
+    bruto = (entry or "").strip().lower()
+    if not bruto:
+        return ""
+    if "://" not in bruto and "/" in bruto:
+        try:
+            ipaddress.ip_network(bruto, strict=False)
+            return ""
+        except ValueError:
+            pass
+    candidato = bruto if "://" in bruto else f"https://{bruto}"
+    parsed = urllib.parse.urlparse(candidato)
+    host = (parsed.hostname or "").strip().strip(".").lstrip("*.")
+    return host
+
+
 def _host_matches_domain_scope(host: str, escopo_norm: list[str]) -> bool:
     host_l = host.lower().strip(".")
+    host_sem_www = host_l[4:] if host_l.startswith("www.") else host_l
     for entry in escopo_norm:
-        item = entry.lower().strip().lstrip("*.")
-        if not item or "/" in item:
+        item = _normalizar_dominio_escopo(entry)
+        if not item:
             continue
         try:
             ipaddress.ip_address(item)
@@ -428,9 +451,39 @@ def _host_matches_domain_scope(host: str, escopo_norm: list[str]) -> bool:
             continue
         except ValueError:
             pass
-        if host_l == item or host_l.endswith(f".{item}"):
+        item_sem_www = item[4:] if item.startswith("www.") else item
+        if (
+            host_l == item
+            or host_l.endswith(f".{item}")
+            or host_sem_www == item_sem_www
+            or host_l.endswith(f".{item_sem_www}")
+        ):
             return True
     return False
+
+
+def verificar_operador_autorizado_govkey(
+    tenant: dict,
+    user_uid: str = "",
+    user_email: str = "",
+    is_admin: bool = False,
+) -> None:
+    """Valida se o colaborador atual foi autorizado pelo gestor no Gov-Key."""
+    if is_admin:
+        return
+    gov = tenant.get("cyber_governanca") or {}
+    autorizados_raw = gov.get("usuarios_autorizados") or []
+    restringir = bool(gov.get("restringir_usuarios")) or bool(autorizados_raw)
+    if not restringir:
+        return
+    autorizados = {str(u).strip().lower() for u in autorizados_raw if str(u).strip()}
+    uid_norm = str(user_uid or "").strip().lower()
+    email_norm = str(user_email or "").strip().lower()
+    if (uid_norm and uid_norm in autorizados) or (email_norm and email_norm in autorizados):
+        return
+    raise PermissionError(
+        "Acesso bloqueado pelo Gov-Key: seu usuário não está na lista de pessoas autorizadas pelo gestor para executar tarefas de cibersegurança."
+    )
 
 
 class NetworkAuditEngine:
@@ -438,33 +491,34 @@ class NetworkAuditEngine:
 
     @staticmethod
     def validar_alvo_autorizado(
-        alvo: str, tipo_auditoria: str, escopo_autorizado: list[str]
+        alvo: str, tipo_auditoria: str, escopo_autorizado: list[str] | None = None
     ) -> tuple[str, str]:
         raw = SecurityValidator.sanitizar_texto(alvo)
         if not raw:
-            raise ValueError("Informe o alvo da auditoria (IP/CIDR privado ou domínio/URL autorizado).")
-        if not escopo_autorizado:
-            raise PermissionError(
-                "Nenhum escopo de rede/domínio foi autorizado pelo gestor da empresa."
-            )
+            raise ValueError("Informe o alvo da auditoria (domínio/URL para Web/TLS ou IP/CIDR privado para Rede Local).")
 
-        escopo_limpo = [SecurityValidator.sanitizar_texto(e) for e in escopo_autorizado if SecurityValidator.sanitizar_texto(e)]
+        escopo_limpo = [
+            SecurityValidator.sanitizar_texto(e)
+            for e in (escopo_autorizado or [])
+            if SecurityValidator.sanitizar_texto(e)
+        ]
 
         if tipo_auditoria == "web_tls":
             url = raw if raw.startswith(("http://", "https://")) else f"https://{raw}"
             parsed = urllib.parse.urlparse(url)
-            host = (parsed.hostname or "").strip().lower()
-            if not host or host in {"localhost", "metadata.google.internal"}:
-                raise ValueError("Host inválido ou proibido para auditoria externa.")
+            host = (parsed.hostname or "").strip().lower().strip(".")
+            if not host or host in {"localhost", "metadata.google.internal"} or host.endswith(".internal"):
+                raise ValueError("Host inválido ou bloqueado pela proteção anti-SSRF.")
             try:
                 ip_obj = ipaddress.ip_address(host)
                 if _is_forbidden_ip(ip_obj) or ip_obj.is_private:
-                    raise PermissionError("Auditorias Web/TLS públicas exigem domínio corporativo autorizado (não IPs locais/metadata).")
+                    raise PermissionError("Auditorias Web/TLS exigem um domínio válido (IPs internos/loopback/metadata são bloqueados no modo Web).")
             except ValueError:
-                pass
-            if not _host_matches_domain_scope(host, escopo_limpo):
+                if "." not in host:
+                    raise ValueError("Informe um domínio válido (ex.: suaempresa.com.br).")
+            if escopo_limpo and not _host_matches_domain_scope(host, escopo_limpo):
                 raise PermissionError(
-                    f"Domínio '{host}' fora do escopo autorizado pelo gestor."
+                    f"Domínio '{host}' não consta na restrição opcional de escopo definida pelo gestor."
                 )
             return url, host
 
@@ -476,6 +530,10 @@ class NetworkAuditEngine:
         try:
             net = ipaddress.ip_network(host_limpo, strict=False)
         except ValueError as exc:
+            if "." in host_limpo or host_limpo.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"Você informou um domínio/URL ('{raw}'), mas selecionou o modo 'Varredura de Rede Privada (IP/CIDR)'. Altere o modo para 'Web / TLS / Certificados & Headers OWASP' para auditar domínios!"
+                ) from exc
             raise ValueError("Para auditoria de rede interna, informe um IP ou sub-rede CIDR privada válida (ex.: 192.168.1.0/24).") from exc
 
         if net.version != 4 or not net.is_private:
@@ -485,24 +543,46 @@ class NetworkAuditEngine:
         if net.prefixlen < 24:
             raise ValueError("Para segurança e agilidade, use no máximo blocos /24 (até 254 IPs por varredura).")
 
-        autorizado = False
-        for entry in escopo_limpo:
-            try:
-                allowed_net = ipaddress.ip_network(entry, strict=False)
-                if allowed_net.version == 4 and net.subnet_of(allowed_net):
-                    autorizado = True
-                    break
-            except ValueError:
-                continue
-
-        if not autorizado:
-            raise PermissionError(
-                f"Sub-rede '{net}' não está incluída nos CIDRs autorizados pelo gestor."
-            )
+        if escopo_limpo:
+            redes_escopo = []
+            for entry in escopo_limpo:
+                try:
+                    allowed_net = ipaddress.ip_network(entry, strict=False)
+                    if allowed_net.version == 4:
+                        redes_escopo.append(allowed_net)
+                except ValueError:
+                    continue
+            if redes_escopo and not any(net.subnet_of(allowed_net) for allowed_net in redes_escopo):
+                raise PermissionError(
+                    f"Sub-rede '{net}' não está incluída nos CIDRs restritos pelo gestor."
+                )
+            if not redes_escopo:
+                raise PermissionError(
+                    f"Sub-rede '{net}' fora da restrição de escopo configurada."
+                )
         return str(net), str(net)
 
     @staticmethod
+    def _validar_dns_anti_ssrf(host: str) -> None:
+        """Impede que domínios externos apontem para IPs internos/loopback/metadata (DNS Rebinding / SSRF)."""
+        try:
+            infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+        except OSError:
+            return
+        for info in infos:
+            ip_txt = info[4][0]
+            try:
+                ip_obj = ipaddress.ip_address(ip_txt)
+                if _is_forbidden_ip(ip_obj) or ip_obj.is_private:
+                    raise PermissionError(
+                        f"Bloqueio Anti-SSRF: o domínio '{host}' resolve para endereço interno/reservado ({ip_txt})."
+                    )
+            except ValueError:
+                continue
+
+    @staticmethod
     def auditar_web_tls(url: str, host: str) -> dict[str, Any]:
+        NetworkAuditEngine._validar_dns_anti_ssrf(host)
         achados: list[dict[str, Any]] = []
         detalhes: dict[str, Any] = {"host": host, "url": url, "tls": {}, "headers": {}}
         score = 100
@@ -860,12 +940,18 @@ class AutomationCyberService:
         tipo_auditoria: str = "web_tls",
         registrar_achados: bool = True,
         actor: str = "",
+        user_uid: str = "",
+        user_email: str = "",
+        is_admin: bool = False,
     ) -> dict[str, Any]:
         gov = tenant.get("cyber_governanca") or {}
         if not gov.get("permitir_auditoria_rede"):
             raise PermissionError(
-                "Auditoria de rede bloqueada: o gestor precisa habilitar e autorizar o escopo em Governança."
+                "Auditoria de rede bloqueada: o gestor precisa habilitar a autorização de tarefas na aba Gov-Key."
             )
+        verificar_operador_autorizado_govkey(
+            tenant, user_uid=user_uid, user_email=user_email, is_admin=is_admin
+        )
 
         tipo_norm = SecurityValidator.sanitizar_texto(tipo_auditoria).lower() or "web_tls"
         if tipo_norm not in {"web_tls", "rede_privada"}:
@@ -1164,8 +1250,11 @@ class AutomationCyberService:
             "achados_criticos": criticos_abertos,
             "checklist_conformes": conformes_chk,
             "checklist_total": total_chk,
+            "total_automacoes": len(self.listar_automacoes_defesa(tenant_id)),
             "governanca": tenant.get("cyber_governanca") or {
                 "permitir_auditoria_rede": False,
+                "usuarios_autorizados": [],
+                "restringir_usuarios": False,
                 "escopo_autorizado": [],
                 "observacao_termo": "",
                 "autorizado_por": "",
@@ -1173,3 +1262,827 @@ class AutomationCyberService:
             },
             "ultimas_auditorias": auditorias[:5],
         }
+
+    # ==================================================================
+    # WIKI-CORE: NOTÍCIAS REAIS EXTERNAS SEPARADAS DOS PLAYBOOKS INTERNOS
+    # ==================================================================
+
+    def listar_wiki_separado(
+        self, tenant_id: str, busca: str = "", atualizar_noticias: bool = False
+    ) -> dict[str, Any]:
+        internos_raw = self.store.list_items("cyber_kb", tenant_id)
+        internos = sorted(
+            [{**item, "padrao_sistema": False, "origem_tipo": "interno"} for item in internos_raw],
+            key=lambda x: str(x.get("atualizado_em") or ""),
+            reverse=True,
+        )
+        guias_base = [
+            {**item, "padrao_sistema": True, "origem_tipo": "referencia"}
+            for item in CYBER_KNOWLEDGE_BASE
+        ]
+        noticias_bundle = CyberNewsFeedService.obter_noticias(forcar=atualizar_noticias)
+        noticias = list(noticias_bundle.get("itens") or [])
+
+        termo = (busca or "").strip().lower()
+        if termo:
+            def _match_doc(art: dict) -> bool:
+                return (
+                    termo in str(art.get("titulo") or "").lower()
+                    or termo in str(art.get("categoria") or "").lower()
+                    or termo in str(art.get("resumo") or "").lower()
+                    or termo in str(art.get("conteudo") or "").lower()
+                    or any(termo in str(t).lower() for t in (art.get("tags") or []))
+                )
+
+            internos = [a for a in internos if _match_doc(a)]
+            guias_base = [a for a in guias_base if _match_doc(a)]
+            noticias = [
+                n
+                for n in noticias
+                if termo in str(n.get("titulo") or "").lower()
+                or termo in str(n.get("resumo") or "").lower()
+                or termo in str(n.get("fonte") or "").lower()
+                or termo in str(n.get("categoria") or "").lower()
+            ]
+
+        return {
+            "noticias_mundo_cyber": {
+                "ao_vivo": bool(noticias_bundle.get("ao_vivo")),
+                "atualizado_em": noticias_bundle.get("atualizado_em", ""),
+                "fontes_ativas": noticias_bundle.get("fontes_ativas", []),
+                "itens": noticias,
+            },
+            "publicados_internos": internos,
+            "guias_referencia": guias_base,
+        }
+
+    # ==================================================================
+    # LABORATÓRIO DIDÁTICO ATAQUE × DEFESA (SIMULAÇÃO PURPLE-TEAM SEGURA)
+    # ==================================================================
+
+    def listar_cenarios_didaticos(self) -> list[dict[str, Any]]:
+        return [dict(c) for c in CYBER_DIDACTIC_SCENARIOS]
+
+    def simular_cenario_didatico(
+        self,
+        tenant: dict,
+        cenario_id: str,
+        users_list: list[dict] | None = None,
+        registrar_plano: bool = False,
+        actor: str = "",
+    ) -> dict[str, Any]:
+        cenario = next((c for c in CYBER_DIDACTIC_SCENARIOS if c["id"] == cenario_id), None)
+        if not cenario:
+            raise ValueError("Cenário didático não encontrado.")
+
+        tid = tenant["id"]
+        achados = self.listar_achados(tid)
+        abertos = [a for a in achados if a.get("status") in {"Aberto", "Em Mitigação"}]
+        checklist = {c.get("id"): c.get("status") for c in self.obter_checklist_cyber(tid)}
+        ativos_aut = self.listar_automacao(tid)
+        usuarios = users_list or []
+
+        verificacoes: list[dict[str, Any]] = []
+        falhas_detectadas: list[dict[str, str]] = []
+
+        if cenario_id == "ransomware_smb_rdp":
+            portas_crit = [
+                a for a in abertos
+                if any(k in str(a.get("titulo") or "").lower() for k in ("445", "smb", "3389", "rdp", "telnet"))
+            ]
+            verificacoes.append({
+                "item": "Exposição de portas críticas (SMB 445 / RDP 3389 / Telnet 23)",
+                "ok": len(portas_crit) == 0,
+                "detalhe": "Nenhuma porta crítica aberta registrada." if not portas_crit else f"{len(portas_crit)} alerta(s) aberto(s) na fila.",
+            })
+            bkp_ok = checklist.get("chk_backup") == "Conforme"
+            verificacoes.append({
+                "item": "Backup imutável/offline 3-2-1-1-0 validado no checklist CIS",
+                "ok": bkp_ok,
+                "detalhe": "Controle de backup marcado como Conforme." if bkp_ok else "Backup 3-2-1-1-0 ainda não está Conforme.",
+            })
+            if not bkp_ok:
+                falhas_detectadas.append({
+                    "titulo": "[Simulação Ransomware] Backup 3-2-1-1-0 pendente de validação",
+                    "severidade": "Crítica",
+                    "categoria": "Defesa Anti-Ransomware",
+                    "recomendacao": "Configurar cópia offline/imutável e testar restauração mensalmente.",
+                })
+
+        elif cenario_id == "bruteforce_credenciais":
+            total_u = len(usuarios)
+            sem_mfa = [u for u in usuarios if u.get("ativo", True) and not u.get("mfa_enabled")]
+            mfa_pol = bool(tenant.get("exigir_mfa_equipe")) or checklist.get("chk_mfa") == "Conforme"
+            verificacoes.append({
+                "item": "Política de 2FA (TOTP) habilitada na empresa",
+                "ok": mfa_pol,
+                "detalhe": "Política 2FA ativa." if mfa_pol else "Recomendação/exigência de 2FA desmarcada nas configurações.",
+            })
+            verificacoes.append({
+                "item": "Colaboradores ativos com 2FA configurado",
+                "ok": total_u > 0 and len(sem_mfa) == 0,
+                "detalhe": f"{total_u - len(sem_mfa)}/{total_u} usuários com 2FA ativo." if total_u else "Verifique em Gestão de Equipe.",
+            })
+            if sem_mfa or not mfa_pol:
+                falhas_detectadas.append({
+                    "titulo": f"[Simulação Credenciais] {len(sem_mfa)} conta(s) sem segundo fator 2FA ativo",
+                    "severidade": "Alta",
+                    "categoria": "Identidade & Acesso (IAM)",
+                    "recomendacao": "Exigir 2FA TOTP para toda a equipe e revisar senhas provisórias.",
+                })
+
+        elif cenario_id == "iot_cftv_botnet":
+            inseguros = [
+                a for a in ativos_aut
+                if not (a.get("checks") or {}).get("senha_padrao_alterada")
+                or not (a.get("checks") or {}).get("rede_segmentada")
+            ]
+            verificacoes.append({
+                "item": "Inventário de Câmeras, NVR, Alarmes e IoT auditado",
+                "ok": len(ativos_aut) > 0 and len(inseguros) == 0,
+                "detalhe": (
+                    f"{len(ativos_aut)} dispositivos auditados sem senha padrão/VLAN exposta."
+                    if ativos_aut and not inseguros
+                    else (f"{len(inseguros)} dispositivo(s) com senha padrão ou sem VLAN isolada!" if ativos_aut else "Nenhum dispositivo CFTV/IoT cadastrado ainda.")
+                ),
+            })
+            if inseguros:
+                falhas_detectadas.append({
+                    "titulo": f"[Simulação IoT/CFTV] {len(inseguros)} equipamento(s) com risco de invasão RTSP/UPnP",
+                    "severidade": "Alta",
+                    "categoria": "Automação & CFTV",
+                    "recomendacao": "Trocar senhas de fábrica, desativar UPnP e isolar CFTV/IoT em VLAN dedicada.",
+                })
+
+        elif cenario_id == "owasp_web_headers":
+            tls_ok = checklist.get("chk_tls_headers") == "Conforme"
+            ach_web = [a for a in abertos if "owasp" in str(a.get("categoria") or "").lower() or "tls" in str(a.get("categoria") or "").lower()]
+            verificacoes.append({
+                "item": "Cabeçalhos HTTP defensivos (HSTS, CSP, X-Frame-Options) e TLS 1.3",
+                "ok": tls_ok and len(ach_web) == 0,
+                "detalhe": "Sem falhas TLS/Headers pendentes." if (tls_ok and not ach_web) else f"{len(ach_web)} achado(s) web aberto(s) / controle OWASP pendente.",
+            })
+            if not tls_ok or ach_web:
+                falhas_detectadas.append({
+                    "titulo": "[Simulação Web OWASP] Revisar headers HSTS/CSP e renovação TLS nos portais",
+                    "severidade": "Média",
+                    "categoria": "Headers Web / OWASP",
+                    "recomendacao": "Executar Byte-Scanner no modo Web/TLS nos domínios oficiais e ativar HSTS/CSP.",
+                })
+
+        else:
+            vlan_ok = checklist.get("chk_vlan_iot") == "Conforme"
+            logs_ok = checklist.get("chk_logs_cgnat") == "Conforme"
+            verificacoes.append({
+                "item": "Segmentação de rede (VLANs) e logs sincronizados (NTP/Syslog)",
+                "ok": vlan_ok and logs_ok,
+                "detalhe": "Controles de segmentação e logs em conformidade." if (vlan_ok and logs_ok) else "Controles de VLAN ou Logs ainda pendentes no CIS/NIST.",
+            })
+            if not (vlan_ok and logs_ok):
+                falhas_detectadas.append({
+                    "titulo": f"[Simulação {cenario['nome']}] Reforçar proteção de rede/domínio",
+                    "severidade": "Média",
+                    "categoria": cenario["categoria"],
+                    "recomendacao": cenario["passo_a_passo_mitigacao"][0],
+                })
+
+        criados = 0
+        if registrar_plano and falhas_detectadas:
+            for f in falhas_detectadas:
+                self.criar_achado(
+                    tid,
+                    {
+                        "titulo": f["titulo"],
+                        "severidade": f["severidade"],
+                        "categoria": f["categoria"],
+                        "alvo": "Ambiente da Empresa",
+                        "status": "Aberto",
+                        "recomendacao": f["recomendacao"],
+                    },
+                    actor=actor,
+                )
+                criados += 1
+
+        total_v = max(1, len(verificacoes))
+        ok_v = sum(1 for v in verificacoes if v["ok"])
+        nivel_defesa = round((ok_v / total_v) * 100)
+        return {
+            "cenario": cenario,
+            "nivel_defesa_percent": nivel_defesa,
+            "verificacoes": verificacoes,
+            "falhas_detectadas": falhas_detectadas,
+            "achados_gerados": criados,
+        }
+
+    # ==================================================================
+    # AUTOMAÇÕES DEFENSIVAS DE REDE & CAÇA AUTOMÁTICA POR FALHAS
+    # ==================================================================
+
+    def listar_automacoes_defesa(self, tenant_id: str) -> list[dict]:
+        rows = self.store.list_items("cyber_automacoes", tenant_id)
+        return sorted(rows, key=lambda r: str(r.get("criado_em") or ""), reverse=True)
+
+    def criar_automacao_defesa(
+        self,
+        tenant: dict,
+        payload: dict,
+        actor: str = "",
+        user_uid: str = "",
+        user_email: str = "",
+        is_admin: bool = False,
+    ) -> dict:
+        verificar_operador_autorizado_govkey(
+            tenant, user_uid=user_uid, user_email=user_email, is_admin=is_admin
+        )
+        nome = SecurityValidator.sanitizar_texto(payload.get("nome"))
+        if not nome:
+            raise ValueError("Informe o nome da tarefa automatizada de defesa.")
+        tipo = SecurityValidator.sanitizar_texto(payload.get("tipo")).lower()
+        if tipo not in AUTOMACAO_DEFESA_TIPOS:
+            raise ValueError("Tipo de automação defensiva inválido.")
+        freq = SecurityValidator.sanitizar_texto(payload.get("frequencia")) or "Diária"
+        if freq not in {"A cada 6h", "Diária", "Semanal", "Mensal", "Sob Demanda"}:
+            freq = "Diária"
+        alvo = SecurityValidator.sanitizar_texto(payload.get("alvo"))[:120] or "Ambiente Interno"
+
+        # Se a tarefa envolver rede/domínio, valida formato com segurança antecipadamente
+        escopo = list((tenant.get("cyber_governanca") or {}).get("escopo_autorizado") or [])
+        if tipo == "monitor_ssl_headers":
+            _, host_limpo = NetworkAuditEngine.validar_alvo_autorizado(alvo, "web_tls", escopo)
+            alvo = host_limpo
+        elif tipo == "varredura_portas_criticas" and alvo != "Ambiente Interno":
+            alvo, _ = NetworkAuditEngine.validar_alvo_autorizado(alvo, "rede_privada", escopo)
+
+        agora = _now_iso()
+        item = {
+            "id": f"caut_{uuid.uuid4().hex[:10]}",
+            "tenant_id": tenant["id"],
+            "nome": nome[:140],
+            "tipo": tipo,
+            "tipo_label": AUTOMACAO_DEFESA_TIPOS[tipo],
+            "alvo": alvo,
+            "frequencia": freq,
+            "auto_registrar_achados": bool(payload.get("auto_registrar_achados", True)),
+            "ativo": bool(payload.get("ativo", True)),
+            "ultima_execucao": "",
+            "ultimo_status": "Aguardando 1ª execução",
+            "ultimo_resumo": "",
+            "ultimo_score": 100,
+            "criado_por": SecurityValidator.sanitizar_texto(actor) or "Equipe",
+            "criado_em": agora,
+            "atualizado_em": agora,
+        }
+        return self.store.upsert_item("cyber_automacoes", item, tenant["id"])
+
+    def executar_automacao_defesa(
+        self,
+        tenant: dict,
+        item_id: str,
+        actor: str = "",
+        user_uid: str = "",
+        user_email: str = "",
+        is_admin: bool = False,
+        users_list: list[dict] | None = None,
+    ) -> dict[str, Any]:
+        verificar_operador_autorizado_govkey(
+            tenant, user_uid=user_uid, user_email=user_email, is_admin=is_admin
+        )
+        tid = tenant["id"]
+        tarefa = self.store.get_item("cyber_automacoes", item_id, tid)
+        if not tarefa:
+            raise LookupError("Automação de segurança não encontrada.")
+
+        tipo = tarefa.get("tipo")
+        alvo = tarefa.get("alvo") or "Ambiente Interno"
+        auto_achados = bool(tarefa.get("auto_registrar_achados", True))
+        gov = tenant.get("cyber_governanca") or {}
+
+        achados_novos: list[dict[str, str]] = []
+        score = 100
+        resumo_exec = ""
+
+        if tipo in {"monitor_ssl_headers", "varredura_portas_criticas"} and alvo != "Ambiente Interno":
+            if not gov.get("permitir_auditoria_rede"):
+                raise PermissionError(
+                    "Para rodar varreduras ativas de rede/SSL, o gestor precisa ativar a chave geral no Gov-Key."
+                )
+            modo = "web_tls" if tipo == "monitor_ssl_headers" else "rede_privada"
+            exec_aud = self.executar_auditoria_rede(
+                tenant=tenant,
+                alvo=alvo,
+                tipo_auditoria=modo,
+                registrar_achados=auto_achados,
+                actor=actor,
+                user_uid=user_uid,
+                user_email=user_email,
+                is_admin=is_admin,
+            )
+            score = exec_aud["auditoria"]["score"]
+            qtd = exec_aud["achados_criados"]
+            resumo_exec = f"Auditoria automática concluída em {alvo}: Score {score}/100 ({qtd} falha(s) registrada(s))."
+            atualizada = self.store.update_item(
+                "cyber_automacoes",
+                item_id,
+                {
+                    "ultima_execucao": _now_iso(),
+                    "ultimo_status": "Alerta" if qtd > 0 else "Protegido",
+                    "ultimo_resumo": resumo_exec,
+                    "ultimo_score": score,
+                    "atualizado_em": _now_iso(),
+                },
+                tid,
+            )
+            return {"automacao": atualizada, "achados_criados": qtd, "resumo": resumo_exec}
+
+        if tipo == "auditoria_contas_2fa_senhas":
+            usuarios = users_list or []
+            ativos_u = [u for u in usuarios if u.get("ativo", True)]
+            sem_2fa = [u for u in ativos_u if not u.get("mfa_enabled")]
+            senha_prov = [u for u in ativos_u if u.get("must_change_password")]
+            if sem_2fa:
+                score -= min(45, len(sem_2fa) * 15)
+                achados_novos.append({
+                    "titulo": f"[Auto-Shield] {len(sem_2fa)} colaborador(es) ativo(s) sem 2FA habilitado",
+                    "severidade": "Alta",
+                    "categoria": "Automação IAM / 2FA",
+                    "alvo": "Contas da Equipe",
+                    "recomendacao": "Solicitar ativação do 2FA TOTP no menu Minha Segurança de cada colaborador.",
+                })
+            if senha_prov:
+                score -= min(30, len(senha_prov) * 10)
+                achados_novos.append({
+                    "titulo": f"[Auto-Shield] {len(senha_prov)} conta(s) ainda com senha provisória de 1º acesso",
+                    "severidade": "Média",
+                    "categoria": "Automação IAM / Senhas",
+                    "alvo": "Contas da Equipe",
+                    "recomendacao": "Confirmar conclusão do primeiro login ou revogar contas inativas.",
+                })
+            resumo_exec = (
+                f"Contas verificadas: {len(ativos_u)} ativas • {len(sem_2fa)} sem 2FA • {len(senha_prov)} com senha provisória."
+            )
+
+        elif tipo == "auditoria_iot_cftv_hardening":
+            ativos = self.listar_automacao(tid)
+            falhos = [
+                a for a in ativos
+                if a.get("status_auditoria") in {"Crítico", "Alerta"}
+                or not (a.get("checks") or {}).get("senha_padrao_alterada")
+                or not (a.get("checks") or {}).get("rede_segmentada")
+            ]
+            if not ativos:
+                score = 85
+                resumo_exec = "Nenhum dispositivo CFTV/IoT cadastrado ainda para auditoria automática."
+            else:
+                score = max(15, 100 - len(falhos) * 18)
+                if falhos:
+                    nomes = ", ".join(str(x.get("nome") or "Ativo") for x in falhos[:4])
+                    achados_novos.append({
+                        "titulo": f"[Auto-Shield] {len(falhos)} ativo(s) de CFTV/IoT com falha de hardening ({nomes})",
+                        "severidade": "Alta",
+                        "categoria": "Automação CFTV & IoT",
+                        "alvo": "Parque de Automação",
+                        "recomendacao": "Alterar senhas padrão, atualizar firmware e isolar em VLAN de CFTV/IoT.",
+                    })
+                resumo_exec = f"{len(ativos)} ativo(s) CFTV/IoT inspecionados: {len(falhos)} com falha de segurança."
+
+        else:
+            # conformidade_backup_cis ou varredura interna sem CIDR externo
+            chk = self.obter_checklist_cyber(tid)
+            pendentes = [c for c in chk if c.get("status") in {"Pendente", "Parcial"}]
+            score = max(10, round(((len(chk) - len(pendentes)) / max(1, len(chk))) * 100))
+            if pendentes:
+                achados_novos.append({
+                    "titulo": f"[Auto-Shield] {len(pendentes)} controle(s) CIS/NIST/LGPD pendentes de conformidade",
+                    "severidade": "Média",
+                    "categoria": "Automação de Conformidade",
+                    "alvo": "Controles Internos",
+                    "recomendacao": f"Priorizar regularização de: {pendentes[0].get('controle', 'controles pendentes')}.",
+                })
+            resumo_exec = f"Checklist CIS/NIST auditado: {len(chk) - len(pendentes)}/{len(chk)} controles Conformes."
+
+        criados = 0
+        if auto_achados:
+            for ach in achados_novos:
+                self.criar_achado(tid, {**ach, "status": "Aberto"}, actor=actor)
+                criados += 1
+
+        atualizada = self.store.update_item(
+            "cyber_automacoes",
+            item_id,
+            {
+                "ultima_execucao": _now_iso(),
+                "ultimo_status": "Alerta" if achados_novos else "Protegido",
+                "ultimo_resumo": resumo_exec,
+                "ultimo_score": max(0, min(100, score)),
+                "atualizado_em": _now_iso(),
+            },
+            tid,
+        )
+        return {"automacao": atualizada, "achados_criados": criados, "resumo": resumo_exec}
+
+    def excluir_automacao_defesa(self, tenant_id: str, item_id: str) -> bool:
+        return self.store.delete_item("cyber_automacoes", item_id, tenant_id)
+
+    @staticmethod
+    def gerar_script_protecao_rede(tipo_script: str) -> tuple[bytes, str, str]:
+        t = (tipo_script or "firewall_windows_ps1").strip().lower()
+        if t == "firewall_windows_ps1":
+            conteudo = (
+                "# SysFix Auto-Shield - Script Defensivo de Blindagem Windows (Blue Team)\n"
+                "# Execute como Administrador em estacoes/servidores Windows para reduzir superficie de ataque.\n"
+                "Write-Host '1. Desativando protocolo legado SMBv1 (Anti-WannaCry/Ransomware)...'\n"
+                "Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force -ErrorAction SilentlyContinue\n"
+                "Write-Host '2. Bloqueando portas inseguras de entrada (Telnet 23, TFTP 69)...'\n"
+                "New-NetFirewallRule -DisplayName 'SysFix-Block-Telnet-In' -Direction Inbound -Protocol TCP -LocalPort 23 -Action Block -ErrorAction SilentlyContinue\n"
+                "Write-Host '3. Listando portas TCP em escuta para auditoria local...'\n"
+                "Get-NetTCPConnection -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess | Sort-Object LocalPort | Format-Table -AutoSize\n"
+            ).encode("utf-8")
+            return conteudo, "text/plain; charset=utf-8", "sysfix_blindagem_windows.ps1"
+
+        if t == "hardening_linux_ufw_sh":
+            conteudo = (
+                "#!/usr/bin/env bash\n"
+                "# SysFix Auto-Shield - Hardening Defensivo Linux (UFW + Auditoria de Portas)\n"
+                "set -e\n"
+                "echo '[SysFix] Aplicando politica padrao Deny-Incoming no UFW...'\n"
+                "sudo ufw default deny incoming\n"
+                "sudo ufw default allow outgoing\n"
+                "echo '[SysFix] Aplicando limitacao anti-bruteforce no SSH (porta 22/tcp)...'\n"
+                "sudo ufw limit 22/tcp\n"
+                "echo '[SysFix] Servicos expostos atualmente neste servidor:'\n"
+                "ss -tulnp\n"
+            ).encode("utf-8")
+            return conteudo, "text/x-shellscript; charset=utf-8", "sysfix_hardening_linux.sh"
+
+        if t == "tarefa_agendada_monitor_ps1":
+            conteudo = (
+                "# SysFix Auto-Shield - Monitor Diário de Portas & Certificado HTTPS\n"
+                "param([string]$Dominio = 'suaempresa.com.br', [string]$Subrede = '192.168.1')\n"
+                "$relatorio = @{ dominio = $Dominio; verificado_em = (Get-Date -Format o); alertas = @() }\n"
+                "try {\n"
+                "  $tcp = New-Object System.Net.Sockets.TcpClient($Dominio, 443)\n"
+                "  $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false)\n"
+                "  $ssl.AuthenticateAsClient($Dominio)\n"
+                "  $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($ssl.RemoteCertificate)\n"
+                "  $dias = ($cert.NotAfter - (Get-Date)).Days\n"
+                "  $relatorio['ssl_dias_restantes'] = $dias\n"
+                "  if ($dias -le 15) { $relatorio.alertas += \"Certificado SSL expira em $dias dias\" }\n"
+                "  $tcp.Close()\n"
+                "} catch { $relatorio.alertas += \"Falha ao validar HTTPS em $Dominio\" }\n"
+                "$relatorio | ConvertTo-Json -Depth 4 | Out-File -Encoding utf8 'monitor_diario_sysfix.json'\n"
+                "Write-Host 'Monitoramento concluido: monitor_diario_sysfix.json'\n"
+            ).encode("utf-8")
+            return conteudo, "text/plain; charset=utf-8", "sysfix_monitor_diario.ps1"
+
+        raise ValueError("Tipo de script defensivo inválido.")
+
+
+AUTOMACAO_DEFESA_TIPOS: dict[str, str] = {
+    "auditoria_contas_2fa_senhas": "🔐 Caça-Falhas de Identidade (2FA Ausente & Senhas Provisórias)",
+    "auditoria_iot_cftv_hardening": "📷 Busca de Falhas em Câmeras IP, DVRs, Alarmes & IoT",
+    "conformidade_backup_cis": "🛡️ Verificação Automática de Backup 3-2-1-1-0 & CIS/LGPD",
+    "monitor_ssl_headers": "🌐 Vigia de Certificado HTTPS & Headers OWASP de Domínio",
+    "varredura_portas_criticas": "📡 Busca de Portas Críticas Expostas na Rede Interna (RFC1918)",
+}
+
+CYBER_DIDACTIC_SCENARIOS: list[dict[str, Any]] = [
+    {
+        "id": "ransomware_smb_rdp",
+        "nome": "Ransomware & Movimentação Lateral (SMB / RDP)",
+        "categoria": "Continuidade & Rede",
+        "risco": "Crítica",
+        "icone": "🦠",
+        "anatomia_ataque": (
+            "1. Entrada Inicial: O invasor obtém acesso via e-mail de phishing ou porta RDP (3389) exposta na internet.\n"
+            "2. Movimentação Lateral: Usa protocolo SMB (porta 445) e credenciais administrativas repetidas para alcançar servidores e NAS.\n"
+            "3. Impacto: Criptografa pastas compartilhadas e tenta apagar backups conectados na mesma rede."
+        ),
+        "como_buscar_falha": (
+            "• Rode o Byte-Scanner na sub-rede local (ex.: 192.168.1.0/24) procurando portas 445 (SMB), 3389 (RDP) e 23 (Telnet).\n"
+            "• Verifique se o servidor de backup está na mesma VLAN ou domínio Windows das estações comuns."
+        ),
+        "passo_a_passo_mitigacao": [
+            "Jamais exponha RDP (3389) ou SMB (445) na internet; exija VPN WireGuard/IPsec + 2FA.",
+            "Desative SMBv1 em todas as máquinas e separe senhas de administrador local (LAPS).",
+            "Mantenha Backup 3-2-1-1-0 com pelo menos 1 cópia imutável (Object Lock) ou desconectada.",
+        ],
+        "comando_diagnostico": "Get-SmbServerConfiguration | Select EnableSMB1Protocol, EnableSMB2Protocol",
+    },
+    {
+        "id": "bruteforce_credenciais",
+        "nome": "Força Bruta, Credential Stuffing & Sequestro de Sessão",
+        "categoria": "Identidade & Acesso (2FA)",
+        "risco": "Alta",
+        "icone": "🔑",
+        "anatomia_ataque": (
+            "1. Coleta: Vazamentos externos expõem combinações de e-mail e senha reutilizadas por colaboradores.\n"
+            "2. Automação Ofensiva: Bots testam milhares de senhas por minuto (Credential Stuffing) em painéis sem rate-limit ou sem 2FA.\n"
+            "3. Impacto: Acesso indevido a O.S., dados de clientes (LGPD) e configurações financeiras."
+        ),
+        "como_buscar_falha": (
+            "• Execute a automação 'Caça-Falhas de Identidade' para listar contas sem 2FA TOTP ou com senha provisória.\n"
+            "• Audite em 'Minha Segurança' os últimos IPs de acesso e sessões antigas abertas."
+        ),
+        "passo_a_passo_mitigacao": [
+            "Habilite 2FA TOTP (Google/Microsoft Authenticator) para 100% dos usuários.",
+            "Mantenha troca obrigatória de senha no 1º login ao cadastrar novos técnicos.",
+            "Aplique princípio do menor privilégio nas permissões por setor.",
+        ],
+        "comando_diagnostico": "SysFix > Minha Segurança > Ativar 2FA TOTP + Revogar Sessões Antigas",
+    },
+    {
+        "id": "owasp_web_headers",
+        "nome": "Ataques Web: XSS, Clickjacking & Interceptação SSL/TLS",
+        "categoria": "Segurança Web / OWASP",
+        "risco": "Alta",
+        "icone": "🌐",
+        "anatomia_ataque": (
+            "1. Downgrade/SSL Expirado: Sem HSTS ou com TLS vencido, conexões podem sofrer interceptação (Man-in-the-Middle) em redes Wi-Fi públicas.\n"
+            "2. Clickjacking & XSS: Sem X-Frame-Options e Content-Security-Policy (CSP), páginas legítimas podem ser embutidas em iframes falsos ou executar scripts injetados."
+        ),
+        "como_buscar_falha": (
+            "• No Byte-Scanner, selecione o modo 'Web / TLS / Certificados & Headers OWASP' e informe o domínio da empresa.\n"
+            "• Confira se os 5 cabeçalhos (HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy) retornam presentes."
+        ),
+        "passo_a_passo_mitigacao": [
+            "Ative HTTPS obrigatório com TLS 1.2/1.3 e renovação automática Let's Encrypt / ACME.",
+            "Adicione Strict-Transport-Security, Content-Security-Policy e X-Frame-Options: DENY no Nginx/Cloudflare.",
+            "Crie uma automação 'Vigia de Certificado HTTPS' para alertar 15 dias antes do vencimento.",
+        ],
+        "comando_diagnostico": "curl -I https://seudominio.com.br",
+    },
+    {
+        "id": "iot_cftv_botnet",
+        "nome": "Invasão de Câmeras IP, DVRs, Alarmes & Botnets IoT",
+        "categoria": "Automação, CFTV & IoT",
+        "risco": "Crítica",
+        "icone": "📷",
+        "anatomia_ataque": (
+            "1. Descoberta: Bots varrem a internet buscando portas 554 (RTSP), 8000/37777 (DVR) e 23 (Telnet) abertas automaticamente via UPnP.\n"
+            "2. Exploração: Testam credenciais de fábrica (admin/admin, admin/12345) ou falhas de firmware antigo.\n"
+            "3. Impacto: Vazamento de imagens internas e uso do DVR como pivô para invadir a rede da empresa."
+        ),
+        "como_buscar_falha": (
+            "• Revise o setor Automação & IoT e rode a automação 'Busca de Falhas em Câmeras IP & IoT'.\n"
+            "• Verifique no roteador de borda se o UPnP está ativo abrindo portas sem autorização."
+        ),
+        "passo_a_passo_mitigacao": [
+            "Isole todas as câmeras, NVRs e sensores IoT em uma VLAN exclusiva sem acesso à VLAN do Financeiro/TI.",
+            "Desative UPnP no roteador/firewall e substitua redirecionamento de portas por VPN.",
+            "Troque 100% das senhas padrão e atualize o firmware dos gravadores.",
+        ],
+        "comando_diagnostico": "nmap -sT -p 23,80,554,1883,8000,37777 192.168.10.0/24",
+    },
+    {
+        "id": "mitm_arp_vlan",
+        "nome": "Interceptação Local (ARP Spoofing & Rede Plana sem VLAN)",
+        "categoria": "Infraestrutura & Switches",
+        "risco": "Média",
+        "icone": "🔌",
+        "anatomia_ataque": (
+            "1. Rede Plana: Quando Wi-Fi de visitantes, bancada de testes de clientes e servidores usam a mesma faixa IP (ex.: tudo em 192.168.0.x).\n"
+            "2. Envenenamento ARP / DHCP Rogue: Um notebook infectado na bancada anuncia-se como gateway e captura tráfego não criptografado."
+        ),
+        "como_buscar_falha": (
+            "• Confirme se equipamentos de clientes em manutenção na Bancada TI estão em uma rede/VLAN separada dos computadores da loja/administração."
+        ),
+        "passo_a_passo_mitigacao": [
+            "Crie uma VLAN exclusiva 'Bancada / Quarentena' com Client Isolation para testar PCs de clientes com vírus.",
+            "Ative DHCP Snooping e Dynamic ARP Inspection (DAI) nos switches gerenciáveis.",
+            "Separe Wi-Fi Visitantes do Wi-Fi Corporativo.",
+        ],
+        "comando_diagnostico": "arp -a  # Verifique se dois IPs diferentes compartilham o mesmo MAC do Gateway",
+    },
+    {
+        "id": "dns_email_spoofing",
+        "nome": "Falsificação de E-mail Corporativo (Phishing / BEC sem DMARC)",
+        "categoria": "Domínio & E-mail",
+        "risco": "Alta",
+        "icone": "✉️",
+        "anatomia_ataque": (
+            "1. Spoofing: Criminosos enviam boletos ou ordens falsas fingindo ser `@suaempresa.com.br`.\n"
+            "2. Falha: Se o DNS do domínio não possui registros SPF, DKIM e DMARC com política `p=quarantine` ou `p=reject`, provedores entregam o e-mail falso na caixa de entrada do cliente."
+        ),
+        "como_buscar_falha": (
+            "• Consulte os registros TXT do seu domínio (`_dmarc.suaempresa.com.br` e registro `v=spf1`)."
+        ),
+        "passo_a_passo_mitigacao": [
+            "Configure o registro TXT SPF listando apenas os servidores oficiais (Google Workspace / Microsoft 365).",
+            "Ative assinatura criptográfica DKIM no painel do provedor de e-mail.",
+            "Publique registro `_dmarc` iniciando em `p=quarantine` e evoluindo para `p=reject`.",
+        ],
+        "comando_diagnostico": "nslookup -type=TXT _dmarc.suaempresa.com.br",
+    },
+]
+
+
+_NEWS_CACHE_LOCK = threading.Lock()
+_NEWS_CACHE: dict[str, Any] = {"ts": 0.0, "data": None}
+
+_FALLBACK_CYBER_NEWS: list[dict[str, Any]] = [
+    {
+        "titulo": "CISA KEV: Alerta global para atualização imediata de VPNs, Firewalls de borda e hipervisores expostos",
+        "fonte": "CISA KEV (Catálogo Oficial)",
+        "categoria": "Vulnerabilidade Explorada",
+        "data": "Recente",
+        "resumo": "Agência de cibersegurança destaca exploração ativa de falhas de autenticação e injeção em appliances de borda sem patch. Recomendado desativar gerência WAN e aplicar correções.",
+        "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+        "destaque": "Crítica",
+    },
+    {
+        "titulo": "CERT.br: Recomendações contra campanhas de phishing financeiro, QR Codes maliciosos e sequestro de contas sem MFA",
+        "fonte": "CERT.br / NIC.br",
+        "categoria": "Alerta Brasil",
+        "data": "Recente",
+        "resumo": "Crescimento de golpes direcionados a empresas brasileiras explorando engenharia social e boletos adulterados. Uso de 2FA baseado em aplicativo (TOTP) e validação DMARC bloqueiam a maioria dos vetores.",
+        "url": "https://www.cert.br/",
+        "destaque": "Alta",
+    },
+    {
+        "titulo": "Botnets IoT miram DVRs, câmeras IP com RTSP exposto e roteadores com UPnP/Telnet habilitado",
+        "fonte": "Threat Intel / BleepingComputer",
+        "categoria": "IoT & CFTV",
+        "data": "Recente",
+        "resumo": "Variantes recentes de botnets automatizam varreduras em portas 23, 554, 8000 e 8291 para recrutar equipamentos não segmentados em ataques DDoS.",
+        "url": "https://www.bleepingcomputer.com/",
+        "destaque": "Alta",
+    },
+    {
+        "titulo": "Ransomware moderno prioriza roubo de credenciais de backup e desativação de agentes EDR via RDP/SMB",
+        "fonte": "The Hacker News",
+        "categoria": "Ransomware & Defesa",
+        "data": "Recente",
+        "resumo": "Grupos de extorsão dupla focam em servidores de backup acessíveis pela mesma rede local. Isolamento de VLAN e imutabilidade (3-2-1-1-0) seguem como defesa essencial.",
+        "url": "https://thehackernews.com/",
+        "destaque": "Crítica",
+    },
+]
+
+
+def _limpar_html_curto(texto: str, limite: int = 260) -> str:
+    sem_tags = re.sub(r"<[^>]+>", " ", html.unescape(str(texto or "")))
+    compacto = re.sub(r"\s+", " ", sem_tags).strip()
+    if len(compacto) > limite:
+        return compacto[: limite - 1].rstrip() + "…"
+    return compacto
+
+
+def _url_externa_segura(url: str) -> str:
+    u = str(url or "").strip()
+    if u.startswith(("https://", "http://")):
+        return u[:400]
+    return ""
+
+
+class CyberNewsFeedService:
+    """Coleta notícias reais de fontes públicas confiáveis de cibersegurança com cache e fallback offline."""
+
+    CACHE_TTL_SECONDS = 900  # 15 minutos
+
+    @classmethod
+    def _fetch_cisa_kev(cls) -> list[dict[str, Any]]:
+        req = urllib.request.Request(
+            "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+            headers={"User-Agent": "SysFix-CyberRadar/2.9"},
+        )
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            raw = json.loads(resp.read().decode("utf-8", errors="replace"))
+        vulns = list(raw.get("vulnerabilities") or [])
+        vulns.sort(key=lambda v: str(v.get("dateAdded") or ""), reverse=True)
+        itens: list[dict[str, Any]] = []
+        for v in vulns[:5]:
+            cve = SecurityValidator.sanitizar_texto(v.get("cveID"))
+            vendor = SecurityValidator.sanitizar_texto(v.get("vendorProject"))
+            prod = SecurityValidator.sanitizar_texto(v.get("product"))
+            nome = SecurityValidator.sanitizar_texto(v.get("vulnerabilityName"))
+            itens.append({
+                "titulo": f"{cve} — {vendor} {prod}: {nome}"[:180],
+                "fonte": "CISA KEV (EUA)",
+                "categoria": "CVE Explorada Ativamente",
+                "data": str(v.get("dateAdded") or "")[:10],
+                "resumo": _limpar_html_curto(v.get("shortDescription") or v.get("requiredAction") or ""),
+                "url": f"https://nvd.nist.gov/vuln/detail/{cve}" if cve.startswith("CVE-") else "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+                "destaque": "Crítica",
+            })
+        return itens
+
+    @classmethod
+    def _fetch_rss(cls, url: str, fonte_nome: str, categoria: str, max_items: int = 5) -> list[dict[str, Any]]:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "SysFix-CyberRadar/2.9", "Accept": "application/rss+xml, application/xml, text/xml"},
+        )
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            xml_bytes = resp.read(350_000)
+        root = ET.fromstring(xml_bytes)
+        itens: list[dict[str, Any]] = []
+        nodes = root.findall(".//item")
+        if not nodes:
+            nodes = root.findall(".//{http://www.w3.org/2005/Atom}entry")
+        for node in nodes[:max_items]:
+            titulo = (
+                node.findtext("title")
+                or node.findtext("{http://www.w3.org/2005/Atom}title")
+                or ""
+            )
+            link = node.findtext("link") or ""
+            if not link:
+                atom_link = node.find("{http://www.w3.org/2005/Atom}link")
+                if atom_link is not None:
+                    link = atom_link.attrib.get("href", "")
+            desc = (
+                node.findtext("description")
+                or node.findtext("{http://www.w3.org/2005/Atom}summary")
+                or ""
+            )
+            pub = (
+                node.findtext("pubDate")
+                or node.findtext("{http://purl.org/dc/elements/1.1/}date")
+                or node.findtext("{http://www.w3.org/2005/Atom}updated")
+                or ""
+            )
+            titulo_limpo = _limpar_html_curto(titulo, 170)
+            if not titulo_limpo:
+                continue
+            itens.append({
+                "titulo": titulo_limpo,
+                "fonte": fonte_nome,
+                "categoria": categoria,
+                "data": _limpar_html_curto(pub, 25),
+                "resumo": _limpar_html_curto(desc, 250),
+                "url": _url_externa_segura(link),
+                "destaque": "Notícia Real",
+            })
+        return itens
+
+    @classmethod
+    def obter_noticias(cls, forcar: bool = False) -> dict[str, Any]:
+        agora_ts = time.time()
+        with _NEWS_CACHE_LOCK:
+            if (
+                not forcar
+                and _NEWS_CACHE["data"] is not None
+                and (agora_ts - _NEWS_CACHE["ts"]) < cls.CACHE_TTL_SECONDS
+            ):
+                return dict(_NEWS_CACHE["data"])
+
+        coletadas: list[dict[str, Any]] = []
+        fontes_ativas: list[str] = []
+        tarefas = [
+            ("CISA KEV", cls._fetch_cisa_kev),
+            (
+                "The Hacker News",
+                lambda: cls._fetch_rss(
+                    "https://feeds.feedburner.com/TheHackersNews",
+                    "The Hacker News",
+                    "Mundo Cyber",
+                    5,
+                ),
+            ),
+            (
+                "BleepingComputer",
+                lambda: cls._fetch_rss(
+                    "https://www.bleepingcomputer.com/feed/",
+                    "BleepingComputer",
+                    "Ameaças & Zero-Day",
+                    4,
+                ),
+            ),
+            (
+                "CERT.br",
+                lambda: cls._fetch_rss(
+                    "https://www.cert.br/rss/certbr-rss.xml",
+                    "CERT.br",
+                    "Avisos Brasil",
+                    4,
+                ),
+            ),
+        ]
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            fut_map = {pool.submit(fn): nome for nome, fn in tarefas}
+            for fut in as_completed(fut_map):
+                nome_f = fut_map[fut]
+                try:
+                    parcial = fut.result()
+                    if parcial:
+                        coletadas.extend(parcial)
+                        fontes_ativas.append(nome_f)
+                except Exception:
+                    continue
+
+        ao_vivo = len(coletadas) > 0
+        if not coletadas:
+            coletadas = [dict(x) for x in _FALLBACK_CYBER_NEWS]
+            fontes_ativas = ["Modo Contingência (Sem Internet no Servidor)"]
+
+        resultado = {
+            "ao_vivo": ao_vivo,
+            "atualizado_em": _now_iso(),
+            "fontes_ativas": sorted(fontes_ativas),
+            "itens": coletadas[:18],
+        }
+        with _NEWS_CACHE_LOCK:
+            _NEWS_CACHE["ts"] = agora_ts
+            _NEWS_CACHE["data"] = resultado
+        return dict(resultado)

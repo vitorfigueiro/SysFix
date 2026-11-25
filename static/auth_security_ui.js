@@ -29,21 +29,20 @@ const LOGIN_TECH_TOPICS = {
       </svg>
     `,
   },
-  fibra: {
-    titulo: 'Fibra Óptica FTTH & Diagnóstico OLT',
-    desc: 'Controle de sinal RX/TX (-18 a -25 dBm ideal), prevenção de atenuação por curvatura e provisionamento GPON/EPON.',
-    badges: ['GPON / XGS-PON', 'OTDR & Power Meter', 'BGP / PPPoE'],
+  loja: {
+    titulo: 'Loja de TI, PDV, Orçamentos & RMA',
+    desc: 'Frente de caixa ágil, propostas de PCs sob medida, rastreamento antifraude por Serial/IMEI e baixa automática em estoque.',
+    badges: ['PDV & Caixa', 'Curva ABC / B2B', 'Garantia & RMA'],
     svg: `
       <svg viewBox="0 0 280 128" class="w-full h-32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="18" y="38" width="58" height="50" rx="10" fill="rgba(255,255,255,0.14)" stroke="#FFFFFF" stroke-width="1.5"/>
-        <text x="47" y="66" text-anchor="middle" font-size="11" font-weight="800" fill="#FFFFFF">OLT</text>
-        <path d="M76 63 C110 26, 136 100, 172 63" stroke="#6EE7B7" stroke-width="3" stroke-linecap="round" class="tech-packet-dash"/>
-        <circle cx="124" cy="63" r="11" fill="rgba(16,185,129,0.3)" stroke="#6EE7B7" stroke-width="1.5" class="tech-pulse"/>
-        <text x="124" y="66" text-anchor="middle" font-size="8" font-weight="800" fill="#FFFFFF">dBm</text>
+        <rect x="20" y="26" width="76" height="72" rx="10" fill="rgba(255,255,255,0.14)" stroke="#FFFFFF" stroke-width="1.5"/>
+        <text x="58" y="54" text-anchor="middle" font-size="10" font-weight="800" fill="#FFFFFF">PDV LOJA</text>
+        <text x="58" y="72" text-anchor="middle" font-size="8.5" font-weight="700" fill="#6EE7B7">NF-e / Pix</text>
+        <path d="M98 62 H152" stroke="#FDE68A" stroke-width="2.5" class="tech-packet-dash"/>
         <g class="tech-float">
-          <rect x="172" y="34" width="88" height="58" rx="12" fill="rgba(255,255,255,0.14)" stroke="#DDD6FE" stroke-width="1.5"/>
-          <text x="216" y="55" text-anchor="middle" font-size="10" font-weight="800" fill="#FFFFFF">ONU / CPE</text>
-          <text x="216" y="72" text-anchor="middle" font-size="9" font-weight="700" fill="#6EE7B7">RX -19.4 dBm</text>
+          <rect x="154" y="28" width="106" height="68" rx="12" fill="rgba(255,255,255,0.15)" stroke="#DDD6FE" stroke-width="1.5"/>
+          <text x="207" y="54" text-anchor="middle" font-size="10" font-weight="800" fill="#FFFFFF">ESTOQUE &amp; RMA</text>
+          <text x="207" y="72" text-anchor="middle" font-size="8.5" font-weight="700" fill="#A7F3D0">Serial Verificado</text>
         </g>
       </svg>
     `,
@@ -92,7 +91,7 @@ const LOGIN_TECH_TOPICS = {
 const LOGIN_IT_TIPS = [
   'Dica TI: Ative a verificação em duas etapas (2FA) no ícone 🔐 ao entrar para proteger sua conta mesmo se a senha vazar.',
   'Dica Redes: Nunca misture câmeras CFTV e dispositivos IoT na mesma VLAN dos servidores ou estações financeiras.',
-  'Dica Fibra: Potência óptica RX abaixo de -27 dBm exige revisão de fusões, conectores APC ou limpeza com click-cleaner.',
+  'Dica Loja TI: Sempre vincule o Número de Série / IMEI na venda para evitar fraudes na devolução e agilizar garantias RMA.',
   'Dica Hardware: Antes de trocar placa-mãe ou fonte em bancada, registre medidas de tensão e inspeção visual no checklist.',
   'Dica Backup: Mantenha ao menos 1 cópia offline ou imutável (regra 3-2-1-1-0) para resistir a ataques de ransomware.',
 ];
@@ -157,9 +156,19 @@ function toggleSenhaInput(inputId, btn) {
   if (btn) btn.textContent = mostrando ? '👁️' : '🙈';
 }
 
-function atualizarForcaSenha(valor) {
-  const bar = document.getElementById('regSenhaForcaBar');
-  const txt = document.getElementById('regSenhaForcaTexto');
+function calcularNivelForcaSenha(s) {
+  let pontos = 0;
+  if (s.length >= 6) pontos++;
+  if (s.length >= 10) pontos++;
+  if (/[A-Z]/.test(s) && /[a-z]/.test(s)) pontos++;
+  if (/\d/.test(s)) pontos++;
+  if (/[^A-Za-z0-9]/.test(s)) pontos++;
+  return pontos;
+}
+
+function atualizarForcaSenha(valor, barId = 'regSenhaForcaBar', txtId = 'regSenhaForcaTexto') {
+  const bar = document.getElementById(barId);
+  const txt = document.getElementById(txtId);
   if (!bar || !txt) return;
 
   const s = String(valor || '');
@@ -170,13 +179,7 @@ function atualizarForcaSenha(valor) {
     return;
   }
 
-  let pontos = 0;
-  if (s.length >= 6) pontos++;
-  if (s.length >= 10) pontos++;
-  if (/[A-Z]/.test(s) && /[a-z]/.test(s)) pontos++;
-  if (/\d/.test(s)) pontos++;
-  if (/[^A-Za-z0-9]/.test(s)) pontos++;
-
+  const pontos = calcularNivelForcaSenha(s);
   const pct = Math.min(100, Math.max(20, pontos * 20));
   bar.style.width = `${pct}%`;
 

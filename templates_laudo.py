@@ -14,29 +14,31 @@ MAX_TEMPLATE_UPLOAD_BYTES = 512 * 1024  # 512 KB
 MAX_IMAGE_BYTES = 300 * 1024  # 300 KB
 
 CATEGORIAS_EQUIPAMENTO = [
-    "ONU / ONT (Fibra)",
-    "Roteador / Wi-Fi",
-    "Switch / OLT",
-    "Nobreak / Fonte",
     "Notebook",
     "Desktop / PC",
-    "Impressora",
-    "Servidor / Rack",
+    "PC Gamer / Workstation",
+    "Hardware / Peças",
+    "Periféricos",
+    "Monitor / Display",
+    "Impressora / Multifuncional",
+    "Roteador / Switch / Wi-Fi",
+    "Nobreak / Fonte",
+    "Servidor / Storage NAS",
     "CFTV / Câmera IP",
     "DVR / NVR",
     "Central de Alarme",
     "Controle de Acesso / Biometria",
     "Dispositivo IoT / Sensor",
     "Automação Predial / CLP",
-    "Rádio / Antena PTP",
     "Outro",
 ]
 
 TIPOS_FLUXO = [
     "Manutenção",
-    "Comodato (Cliente)",
-    "RMA / Garantia",
-    "Recondicionamento / Triagem",
+    "Montagem / Upgrade PC",
+    "Garantia de Loja",
+    "RMA / Fornecedor",
+    "Triagem / Seminovo",
     "Preventiva",
 ]
 
@@ -53,20 +55,19 @@ CONCLUSOES_LAUDO = [
     "Aguardando Peça / RMA",
     "Condenado / Inviável",
     "Sem Defeito Constatado",
-    "Troca em Garantia / Comodato",
+    "Troca em Garantia / RMA",
 ]
 
 CHECKLIST_PRESETS: dict[str, dict[str, Any]] = {
-    "isp": {
-        "nome": "Provedor de Internet (ISP / FTTH)",
+    "loja": {
+        "nome": "Loja de TI, Montagem PC & Hardware",
         "itens": [
-            "Reset de fábrica e limpeza de configurações",
-            "Medição de sinal óptico RX/TX (dBm) na porta PON",
-            "Teste de portas LAN / WAN e negociação Gigabit",
-            "Teste de sinal Wi-Fi 2.4 GHz e 5 GHz",
-            "Firmware atualizado e homologado",
-            "Fonte de alimentação original testada sob carga",
-            "Higienização física e etiqueta de MAC/Serial conferida",
+            "Conferência de Número de Série / IMEI e lacre de garantia",
+            "Inspeção de pinos de soquete, slots PCIe/RAM e integridade física",
+            "Teste de saúde do SSD / HD (SMART & CrystalDisk) e memórias (MemTest)",
+            "Teste de estresse térmico CPU/GPU e estabilidade da fonte (PSU)",
+            "Organização de cabos (Cable Management), BIOS e drivers atualizados",
+            "Higienização física e conferência de nota/comprovante e acessórios",
         ],
     },
     "ti": {
@@ -82,12 +83,12 @@ CHECKLIST_PRESETS: dict[str, dict[str, Any]] = {
         ],
     },
     "padrao": {
-        "nome": "Bancada Mista (TI + Provedores)",
+        "nome": "Bancada Mista (TI + Loja de Hardware)",
         "itens": [
             "Inspeção física e conferência de fonte/acessórios",
-            "Validação de Serial / MAC / Tombamento",
-            "Teste funcional de conectividade e portas",
-            "Limpeza preventiva e atualização de firmware/sistema",
+            "Validação de Serial / Tombamento / Nota Fiscal",
+            "Teste funcional de hardware, portas e conectividade",
+            "Limpeza preventiva e atualização de BIOS/firmware/sistema",
             "Teste final de estabilidade antes da entrega",
         ],
     },
@@ -137,23 +138,22 @@ DEFAULT_LAUDO_TEMPLATES: list[dict[str, Any]] = [
         ),
     },
     {
-        "id": "tpl_isp_ftth",
-        "nome": "Laudo ISP / Comodato (ONU / Roteador)",
-        "categoria_sugerida": "ONU / ONT (Fibra)",
-        "titulo": "LAUDO DE TRIAGEM E CERTIFICAÇÃO DE EQUIPAMENTO DE REDE",
-        "conclusao_padrao": "Reparado / Aprovado",
+        "id": "tpl_garantia_rma",
+        "nome": "Laudo de Garantia / RMA de Hardware",
+        "categoria_sugerida": "Hardware / Peças",
+        "titulo": "LAUDO TÉCNICO DE ANÁLISE DE GARANTIA E RMA",
+        "conclusao_padrao": "Troca em Garantia / RMA",
         "diagnostico": (
-            "Triagem técnica executada no ativo de rede {{equipamento}} | Patrimônio {{tombamento}} | "
-            "GPON SN / MAC: {{serial_mac}} | Fluxo: {{tipo_fluxo}}."
+            "Análise técnica executada no item/equipamento {{equipamento}} | Tombamento {{tombamento}} | "
+            "Serial / IMEI: {{serial_mac}} | Fluxo: {{tipo_fluxo}}."
         ),
         "corpo": (
-            "O equipamento passou por bateria de testes de bancada FTTH/Wi-Fi na {{empresa}}, incluindo verificação "
-            "de fonte de alimentação, integridade da porta óptica/WAN, portas LAN Gigabit, estabilidade wireless em 2.4/5 GHz "
-            "e regravação/validação de firmware homologado.\n\n"
-            "Ocorrência original ({{origem}}): {{problema}}. Intervenção realizada: {{resolucao}}."
+            "O item passou por bateria de testes em bancada na {{empresa}}, incluindo inspeção física de lacres/pinos, "
+            "medições elétricas, estresse de carga e validação em plataforma de teste homologada.\n\n"
+            "Ocorrência original ({{origem}}): {{problema}}. Procedimento realizado: {{resolucao}}."
         ),
         "recomendacoes": (
-            "Equipamento apto para retorno ao estoque de campo / reinstalação em comodato ou encaminhamento conforme conclusão acima."
+            "Encaminhar para troca imediata em garantia de loja ou abertura de RMA junto ao distribuidor/fabricante conforme conclusão acima."
         ),
     },
 ]
@@ -163,10 +163,10 @@ LAUDO_VARIABLES_HELP = [
     {"variavel": "{{id}}", "descricao": "Número/ID da O.S."},
     {"variavel": "{{equipamento}}", "descricao": "Nome/modelo do equipamento"},
     {"variavel": "{{tombamento}}", "descricao": "Tombamento ou patrimônio"},
-    {"variavel": "{{serial_mac}}", "descricao": "Número de série / MAC / GPON SN"},
-    {"variavel": "{{categoria}}", "descricao": "Categoria TI/ISP"},
-    {"variavel": "{{tipo_fluxo}}", "descricao": "Manutenção, Comodato, RMA..."},
-    {"variavel": "{{origem}}", "descricao": "Cliente, setor ou POP"},
+    {"variavel": "{{serial_mac}}", "descricao": "Número de série / IMEI / MAC"},
+    {"variavel": "{{categoria}}", "descricao": "Categoria de TI / Hardware"},
+    {"variavel": "{{tipo_fluxo}}", "descricao": "Manutenção, Garantia, RMA, Montagem..."},
+    {"variavel": "{{origem}}", "descricao": "Cliente, setor ou filial"},
     {"variavel": "{{localizacao}}", "descricao": "Localização atual"},
     {"variavel": "{{problema}}", "descricao": "Defeito relatado"},
     {"variavel": "{{resolucao}}", "descricao": "Serviço executado"},

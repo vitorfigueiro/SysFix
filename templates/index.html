@@ -600,11 +600,18 @@
           </div>
 
           <div class="pt-2 space-y-2">
+            <div id="bannerModoEdicaoEntrada" class="hidden p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 text-[11px] font-bold text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
+              <span>✏️ Editando Registro <span id="lblEditandoEntradaId">#0</span></span>
+              <button type="button" onclick="cancelarEdicaoEntrada()" class="px-2 py-0.5 rounded-lg bg-white/80 dark:bg-[#141024] border border-amber-300 dark:border-amber-700 text-[10px] font-bold">Cancelar</button>
+            </div>
             <button id="btnSalvarEntrada" onclick="salvarEntrada()" class="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-violet-600/20">
               📥 Registrar Entrada
             </button>
-            <button id="btnAtualizarEntrada" onclick="atualizarEntradaAdmin()" class="w-full py-2 bg-violet-50 dark:bg-[#1C1633] hover:bg-violet-100 dark:hover:bg-violet-900/50 disabled:opacity-60 text-violet-800 dark:text-violet-200 text-xs font-semibold rounded-xl transition-all border border-violet-200 dark:border-violet-800">
-              ✏️ Atualizar Entrada do Item Selecionado
+            <button id="btnAtualizarEntrada" onclick="atualizarEntradaAdmin()" class="hidden w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-amber-500/20">
+              💾 Salvar Alterações da Entrada
+            </button>
+            <button id="btnCancelarEdicaoEntrada" type="button" onclick="cancelarEdicaoEntrada()" class="hidden w-full py-2 bg-slate-100 dark:bg-[#1C1633] hover:bg-slate-200 dark:hover:bg-violet-900/50 text-slate-700 dark:text-violet-200 text-xs font-semibold rounded-xl transition-all border border-slate-200 dark:border-violet-800">
+              ✕ Cancelar Edição
             </button>
 
             <div id="boxResumoUltimaEntrada" class="hidden p-3 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/35 border border-emerald-300 dark:border-emerald-700 space-y-2">
@@ -781,6 +788,9 @@
 
             <!-- Barra de ações rápidas da O.S. -->
             <div id="fichaBarraAcoes" class="pt-3 border-t border-violet-100 dark:border-violet-900/60 flex flex-wrap gap-1.5">
+              <button id="btnEditarEntradaFicha" type="button" onclick="iniciarEdicaoEntradaSelecionada()" class="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold transition-all">
+                ✏️ Editar
+              </button>
               <button id="btnResumoEntradaFicha" type="button" onclick="abrirModalResumoOsRegistro(registroSelecionadoId, 'coleta')" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all">
                 📥 Resumo Entrada (O.S.)
               </button>
@@ -2531,7 +2541,7 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.8.2"></script>
+  <script src="/static/app.js?v=2.8.6"></script>
   <script src="/static/laudos_ops.js?v=2.8.5"></script>
   <script src="/static/automation_cyber.js?v=2.8.3"></script>
   <script src="/static/auth_security_ui.js?v=2.8.2"></script>

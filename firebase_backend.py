@@ -1,10 +1,56 @@
+import hashlib
 import json
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
 _INIT_LOCK = threading.Lock()
+_FIRESTORE_CLIENT: Any = None
+
+
+class _TTLCache:
+    """Cache leve em memória com TTL e invalidação explícita para reduzir latência no Firestore."""
+
+    def __init__(self, ttl_seconds: float = 25.0):
+        self._ttl = ttl_seconds
+        self._lock = threading.RLock()
+        self._data: dict[str, tuple[float, Any]] = {}
+
+    def get(self, key: str) -> tuple[bool, Any]:
+        with self._lock:
+            entry = self._data.get(key)
+            if not entry:
+                return False, None
+            ts, val = entry
+            if time.monotonic() - ts > self._ttl:
+                self._data.pop(key, None)
+                return False, None
+            return True, val
+
+    def set(self, key: str, value: Any) -> None:
+        with self._lock:
+            if len(self._data) > 512:
+                agora = time.monotonic()
+                for k in [k for k, (t, _) in self._data.items() if agora - t > self._ttl]:
+                    self._data.pop(k, None)
+            self._data[key] = (time.monotonic(), value)
+
+    def invalidate(self, key: str) -> None:
+        with self._lock:
+            self._data.pop(key, None)
+
+    def invalidate_prefix(self, prefix: str) -> None:
+        with self._lock:
+            for k in [k for k in self._data if k.startswith(prefix)]:
+                self._data.pop(k, None)
+
+
+_TENANT_CACHE = _TTLCache(ttl_seconds=30.0)
+_USER_CACHE = _TTLCache(ttl_seconds=30.0)
+_COLETA_LIST_CACHE = _TTLCache(ttl_seconds=15.0)
+_TOKEN_CACHE = _TTLCache(ttl_seconds=30.0)
 
 
 def _import_firebase_admin():
@@ -57,9 +103,15 @@ def init_firebase_app():
 
 
 def get_firestore_client():
+    global _FIRESTORE_CLIENT
+    if _FIRESTORE_CLIENT is not None:
+        return _FIRESTORE_CLIENT
     _, _, _, firestore = _import_firebase_admin()
     app = init_firebase_app()
-    return firestore.client(app=app)
+    with _INIT_LOCK:
+        if _FIRESTORE_CLIENT is None:
+            _FIRESTORE_CLIENT = firestore.client(app=app)
+    return _FIRESTORE_CLIENT
 
 
 def _run_transaction(db: Any, callback):
@@ -83,6 +135,7 @@ class FirestoreColetaStore:
 
     def __init__(self, db: Any = None):
         self._db = db
+        self._use_cache = db is None
 
     @property
     def db(self):
@@ -120,6 +173,10 @@ class FirestoreColetaStore:
         return tenant_id, record
 
     def all(self, tenant_id: str = "default") -> list[dict]:
+        if self._use_cache:
+            hit, cached = _COLETA_LIST_CACHE.get(f"all:{tenant_id}")
+            if hit:
+                return [dict(r) for r in cached]
         docs = self._coletas_ref(tenant_id).stream()
         rows: list[dict] = []
         for doc in docs:
@@ -127,9 +184,17 @@ class FirestoreColetaStore:
             data.setdefault("id", int(doc.id) if str(doc.id).isdigit() else doc.id)
             data["tenant_id"] = tenant_id
             rows.append(data)
+        if self._use_cache:
+            _COLETA_LIST_CACHE.set(f"all:{tenant_id}", [dict(r) for r in rows])
         return rows
 
     def get(self, record_id: int, tenant_id: str = "default") -> dict | None:
+        if self._use_cache:
+            hit, cached = _COLETA_LIST_CACHE.get(f"all:{tenant_id}")
+            if hit:
+                for r in cached:
+                    if r.get("id") == record_id:
+                        return dict(r)
         snap = self._coletas_ref(tenant_id).document(str(record_id)).get()
         if not snap.exists:
             return None
@@ -184,7 +249,10 @@ class FirestoreColetaStore:
                 )
             return ids
 
-        return _run_transaction(self.db, _tx_create)
+        ids_out = _run_transaction(self.db, _tx_create)
+        if self._use_cache:
+            _COLETA_LIST_CACHE.invalidate(f"all:{tenant_id}")
+        return ids_out
 
     def update_record(
         self, record_id: int, updates: dict, tenant_id: str = "default"
@@ -205,6 +273,8 @@ class FirestoreColetaStore:
             self._tracking_ref(codigo).set(
                 {"tenant_id": tenant_id, "record_id": int(record_id)}
             )
+        if self._use_cache:
+            _COLETA_LIST_CACHE.invalidate(f"all:{tenant_id}")
         return True
 
     def delete_record(self, record_id: int, tenant_id: str = "default") -> bool:
@@ -217,6 +287,8 @@ class FirestoreColetaStore:
         doc_ref.delete()
         if codigo:
             self._tracking_ref(codigo).delete()
+        if self._use_cache:
+            _COLETA_LIST_CACHE.invalidate(f"all:{tenant_id}")
         return True
 
     def import_records(
@@ -277,6 +349,8 @@ class FirestoreColetaStore:
             merge=True,
         )
         batch.commit()
+        if self._use_cache:
+            _COLETA_LIST_CACHE.invalidate(f"all:{tenant_id}")
         return len(imported)
 
 
@@ -285,6 +359,7 @@ class FirestoreTenantUserStore:
 
     def __init__(self, db: Any = None):
         self._db = db
+        self._use_cache = db is None
 
     @property
     def db(self):
@@ -299,11 +374,17 @@ class FirestoreTenantUserStore:
         return sum(1 for _ in self.db.collection("tenants").stream())
 
     def get_tenant(self, tenant_id: str) -> dict | None:
+        if self._use_cache:
+            hit, cached = _TENANT_CACHE.get(tenant_id)
+            if hit:
+                return dict(cached) if cached else None
         snap = self.db.collection("tenants").document(tenant_id).get()
         if not snap.exists:
             return None
         data = dict(snap.to_dict() or {})
         data.setdefault("id", tenant_id)
+        if self._use_cache:
+            _TENANT_CACHE.set(tenant_id, dict(data))
         return data
 
     def create_tenant(self, tenant_dict: dict) -> dict:
@@ -311,6 +392,8 @@ class FirestoreTenantUserStore:
         data = dict(tenant_dict)
         data.setdefault("next_coleta_id", 1)
         self.db.collection("tenants").document(tenant_id).set(data, merge=True)
+        if self._use_cache:
+            _TENANT_CACHE.set(tenant_id, dict(data))
         return dict(data)
 
     def update_tenant(self, tenant_id: str, updates: dict) -> dict | None:
@@ -321,14 +404,22 @@ class FirestoreTenantUserStore:
         ref.update(dict(updates))
         updated = ref.get().to_dict() or {}
         updated.setdefault("id", tenant_id)
+        if self._use_cache:
+            _TENANT_CACHE.set(tenant_id, dict(updated))
         return dict(updated)
 
     def get_user(self, uid: str) -> dict | None:
+        if self._use_cache:
+            hit, cached = _USER_CACHE.get(uid)
+            if hit:
+                return dict(cached) if cached else None
         snap = self.db.collection("users").document(uid).get()
         if not snap.exists:
             return None
         data = dict(snap.to_dict() or {})
         data.setdefault("uid", uid)
+        if self._use_cache:
+            _USER_CACHE.set(uid, dict(data))
         return data
 
     def get_user_by_email(self, email: str) -> dict | None:
@@ -363,6 +454,8 @@ class FirestoreTenantUserStore:
         data = dict(user_dict)
         data["email"] = str(data.get("email") or "").strip().lower()
         self.db.collection("users").document(uid).set(data)
+        if self._use_cache:
+            _USER_CACHE.set(uid, dict(data))
         return dict(data)
 
     def update_user(self, uid: str, updates: dict) -> dict | None:
@@ -373,6 +466,8 @@ class FirestoreTenantUserStore:
         ref.update(dict(updates))
         updated = ref.get().to_dict() or {}
         updated.setdefault("uid", uid)
+        if self._use_cache:
+            _USER_CACHE.set(uid, dict(updated))
         return dict(updated)
 
 
@@ -381,6 +476,7 @@ class FirebaseAuthProvider:
 
     def __init__(self, auth_client: Any = None):
         self._auth = auth_client
+        self._use_cache = auth_client is None
 
     @property
     def auth_client(self):
@@ -391,12 +487,20 @@ class FirebaseAuthProvider:
         return self._auth
 
     def verify_id_token(self, token: str) -> dict[str, Any]:
+        tok_key = hashlib.sha256(token.encode("utf-8")).hexdigest() if self._use_cache else ""
+        if self._use_cache:
+            hit, cached = _TOKEN_CACHE.get(tok_key)
+            if hit:
+                return dict(cached)
         decoded = self.auth_client.verify_id_token(token)
-        return {
+        result = {
             "uid": decoded["uid"],
             "email": str(decoded.get("email") or "").strip().lower(),
             "name": str(decoded.get("name") or "").strip(),
         }
+        if self._use_cache:
+            _TOKEN_CACHE.set(tok_key, dict(result))
+        return result
 
     def create_auth_user(
         self, email: str, password: str, display_name: str
@@ -410,6 +514,8 @@ class FirebaseAuthProvider:
 
     def set_user_disabled(self, uid: str, disabled: bool) -> None:
         self.auth_client.update_user(uid, disabled=disabled)
+        if self._use_cache:
+            _USER_CACHE.invalidate(uid)
 
     def update_user_password(self, uid: str, new_password: str) -> None:
         self.auth_client.update_user(uid, password=new_password)

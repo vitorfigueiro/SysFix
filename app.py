@@ -4,6 +4,8 @@ import base64
 import binascii
 import logging
 import os
+import threading
+import time
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
@@ -25,6 +27,7 @@ from config import get_cors_origins, get_public_client_config, get_storage_backe
 from database import init_db
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from importer import (
@@ -85,6 +88,7 @@ if _cors_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -95,7 +99,10 @@ async def add_static_revalidation_headers(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path or ""
     if path.startswith("/static/") and (path.endswith(".js") or path.endswith(".css")):
-        response.headers.setdefault("Cache-Control", "no-cache")
+        if request.query_params.get("v"):
+            response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+        else:
+            response.headers.setdefault("Cache-Control", "no-cache")
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -1000,6 +1007,39 @@ def obter_equipamento(
         raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
 
 
+_RECENT_ENTRADA_LOCK = threading.Lock()
+_RECENT_ENTRADA_CACHE: dict[str, float] = {}
+_DUPLICATE_ENTRADA_WINDOW_SECONDS = 15.0
+
+
+def _montar_assinatura_entrada(tenant_id: str, itens: list[dict[str, Any]]) -> str:
+    partes = []
+    for it in itens:
+        partes.append(
+            "|".join(
+                str(it.get(k) or "").strip().lower()
+                for k in ("equipamento", "tombamento", "os_coleta", "origem", "problema")
+            )
+        )
+    return f"{tenant_id}::" + ";;".join(partes)
+
+
+def _checar_e_marcar_entrada_duplicada(tenant_id: str, itens: list[dict[str, Any]]) -> None:
+    chave = _montar_assinatura_entrada(tenant_id, itens)
+    agora = time.monotonic()
+    with _RECENT_ENTRADA_LOCK:
+        expiradas = [k for k, ts in _RECENT_ENTRADA_CACHE.items() if agora - ts > _DUPLICATE_ENTRADA_WINDOW_SECONDS]
+        for k in expiradas:
+            _RECENT_ENTRADA_CACHE.pop(k, None)
+        ultimo = _RECENT_ENTRADA_CACHE.get(chave)
+        if ultimo is not None and (agora - ultimo) <= _DUPLICATE_ENTRADA_WINDOW_SECONDS:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Entrada duplicada bloqueada: este equipamento já acabou de ser registrado. Aguarde alguns segundos se realmente deseja cadastrar outro igual.",
+            )
+        _RECENT_ENTRADA_CACHE[chave] = agora
+
+
 @app.post("/api/equipamentos")
 def criar_entrada(
     payload: Union[EntradaSchema, List[EntradaSchema]],
@@ -1019,8 +1059,10 @@ def criar_entrada(
                     detail="A lista de equipamentos enviados está vazia.",
                 )
 
+            itens_dump = [item.model_dump() for item in payload]
+            _checar_e_marcar_entrada_duplicada(tenant_id, itens_dump)
             ids_criados = ColetaModel.registrar_entrada_em_lote(
-                [item.model_dump() for item in payload],
+                itens_dump,
                 tenant_id=tenant_id,
                 actor=actor,
                 allowed_locations=allowed_locations,
@@ -1034,6 +1076,7 @@ def criar_entrada(
                 "mensagem": f"{len(ids_criados)} entrada(s) registrada(s) com sucesso.",
             }
 
+        _checar_e_marcar_entrada_duplicada(tenant_id, [payload.model_dump()])
         checklist_inicial = (
             payload.checklist
             if payload.checklist is not None

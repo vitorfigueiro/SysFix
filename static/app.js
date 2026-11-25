@@ -599,9 +599,12 @@ function aplicarPermissoesNaUI() {
   setHidden('dashCardRankingTecnicos', !podeDashExec);
   setHidden('miniDashEntradas', !podeDashboard);
 
-  setHidden('btnAdicionarItemEntrada', !podeEntrar);
-  setHidden('btnSalvarEntrada', !podeEntrar);
-  setHidden('btnAtualizarEntrada', !podeEditar);
+  setHidden('btnEditarEntradaFicha', !podeEditar);
+  setHidden('btnAdicionarItemEntrada', modoEdicaoEntrada || !podeEntrar);
+  setHidden('btnSalvarEntrada', modoEdicaoEntrada || !podeEntrar);
+  setHidden('btnAtualizarEntrada', !(modoEdicaoEntrada && podeEditar));
+  setHidden('btnCancelarEdicaoEntrada', !modoEdicaoEntrada);
+  setHidden('bannerModoEdicaoEntrada', !modoEdicaoEntrada);
   setHidden('grupoCustoSaida', !podeCustos);
   setHidden('fichaBlocoCusto', !podeCustos);
   setHidden('btnExcluirItem', !podeExcluir);
@@ -1312,11 +1315,13 @@ function definirLocalizacaoSelect(localizacao) {
   selectLoc.value = valor;
 }
 
-function limparFormularios() {
-  registroSelecionadoId = null;
-  registroSelecionadoDados = null;
-  const hojeISO = obterDataHojeISO();
+let modoEdicaoEntrada = false;
+let registroEditandoId = null;
+let ultimoEnvioEntradaAssinatura = '';
+let ultimoEnvioEntradaTs = 0;
 
+function limparFormularioEntradaApenas() {
+  const hojeISO = obterDataHojeISO();
   document.getElementById('ent_tec').value = '';
   document.getElementById('ent_data').value = hojeISO;
   document.getElementById('ent_origem').value = '';
@@ -1325,12 +1330,87 @@ function limparFormularios() {
   document.getElementById('ent_prioridade').value = 'Normal';
   limparOpcoesLegadasLocalizacao();
   const selectLoc = document.getElementById('ent_loc');
-  if (selectLoc.options.length > 0) {
+  if (selectLoc && selectLoc.options.length > 0) {
     selectLoc.selectedIndex = 0;
   }
-
   document.getElementById('listaItensEntrada').innerHTML = criarCardHtmlEntrada('Item #1', {}, false);
   atualizarContadoresERemover();
+  if (typeof renderizarCamposCustomizadosSecao === 'function') {
+    renderizarCamposCustomizadosSecao('entrada', {});
+  }
+  if (typeof aplicarConfigCamposBancadaNaUI === 'function') {
+    aplicarConfigCamposBancadaNaUI();
+  }
+}
+
+function atualizarBotoesModoEdicaoEntrada() {
+  const podeEntrar = temPermissao('registrar_entrada');
+  const podeEditar = temPermissao('editar_entrada');
+  const setHiddenLocal = (id, hide) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', Boolean(hide));
+  };
+  setHiddenLocal('bannerModoEdicaoEntrada', !modoEdicaoEntrada);
+  setHiddenLocal('btnAtualizarEntrada', !(modoEdicaoEntrada && podeEditar));
+  setHiddenLocal('btnCancelarEdicaoEntrada', !modoEdicaoEntrada);
+  setHiddenLocal('btnSalvarEntrada', modoEdicaoEntrada || !podeEntrar);
+  setHiddenLocal('btnAdicionarItemEntrada', modoEdicaoEntrada || !podeEntrar);
+  const lbl = document.getElementById('lblEditandoEntradaId');
+  if (lbl) lbl.textContent = registroEditandoId ? `#${registroEditandoId}` : '#0';
+}
+
+function iniciarEdicaoEntradaSelecionada() {
+  if (!registroSelecionadoId || !registroSelecionadoDados) {
+    mostrarToast('Selecione um equipamento na lista antes de editar.', 'erro');
+    return;
+  }
+  if (!temPermissao('editar_entrada')) {
+    mostrarToast('Você não tem permissão para editar registros.', 'erro');
+    return;
+  }
+  const d = registroSelecionadoDados;
+  modoEdicaoEntrada = true;
+  registroEditandoId = d.id;
+
+  document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
+  document.getElementById('ent_data').value = converterDataParaInput(d.data_coleta);
+  document.getElementById('ent_origem').value = d.origem || '';
+  document.getElementById('ent_os').value = d.os_coleta || '';
+  document.getElementById('ent_fluxo').value = d.tipo_fluxo || 'Manutenção';
+  document.getElementById('ent_prioridade').value = d.prioridade || 'Normal';
+  definirLocalizacaoSelect(d.localizacao);
+
+  document.getElementById('listaItensEntrada').innerHTML = criarCardHtmlEntrada(`Editando #${d.id}`, d, false);
+  atualizarContadoresERemover(`Editando #${d.id}`);
+  if (typeof renderizarCamposCustomizadosSecao === 'function') {
+    renderizarCamposCustomizadosSecao('entrada', d.campos_customizados || {});
+  }
+  if (typeof aplicarConfigCamposBancadaNaUI === 'function') {
+    aplicarConfigCamposBancadaNaUI();
+  }
+
+  alternarTab('entrada');
+  atualizarBotoesModoEdicaoEntrada();
+  document.getElementById('formEntradaContainer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  mostrarToast(`Modo de edição ativo para o Registro #${d.id}.`, 'info');
+}
+
+function cancelarEdicaoEntrada() {
+  modoEdicaoEntrada = false;
+  registroEditandoId = null;
+  limparFormularioEntradaApenas();
+  atualizarBotoesModoEdicaoEntrada();
+}
+
+function limparFormularios() {
+  registroSelecionadoId = null;
+  registroSelecionadoDados = null;
+  modoEdicaoEntrada = false;
+  registroEditandoId = null;
+  const hojeISO = obterDataHojeISO();
+
+  limparFormularioEntradaApenas();
+  atualizarBotoesModoEdicaoEntrada();
 
   document.getElementById('sai_tec').value = '';
   document.getElementById('sai_os').value = '';
@@ -1342,7 +1422,6 @@ function limparFormularios() {
   document.getElementById('sai_resolucao').value = '';
   alternarCampoCusto();
   if (typeof renderizarCamposCustomizadosSecao === 'function') {
-    renderizarCamposCustomizadosSecao('entrada', {});
     renderizarCamposCustomizadosSecao('saida', {});
   }
   if (typeof aplicarConfigCamposBancadaNaUI === 'function') {
@@ -1512,131 +1591,148 @@ function filtrarTabelaLocal() {
   destacarLinhaSelecionada();
 }
 
+function renderizarFichaESaidaRegistro(d) {
+  registroSelecionadoId = d.id;
+  registroSelecionadoDados = d;
+  destacarLinhaSelecionada();
+
+  // Ao selecionar um item, NÃO preenche os campos de Entrada (evita duplicatas acidentais).
+  // A edição dos dados de Entrada só ocorre ao clicar explicitamente no botão "✏️ Editar".
+  if (modoEdicaoEntrada && Number(registroEditandoId) !== Number(d.id)) {
+    cancelarEdicaoEntrada();
+  }
+
+  if (typeof renderizarCamposCustomizadosSecao === 'function') {
+    renderizarCamposCustomizadosSecao('saida', d.campos_customizados || {});
+  }
+  if (typeof aplicarConfigCamposBancadaNaUI === 'function') {
+    aplicarConfigCamposBancadaNaUI();
+  }
+
+  document.getElementById('sai_tec').value = d.tecnico_entrega || '';
+  document.getElementById('sai_os').value = d.os_entrega || '';
+  document.getElementById('sai_data').value = converterDataParaInput(d.data_entrega);
+  document.getElementById('sai_laudado').value = d.laudado || 'Não';
+  document.getElementById('sai_garantia').value = d.garantia_dias ?? 90;
+  document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
+  document.getElementById('sai_valor').value = d.valor_custo || d.valor || '0.00';
+  document.getElementById('sai_resolucao').value = d.resolucao || d.servico_realizado || '';
+  alternarCampoCusto();
+
+  const statusLower = (d.status || '').toLowerCase().trim();
+  const isEntregue = statusLower === 'entregue' || statusLower === 'finalizado' || (d.data_entrega && d.data_entrega.trim() !== '');
+  const slaDias = Number(sessaoAtual?.tenant?.sla_dias || 3);
+
+  const badge = document.getElementById('badgeStatusSelecao');
+  if (isEntregue) {
+    badge.className = 'p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2';
+    badge.innerText = `✅ Item #${d.id} selecionado (Entregue)`;
+  } else {
+    badge.className = 'p-3 bg-violet-50 dark:bg-violet-950/50 border border-violet-200 dark:border-violet-800 rounded-xl text-xs font-semibold text-violet-700 dark:text-violet-200 flex items-center gap-2';
+    badge.innerText = `📦 Item #${d.id} selecionado para saída`;
+  }
+
+  document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
+  document.getElementById('f_fluxo_badge').innerText = d.tipo_fluxo || 'Manutenção';
+  const prioEl = document.getElementById('f_prioridade_badge');
+  const prioVal = d.prioridade || 'Normal';
+  prioEl.innerText = prioVal;
+  prioEl.className = prioVal === 'Crítica'
+    ? 'px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-rose-600 text-white'
+    : (prioVal === 'Alta'
+      ? 'px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500 text-white'
+      : 'px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200');
+
+  document.getElementById('f_equipamento').innerText = d.equipamento || '---';
+  const tombLabel = d.tombamento_tipo === 'serial'
+    ? `Serial: ${d.tombamento || '---'}`
+    : (d.tombamento_tipo === 'sem_tombamento' ? 'Identificação: Sem Tombamento' : `Tombamento: ${d.tombamento || '---'}`);
+  document.getElementById('f_tombamento').innerText = tombLabel;
+
+  const fBadge = document.getElementById('f_badge_status');
+  if (isEntregue) {
+    fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700';
+    fBadge.innerText = '✅ ENTREGUE';
+  } else {
+    const dias = calcularDiasPendente(d.data_coleta);
+    if (dias > slaDias) {
+      fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-700';
+      fBadge.innerText = `🚨 ATRASADO (${dias}d)`;
+    } else {
+      fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700';
+      fBadge.innerText = `⏳ PENDENTE (${dias}d)`;
+    }
+  }
+
+  document.getElementById('f_categoria').innerText = d.categoria || 'Geral';
+  document.getElementById('f_serial_mac').innerText = d.serial_mac || '---';
+  const fluxoTxtEl = document.getElementById('f_tipo_fluxo_txt');
+  if (fluxoTxtEl) fluxoTxtEl.innerText = d.tipo_fluxo || 'Manutenção';
+  document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || '---';
+  document.getElementById('f_data_coleta').innerText = formatarDataBR(d.data_coleta);
+  document.getElementById('f_os_coleta').innerText = d.os_coleta || '---';
+  document.getElementById('f_origem').innerText = d.origem || '---';
+  document.getElementById('f_localizacao').innerText = d.localizacao || '---';
+  document.getElementById('f_codigo').innerText = d.codigo_acompanhamento || 'Gerado ao compartilhar';
+  document.getElementById('f_problema').innerText = d.problema || 'Nenhum detalhe relatado.';
+
+  document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || '---';
+  document.getElementById('f_data_entrega').innerText = formatarDataBR(d.data_entrega);
+  document.getElementById('f_os_entrega').innerText = d.os_entrega || '---';
+  document.getElementById('f_custo').innerText = d.status_custo === 'Com Custo'
+    ? `Com Custo (R$ ${formatarMoedaBR(d.valor_custo)})`
+    : (d.status_custo || '---');
+  document.getElementById('f_laudado').innerText = d.laudado || '---';
+  document.getElementById('f_garantia').innerText = Number(d.garantia_dias) > 0
+    ? `${d.garantia_dias}d${d.garantia_ate ? ` (até ${formatarDataBR(d.garantia_ate)})` : ''}`
+    : 'Sem garantia';
+  document.getElementById('f_resolucao').innerText = d.resolucao || d.servico_realizado || 'Pendente de atendimento.';
+
+  if (typeof renderizarCamposCustomizadosFicha === 'function') renderizarCamposCustomizadosFicha(d);
+  if (typeof atualizarBoxesResumoSelecionado === 'function') atualizarBoxesResumoSelecionado(d.id);
+  if (typeof renderizarExtrasFicha === 'function') renderizarExtrasFicha(d);
+  if (typeof renderizarChecklistFicha === 'function') renderizarChecklistFicha(d);
+  if (typeof renderizarLaudosFicha === 'function') renderizarLaudosFicha(d);
+
+  document.getElementById('fichaVazia').classList.add('hidden');
+  document.getElementById('fichaConteudo').classList.remove('hidden');
+}
+
 async function selecionarItem(id) {
+  // Renderização instantânea a partir do cache local para resposta imediata ao clique
+  const itemCache = (listaEquipamentosCache || []).find(item => Number(item.id) === Number(id));
+  if (itemCache) {
+    renderizarFichaESaidaRegistro(itemCache);
+  }
   try {
     const res = await apiFetch(`/equipamentos/${id}`);
     if (!res.ok) {
-      mostrarToast(await extrairErroResposta(res, 'Não foi possível carregar os detalhes do registro.'), 'erro');
+      if (!itemCache) {
+        mostrarToast(await extrairErroResposta(res, 'Não foi possível carregar os detalhes do registro.'), 'erro');
+      }
       return;
     }
     const d = await res.json();
-    registroSelecionadoId = d.id;
-    registroSelecionadoDados = d;
-    destacarLinhaSelecionada();
-
-    document.getElementById('ent_tec').value = d.tecnico_coleta || d.tecnico || '';
-    document.getElementById('ent_data').value = converterDataParaInput(d.data_coleta);
-    document.getElementById('ent_origem').value = d.origem || '';
-    document.getElementById('ent_os').value = d.os_coleta || '';
-    document.getElementById('ent_fluxo').value = d.tipo_fluxo || 'Manutenção';
-    document.getElementById('ent_prioridade').value = d.prioridade || 'Normal';
-    definirLocalizacaoSelect(d.localizacao);
-
-    document.getElementById('listaItensEntrada').innerHTML = criarCardHtmlEntrada(`Registro #${d.id}`, d, false);
-    atualizarContadoresERemover(`Registro #${d.id}`);
-    if (typeof renderizarCamposCustomizadosSecao === 'function') {
-      renderizarCamposCustomizadosSecao('entrada', d.campos_customizados || {});
-      renderizarCamposCustomizadosSecao('saida', d.campos_customizados || {});
+    // Atualiza o cache local e re-renderiza apenas se o usuário ainda estiver neste item
+    const idxCache = (listaEquipamentosCache || []).findIndex(item => Number(item.id) === Number(d.id));
+    if (idxCache >= 0) listaEquipamentosCache[idxCache] = d;
+    if (!itemCache || Number(registroSelecionadoId) === Number(d.id)) {
+      renderizarFichaESaidaRegistro(d);
     }
-    if (typeof aplicarConfigCamposBancadaNaUI === 'function') {
-      aplicarConfigCamposBancadaNaUI();
-    }
-
-    document.getElementById('sai_tec').value = d.tecnico_entrega || '';
-    document.getElementById('sai_os').value = d.os_entrega || '';
-    document.getElementById('sai_data').value = converterDataParaInput(d.data_entrega);
-    document.getElementById('sai_laudado').value = d.laudado || 'Não';
-    document.getElementById('sai_garantia').value = d.garantia_dias ?? 90;
-    document.getElementById('sai_status_custo').value = d.status_custo || 'Sem Custo';
-    document.getElementById('sai_valor').value = d.valor_custo || d.valor || '0.00';
-    document.getElementById('sai_resolucao').value = d.resolucao || d.servico_realizado || '';
-    alternarCampoCusto();
-
-    const statusLower = (d.status || '').toLowerCase().trim();
-    const isEntregue = statusLower === 'entregue' || statusLower === 'finalizado' || (d.data_entrega && d.data_entrega.trim() !== '');
-    const slaDias = Number(sessaoAtual?.tenant?.sla_dias || 3);
-
-    const badge = document.getElementById('badgeStatusSelecao');
-    if (isEntregue) {
-      badge.className = 'p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2';
-      badge.innerText = `✅ Item #${d.id} selecionado (Entregue)`;
-    } else {
-      badge.className = 'p-3 bg-violet-50 dark:bg-violet-950/50 border border-violet-200 dark:border-violet-800 rounded-xl text-xs font-semibold text-violet-700 dark:text-violet-200 flex items-center gap-2';
-      badge.innerText = `📦 Item #${d.id} selecionado para saída`;
-    }
-
-    document.getElementById('f_id').innerText = `REGISTRO #${d.id}`;
-    document.getElementById('f_fluxo_badge').innerText = d.tipo_fluxo || 'Manutenção';
-    const prioEl = document.getElementById('f_prioridade_badge');
-    const prioVal = d.prioridade || 'Normal';
-    prioEl.innerText = prioVal;
-    prioEl.className = prioVal === 'Crítica'
-      ? 'px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-rose-600 text-white'
-      : (prioVal === 'Alta'
-        ? 'px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500 text-white'
-        : 'px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200');
-
-    document.getElementById('f_equipamento').innerText = d.equipamento || '---';
-    const tombLabel = d.tombamento_tipo === 'serial'
-      ? `Serial: ${d.tombamento || '---'}`
-      : (d.tombamento_tipo === 'sem_tombamento' ? 'Identificação: Sem Tombamento' : `Tombamento: ${d.tombamento || '---'}`);
-    document.getElementById('f_tombamento').innerText = tombLabel;
-
-    const fBadge = document.getElementById('f_badge_status');
-    if (isEntregue) {
-      fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700';
-      fBadge.innerText = '✅ ENTREGUE';
-    } else {
-      const dias = calcularDiasPendente(d.data_coleta);
-      if (dias > slaDias) {
-        fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-700';
-        fBadge.innerText = `🚨 ATRASADO (${dias}d)`;
-      } else {
-        fBadge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700';
-        fBadge.innerText = `⏳ PENDENTE (${dias}d)`;
-      }
-    }
-
-    document.getElementById('f_categoria').innerText = d.categoria || 'Geral';
-    document.getElementById('f_serial_mac').innerText = d.serial_mac || '---';
-    const fluxoTxtEl = document.getElementById('f_tipo_fluxo_txt');
-    if (fluxoTxtEl) fluxoTxtEl.innerText = d.tipo_fluxo || 'Manutenção';
-    document.getElementById('f_tec_coleta').innerText = d.tecnico_coleta || d.tecnico || '---';
-    document.getElementById('f_data_coleta').innerText = formatarDataBR(d.data_coleta);
-    document.getElementById('f_os_coleta').innerText = d.os_coleta || '---';
-    document.getElementById('f_origem').innerText = d.origem || '---';
-    document.getElementById('f_localizacao').innerText = d.localizacao || '---';
-    document.getElementById('f_codigo').innerText = d.codigo_acompanhamento || 'Gerado ao compartilhar';
-    document.getElementById('f_problema').innerText = d.problema || 'Nenhum detalhe relatado.';
-
-    document.getElementById('f_tec_entrega').innerText = d.tecnico_entrega || '---';
-    document.getElementById('f_data_entrega').innerText = formatarDataBR(d.data_entrega);
-    document.getElementById('f_os_entrega').innerText = d.os_entrega || '---';
-    document.getElementById('f_custo').innerText = d.status_custo === 'Com Custo'
-      ? `Com Custo (R$ ${formatarMoedaBR(d.valor_custo)})`
-      : (d.status_custo || '---');
-    document.getElementById('f_laudado').innerText = d.laudado || '---';
-    document.getElementById('f_garantia').innerText = Number(d.garantia_dias) > 0
-      ? `${d.garantia_dias}d${d.garantia_ate ? ` (até ${formatarDataBR(d.garantia_ate)})` : ''}`
-      : 'Sem garantia';
-    document.getElementById('f_resolucao').innerText = d.resolucao || d.servico_realizado || 'Pendente de atendimento.';
-
-    if (typeof renderizarCamposCustomizadosFicha === 'function') renderizarCamposCustomizadosFicha(d);
-    if (typeof atualizarBoxesResumoSelecionado === 'function') atualizarBoxesResumoSelecionado(d.id);
-    if (typeof renderizarExtrasFicha === 'function') renderizarExtrasFicha(d);
-    if (typeof renderizarChecklistFicha === 'function') renderizarChecklistFicha(d);
-    if (typeof renderizarLaudosFicha === 'function') renderizarLaudosFicha(d);
-
-    document.getElementById('fichaVazia').classList.add('hidden');
-    document.getElementById('fichaConteudo').classList.remove('hidden');
   } catch (e) {
     console.error('Erro ao carregar detalhes:', e);
-    mostrarToast('Não foi possível carregar os detalhes do registro.', 'erro');
+    if (!itemCache) {
+      mostrarToast('Não foi possível carregar os detalhes do registro.', 'erro');
+    }
   }
 }
 
 async function salvarEntrada() {
   if (enviandoRequisicao) return;
+  if (modoEdicaoEntrada) {
+    mostrarToast('Você está em modo de edição. Clique em "Salvar Alterações da Entrada" ou "Cancelar Edição".', 'info');
+    return;
+  }
 
   const tec = document.getElementById('ent_tec').value.trim();
   const dataColeta = document.getElementById('ent_data').value;
@@ -1700,9 +1796,19 @@ async function salvarEntrada() {
     return;
   }
 
+  const assinaturaAtual = JSON.stringify(
+    itensParaSalvar.map(i => [i.equipamento.toLowerCase(), i.tombamento.toLowerCase(), i.os_coleta.toLowerCase(), i.origem.toLowerCase(), i.problema.toLowerCase()])
+  );
+  if (assinaturaAtual === ultimoEnvioEntradaAssinatura && (Date.now() - ultimoEnvioEntradaTs) < 5000) {
+    mostrarToast('Bloqueio de duplicidade: aguarde alguns segundos antes de enviar exatamente a mesma entrada.', 'erro');
+    return;
+  }
+
   const btn = document.getElementById('btnSalvarEntrada');
+  const txtOrig = btn.textContent;
   enviandoRequisicao = true;
   btn.disabled = true;
+  btn.textContent = '⏳ Registrando...';
 
   try {
     const res = await apiFetch('/equipamentos', {
@@ -1715,6 +1821,8 @@ async function salvarEntrada() {
       return;
     }
 
+    ultimoEnvioEntradaAssinatura = assinaturaAtual;
+    ultimoEnvioEntradaTs = Date.now();
     const resultado = await res.json();
     mostrarToast(resultado.mensagem || 'Entrada registrada com sucesso!', 'sucesso');
     const idsCriados = Array.isArray(resultado.ids)
@@ -1731,13 +1839,15 @@ async function salvarEntrada() {
   } finally {
     enviandoRequisicao = false;
     btn.disabled = false;
+    btn.textContent = txtOrig;
   }
 }
 
 async function atualizarEntradaAdmin() {
   if (enviandoRequisicao) return;
-  if (!registroSelecionadoId) {
-    mostrarToast('Selecione um equipamento na lista para atualizar.', 'erro');
+  const idAlvo = registroEditandoId || registroSelecionadoId;
+  if (!idAlvo) {
+    mostrarToast('Selecione um equipamento na lista e clique em Editar para atualizar.', 'erro');
     return;
   }
 
@@ -1788,7 +1898,7 @@ async function atualizarEntradaAdmin() {
   btn.disabled = true;
 
   try {
-    const res = await apiFetch(`/equipamentos/${registroSelecionadoId}`, {
+    const res = await apiFetch(`/equipamentos/${idAlvo}`, {
       method: 'PUT',
       body: JSON.stringify(payload)
     });
@@ -1798,9 +1908,10 @@ async function atualizarEntradaAdmin() {
       return;
     }
 
-    mostrarToast(`Dados do item #${registroSelecionadoId} atualizados!`, 'sucesso');
+    mostrarToast(`Dados do item #${idAlvo} atualizados!`, 'sucesso');
+    cancelarEdicaoEntrada();
     await carregarLista();
-    await selecionarItem(registroSelecionadoId);
+    await selecionarItem(idAlvo);
   } catch (e) {
     console.error('Erro ao atualizar registro:', e);
     mostrarToast('Falha de conexão ao tentar atualizar o registro.', 'erro');

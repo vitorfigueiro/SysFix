@@ -535,6 +535,22 @@ class CyberSimulacaoDidaticaSchema(BaseModel):
     registrar_plano: bool = False
 
 
+class CyberPurpleAlvoSchema(BaseModel):
+    alvo: str
+    cenario_id: Optional[str] = "owasp_web_headers"
+    registrar_plano: bool = False
+
+
+class CyberPurpleDocumentoSchema(BaseModel):
+    filename: str
+    conteudo_base64: str
+
+
+class CyberPurpleEmailSchema(BaseModel):
+    email_ou_dominio: str
+    conteudo_email: Optional[str] = ""
+
+
 class CyberExecutarAuditoriaSchema(BaseModel):
     alvo: str
     tipo_auditoria: str = "web_tls"
@@ -3055,6 +3071,71 @@ def simular_laboratorio_cyber_api(
         raise
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.post("/api/cyber/laboratorio/alvo")
+def simular_alvo_purple_api(
+    payload: CyberPurpleAlvoSchema,
+    current_user: dict[str, Any] = Depends(require_permission("executar_auditoria_rede")),
+):
+    try:
+        res = _get_security_ops_service().simular_alvo_purple(
+            tenant=current_user["tenant"],
+            alvo=payload.alvo,
+            cenario_id=payload.cenario_id or "owasp_web_headers",
+            registrar_plano=payload.registrar_plano and usuario_tem_permissao(current_user, "gerenciar_auditoria_cyber"),
+            actor=current_user.get("nome") or current_user.get("email") or "",
+            user_uid=current_user.get("uid") or "",
+            user_email=current_user.get("email") or "",
+            is_admin=current_user.get("role") == "admin",
+        )
+        return {"sucesso": True, **res}
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro na simulação defensiva de alvo Purple-Bot")
+        raise HTTPException(status_code=500, detail=obter_mensagem_erro("DB_ERROR"))
+
+
+@app.post("/api/cyber/laboratorio/documento")
+def escanear_documento_purple_api(
+    payload: CyberPurpleDocumentoSchema,
+    _current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    try:
+        raw_b64 = (payload.conteudo_base64 or "").strip()
+        if "," in raw_b64 and raw_b64.startswith("data:"):
+            raw_b64 = raw_b64.split(",", 1)[1].strip()
+        try:
+            raw_bytes = base64.b64decode(raw_b64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("Conteúdo do arquivo em base64 inválido.") from exc
+        res = _get_security_ops_service().escanear_documento_purple(payload.filename, raw_bytes)
+        return {"sucesso": True, **res}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao escanear documento no Purple-Bot")
+        raise HTTPException(status_code=500, detail="Erro ao analisar documento.")
+
+
+@app.post("/api/cyber/laboratorio/email")
+def verificar_email_purple_api(
+    payload: CyberPurpleEmailSchema,
+    _current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    try:
+        res = _get_security_ops_service().verificar_email_purple(
+            payload.email_ou_dominio, payload.conteudo_email or ""
+        )
+        return {"sucesso": True, **res}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        logger.exception("Erro ao verificar e-mail no Purple-Bot")
+        raise HTTPException(status_code=500, detail="Erro ao verificar e-mail/domínio.")
 
 
 @app.get("/api/cyber/automacoes")

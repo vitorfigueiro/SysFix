@@ -1044,8 +1044,285 @@ async function importarAuditoriaLanJson(event) {
 }
 
 // ==============================================================================
-// LABORATÓRIO DIDÁTICO ATAQUES × BUSCA DE FALHAS × MITIGAÇÕES
+// PURPLE-BOT: SIMULADOR DEFENSIVO EM TEMPO REAL (ALVO, DOCUMENTO, E-MAIL & LAB)
 // ==============================================================================
+
+let purpleModoAtual = 'alvo';
+let ultimoRelatorioPurpleBot = null;
+
+function alternarModoPurpleBot(modo) {
+  purpleModoAtual = modo;
+  const act = 'px-3 py-1.5 rounded-xl font-extrabold bg-fuchsia-600 text-white shadow-sm';
+  const inact = 'px-3 py-1.5 rounded-xl font-bold bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800';
+  ['alvo', 'documento', 'email', 'cenarios'].forEach(k => {
+    document.getElementById(`purpleModo_${k}`)?.classList.toggle('hidden', k !== modo);
+    const btn = document.getElementById(`btnPurpleModo_${k}`);
+    if (btn) btn.className = k === modo ? act : inact;
+  });
+}
+
+function _iniciarConsoleTempoRealPurple(containerId, titulo, etapasIniciais) {
+  const box = document.getElementById(containerId);
+  if (!box) return;
+  box.innerHTML = `
+    <div class="p-4 rounded-2xl bg-slate-950 text-emerald-300 font-mono text-[11px] space-y-2 border border-fuchsia-500/40 shadow-lg">
+      <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+        <span class="font-extrabold text-fuchsia-300">🤖 ${escapeHtml(titulo)}</span>
+        <span class="px-2 py-0.5 rounded bg-fuchsia-600/30 text-fuchsia-200 text-[10px] animate-pulse">● EXECUTANDO EM TEMPO REAL</span>
+      </div>
+      <div class="space-y-1.5">
+        ${etapasIniciais.map((st, idx) => `<div class="text-slate-300">[00:0${idx + 1}] ⏳ ${escapeHtml(st)}</div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function _renderizarTimelineTempoRealPurple(containerId, data) {
+  const box = document.getElementById(containerId);
+  if (!box || !data) return;
+  ultimoRelatorioPurpleBot = data;
+
+  const timeline = Array.isArray(data.timeline_execucao) ? data.timeline_execucao : [];
+  const score = data.nivel_defesa_percent ?? 100;
+  const scoreCls = score >= 80 ? 'bg-emerald-100 text-emerald-800' : (score >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800');
+  const iconSt = (st) => st === 'ok' ? '✅' : (st === 'critico' ? '🚨' : (st === 'alerta' ? '⚠️' : '🔍'));
+  const txtSt = (st) => st === 'ok' ? 'text-emerald-300' : (st === 'critico' ? 'text-rose-400' : (st === 'alerta' ? 'text-amber-300' : 'text-sky-300'));
+
+  let extrasHtml = '';
+
+  if (data.modo === 'alvo') {
+    const achs = Array.isArray(data.achados) ? data.achados : [];
+    extrasHtml = `
+      <div class="space-y-2">
+        <div class="font-extrabold text-slate-900 dark:text-white">🐞 Pontos Encontrados &amp; Blindagem Blue Team (${achs.length})</div>
+        ${achs.length === 0
+          ? '<p class="text-emerald-700 dark:text-emerald-300 font-semibold">✅ Nenhuma exposição crítica encontrada neste alvo.</p>'
+          : achs.map(a => `
+            <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800 space-y-1">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-900 dark:text-white">${escapeHtml(a.titulo)}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-800">${escapeHtml(a.severidade || 'Média')}</span>
+              </div>
+              ${a.evidencia ? `<div class="text-[10px] font-mono text-slate-600 dark:text-violet-300 break-all">${escapeHtml(a.evidencia)}</div>` : ''}
+              ${a.recomendacao ? `<div class="text-[11px] text-emerald-800 dark:text-emerald-300">🛡️ <b>Mitigação:</b> ${escapeHtml(a.recomendacao)}</div>` : ''}
+            </div>
+          `).join('')}
+      </div>
+    `;
+  } else if (data.modo === 'documento') {
+    const inds = Array.isArray(data.indicadores) ? data.indicadores : [];
+    const urls = Array.isArray(data.urls_encontradas) ? data.urls_encontradas : [];
+    extrasHtml = `
+      <div class="grid sm:grid-cols-2 gap-2 text-[11px]">
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800">
+          <div class="text-[10px] font-bold uppercase text-slate-400">Arquivo &amp; Assinatura Real</div>
+          <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(data.arquivo)} (${escapeHtml(String(data.tamanho_bytes || 0))} bytes)</div>
+          <div class="text-[10px] text-violet-700 dark:text-violet-300">${escapeHtml(data.assinatura_real || '-')}</div>
+        </div>
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800">
+          <div class="text-[10px] font-bold uppercase text-slate-400">Hashes Criptográficos</div>
+          <div class="font-mono text-[9.5px] break-all"><b>SHA-256:</b> ${escapeHtml(data.hashes?.sha256 || '-')}</div>
+          <div class="font-mono text-[9.5px] break-all"><b>MD5:</b> ${escapeHtml(data.hashes?.md5 || '-')}</div>
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <div class="font-extrabold text-slate-900 dark:text-white">🚨 Indicadores Detectados (${inds.length}) — Classificação: ${escapeHtml(data.nivel_risco || '-')}</div>
+        ${inds.length === 0
+          ? '<p class="text-emerald-700 dark:text-emerald-300 font-semibold">✅ Nenhum indicador estático malicioso encontrado.</p>'
+          : inds.map(i => `
+            <div class="p-2.5 rounded-xl bg-rose-50/80 dark:bg-rose-950/25 border border-rose-200 dark:border-rose-900 space-y-0.5">
+              <div class="font-bold text-rose-800 dark:text-rose-300">[${escapeHtml(i.severidade)}] ${escapeHtml(i.titulo)}</div>
+              <div class="text-[11px] text-slate-700 dark:text-rose-100/90">${escapeHtml(i.detalhe)}</div>
+            </div>
+          `).join('')}
+      </div>
+      ${urls.length ? `<div class="p-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0816] border border-violet-200 dark:border-violet-800 text-[10px] font-mono break-all"><b>URLs extraídas (${urls.length}):</b><br>${urls.map(u => escapeHtml(u)).join('<br>')}</div>` : ''}
+      <div class="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 space-y-1">
+        <div class="font-extrabold text-emerald-800 dark:text-emerald-300">🛡️ Recomendações</div>
+        <ul class="list-disc pl-5 space-y-0.5 text-[11px]">${(data.recomendacoes || []).map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>
+      </div>
+    `;
+  } else if (data.modo === 'email') {
+    const dns = data.autenticacao_dns || {};
+    const inds = Array.isArray(data.indicadores) ? data.indicadores : [];
+    extrasHtml = `
+      <div class="grid sm:grid-cols-3 gap-2 text-[10.5px]">
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800">
+          <div class="font-bold text-slate-400 uppercase">MX</div>
+          <div class="font-mono break-all mt-0.5">${escapeHtml((dns.mx || []).join(', ') || 'Ausente')}</div>
+        </div>
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800">
+          <div class="font-bold text-slate-400 uppercase">SPF</div>
+          <div class="font-mono break-all mt-0.5">${escapeHtml(dns.spf || 'Ausente')}</div>
+        </div>
+        <div class="p-2.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800">
+          <div class="font-bold text-slate-400 uppercase">DMARC</div>
+          <div class="font-mono break-all mt-0.5">${escapeHtml(dns.dmarc || 'Ausente')}</div>
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <div class="font-extrabold text-slate-900 dark:text-white">🚨 Alertas de Phishing / Spoofing (${inds.length}) — ${escapeHtml(data.nivel_risco || '-')}</div>
+        ${inds.length === 0
+          ? '<p class="text-emerald-700 dark:text-emerald-300 font-semibold">✅ Domínio autenticado e sem alertas de phishing encontrados.</p>'
+          : inds.map(i => `
+            <div class="p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-900 space-y-0.5">
+              <div class="font-bold text-amber-900 dark:text-amber-300">[${escapeHtml(i.severidade)}] ${escapeHtml(i.titulo)}</div>
+              <div class="text-[11px] text-slate-700 dark:text-amber-100/90">${escapeHtml(i.detalhe)}</div>
+            </div>
+          `).join('')}
+      </div>
+      <div class="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 space-y-1">
+        <div class="font-extrabold text-emerald-800 dark:text-emerald-300">🛡️ Recomendações Anti-Phishing</div>
+        <ul class="list-disc pl-5 space-y-0.5 text-[11px]">${(data.recomendacoes || []).map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>
+      </div>
+    `;
+  }
+
+  box.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <span class="px-3 py-1 rounded-full text-xs font-extrabold ${scoreCls}">Nível de Proteção / Segurança: ${score}/100</span>
+      <button type="button" onclick="copiarRelatorioPurpleBot()" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold">📋 Copiar Relatório</button>
+    </div>
+
+    <div class="p-4 rounded-2xl bg-slate-950 text-slate-100 font-mono text-[11px] space-y-2 border border-fuchsia-500/40 shadow-md">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-1.5 text-[10px] text-fuchsia-300 font-bold">
+        <span>🖥️ EXECUÇÃO PASSO A PASSO (TEMPO REAL)</span>
+        <span>${timeline.length} fase(s) concluída(s)</span>
+      </div>
+      <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+        ${timeline.map(step => `
+          <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800 space-y-0.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-bold ${txtSt(step.status)}">${iconSt(step.status)} ${escapeHtml(step.fase)} — ${escapeHtml(step.titulo)}</span>
+              <span class="text-[9.5px] text-slate-400">+${escapeHtml(String(step.tempo_ms || 0))}ms</span>
+            </div>
+            <div class="text-[10.5px] text-slate-300 font-sans">${escapeHtml(step.detalhe || '')}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    ${extrasHtml}
+  `;
+}
+
+async function copiarRelatorioPurpleBot() {
+  if (!ultimoRelatorioPurpleBot) return;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(ultimoRelatorioPurpleBot, null, 2));
+    mostrarToast('Relatório completo do Purple-Bot copiado!', 'sucesso');
+  } catch (e) {
+    mostrarToast('Não foi possível copiar automaticamente.', 'erro');
+  }
+}
+
+async function executarPurpleAlvo(event) {
+  event.preventDefault();
+  const alvo = document.getElementById('purple_alvo_input')?.value.trim() || '';
+  const cenarioId = document.getElementById('purple_alvo_cenario')?.value || 'owasp_web_headers';
+  const registrarPlano = Boolean(document.getElementById('purple_alvo_registrar')?.checked);
+  const btn = document.getElementById('btnExecutarPurpleAlvo');
+  if (!alvo) return;
+  if (btn) btn.disabled = true;
+  renderizarCyberBotsDock(true);
+  _iniciarConsoleTempoRealPurple('abaTempoRealPurpleBot', `Simulação Defensiva em ${alvo}`, [
+    'Validando autorização Gov-Key e proteção Anti-SSRF...',
+    'Executando reconhecimento defensivo (DNS / TLS / Portas / Diretórios HEAD)...',
+    'Montando relatório passo a passo e plano de mitigação Blue Team...',
+  ]);
+  try {
+    const res = await apiFetch('/cyber/laboratorio/alvo', {
+      method: 'POST',
+      body: JSON.stringify({ alvo, cenario_id: cenarioId, registrar_plano: registrarPlano }),
+    });
+    if (!res.ok) {
+      const msg = await extrairErroResposta(res, 'Erro ao executar simulação no alvo.');
+      mostrarToast(msg, 'erro');
+      document.getElementById('abaTempoRealPurpleBot').innerHTML = `<div class="p-3 rounded-xl bg-rose-50 text-rose-700 font-bold">❌ ${escapeHtml(msg)}</div>`;
+      return;
+    }
+    const d = await res.json();
+    _renderizarTimelineTempoRealPurple('abaTempoRealPurpleBot', d);
+    mostrarToast(`Simulação Purple-Bot concluída! Nível de Defesa: ${d.nivel_defesa_percent}/100`, 'sucesso');
+    if (d.achados_gerados > 0) {
+      await Promise.all([carregarAchadosCyber(), carregarResumoCyber()]);
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+    renderizarCyberBotsDock(false);
+  }
+}
+
+async function executarPurpleDocumento(event) {
+  event.preventDefault();
+  const inp = document.getElementById('purple_doc_file');
+  const file = inp?.files && inp.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    mostrarToast('O arquivo excede o limite de 5 MB.', 'erro');
+    return;
+  }
+  const btn = document.getElementById('btnExecutarPurpleDoc');
+  if (btn) btn.disabled = true;
+  renderizarCyberBotsDock(true);
+  _iniciarConsoleTempoRealPurple('abaTempoRealPurpleDoc', `Scanner Estático: ${file.name}`, [
+    'Calculando hashes SHA-256 e MD5 do arquivo...',
+    'Inspecionando magic bytes (assinatura real vs extensão)...',
+    'Verificando macros VBA, scripts em PDF, padrões suspeitos e URLs...',
+  ]);
+  try {
+    const b64 = await lerArquivoBase64(file);
+    const res = await apiFetch('/cyber/laboratorio/documento', {
+      method: 'POST',
+      body: JSON.stringify({ filename: file.name, conteudo_base64: b64 }),
+    });
+    if (!res.ok) {
+      const msg = await extrairErroResposta(res, 'Erro ao escanear documento.');
+      mostrarToast(msg, 'erro');
+      document.getElementById('abaTempoRealPurpleDoc').innerHTML = `<div class="p-3 rounded-xl bg-rose-50 text-rose-700 font-bold">❌ ${escapeHtml(msg)}</div>`;
+      return;
+    }
+    const d = await res.json();
+    _renderizarTimelineTempoRealPurple('abaTempoRealPurpleDoc', d);
+    mostrarToast(`Documento analisado: ${d.nivel_risco} (${d.nivel_defesa_percent}/100)`, d.nivel_defesa_percent >= 80 ? 'sucesso' : 'erro');
+  } finally {
+    if (btn) btn.disabled = false;
+    renderizarCyberBotsDock(false);
+  }
+}
+
+async function executarPurpleEmail(event) {
+  event.preventDefault();
+  const emailOuDom = document.getElementById('purple_email_input')?.value.trim() || '';
+  const conteudo = document.getElementById('purple_email_conteudo')?.value.trim() || '';
+  if (!emailOuDom) return;
+  const btn = document.getElementById('btnExecutarPurpleEmail');
+  if (btn) btn.disabled = true;
+  renderizarCyberBotsDock(true);
+  _iniciarConsoleTempoRealPurple('abaTempoRealPurpleEmail', `Verificando E-mail: ${emailOuDom}`, [
+    'Validando sintaxe, domínio e proteção contra punycode...',
+    'Consultando registros DNS MX, SPF (v=spf1) e DMARC (_dmarc)...',
+    'Inspecionando sinais de engenharia social e links suspeitos...',
+  ]);
+  try {
+    const res = await apiFetch('/cyber/laboratorio/email', {
+      method: 'POST',
+      body: JSON.stringify({ email_ou_dominio: emailOuDom, conteudo_email: conteudo }),
+    });
+    if (!res.ok) {
+      const msg = await extrairErroResposta(res, 'Erro ao verificar e-mail.');
+      mostrarToast(msg, 'erro');
+      document.getElementById('abaTempoRealPurpleEmail').innerHTML = `<div class="p-3 rounded-xl bg-rose-50 text-rose-700 font-bold">❌ ${escapeHtml(msg)}</div>`;
+      return;
+    }
+    const d = await res.json();
+    _renderizarTimelineTempoRealPurple('abaTempoRealPurpleEmail', d);
+    mostrarToast(`Verificação concluída: ${d.nivel_risco} (${d.nivel_defesa_percent}/100)`, d.nivel_defesa_percent >= 80 ? 'sucesso' : 'erro');
+  } finally {
+    if (btn) btn.disabled = false;
+    renderizarCyberBotsDock(false);
+  }
+}
 
 async function carregarLaboratorioCyber() {
   const res = await apiFetch('/cyber/laboratorio');

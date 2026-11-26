@@ -1275,20 +1275,123 @@
           </div>
         </div>
 
-        <!-- Aba Purple-Bot: Laboratório Didático Ataques × Busca de Falhas × Mitigações -->
-        <div id="cyberTab_laboratorio" class="grid lg:grid-cols-3 gap-5 hidden">
-          <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
+        <!-- Aba Purple-Bot: Simulador Defensivo em Tempo Real (Alvo, Documento, E-mail & Cenários) -->
+        <div id="cyberTab_laboratorio" class="space-y-4 hidden text-xs">
+          <div class="bg-white dark:bg-[#141024] p-4 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm flex flex-wrap items-center justify-between gap-3">
             <div>
-              <span class="px-2 py-0.5 rounded-full bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 text-[10px] font-extrabold uppercase">Purple Team Didático</span>
-              <h3 class="text-sm font-extrabold text-slate-900 dark:text-white mt-1.5">🎯 Escolha o Vetor de Ataque</h3>
-              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Entenda de forma didática como cada ataque explora falhas, como caçar a vulnerabilidade e como blindar sua rede sem risco destrutivo.</p>
+              <span class="px-2 py-0.5 rounded-full bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 text-[10px] font-extrabold uppercase">Purple-Bot • Simulação Defensiva &amp; Triagem em Tempo Real</span>
+              <h3 class="text-sm font-extrabold text-slate-900 dark:text-white mt-1">🤖 Central Interativa Purple-Team</h3>
             </div>
-            <div id="listaCenariosDidaticos" class="space-y-2"></div>
+            <div class="flex flex-wrap gap-1.5">
+              <button id="btnPurpleModo_alvo" type="button" onclick="alternarModoPurpleBot('alvo')" class="px-3 py-1.5 rounded-xl font-extrabold bg-fuchsia-600 text-white shadow-sm">🎯 Testar Alvo</button>
+              <button id="btnPurpleModo_documento" type="button" onclick="alternarModoPurpleBot('documento')" class="px-3 py-1.5 rounded-xl font-bold bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800">📄 Escanear Documento</button>
+              <button id="btnPurpleModo_email" type="button" onclick="alternarModoPurpleBot('email')" class="px-3 py-1.5 rounded-xl font-bold bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800">📧 Verificar E-mail</button>
+              <button id="btnPurpleModo_cenarios" type="button" onclick="alternarModoPurpleBot('cenarios')" class="px-3 py-1.5 rounded-xl font-bold bg-violet-50 dark:bg-[#1C1633] text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-800">📚 Cenários Didáticos</button>
+            </div>
           </div>
 
-          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4 text-xs">
-            <div id="detalheCenarioDidatico" class="space-y-4"></div>
-            <div id="resultadoSimulacaoDidatica" class="hidden p-4 rounded-xl bg-violet-50/80 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-2.5"></div>
+          <!-- Modo 1: Simulação Defensiva de Alvo -->
+          <div id="purpleModo_alvo" class="grid lg:grid-cols-3 gap-5">
+            <form id="formPurpleAlvo" onsubmit="executarPurpleAlvo(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+              <h4 class="text-sm font-extrabold text-slate-900 dark:text-white">🎯 Simulação Defensiva em Alvo Autorizado</h4>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Executa verificações defensivas somente-leitura (DNS, TLS, Headers OWASP, diretórios HEAD ou portas privadas RFC1918) e mostra cada etapa na aba em tempo real.</p>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Alvo (Domínio ou IP/CIDR privado) *</label>
+                <input type="text" id="purple_alvo_input" required placeholder="Ex: suaempresa.com.br ou 192.168.1.1" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Cenário Purple-Team de Referência</label>
+                <select id="purple_alvo_cenario" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="owasp_web_headers">🌐 Web, TLS, Headers OWASP &amp; Diretórios</option>
+                  <option value="ransomware_smb_rdp">🔒 Superfície de Rede (SMB/RDP/Portas Críticas)</option>
+                  <option value="iot_cftv_botnet">📷 Exposição de Serviços CFTV &amp; IoT</option>
+                  <option value="bruteforce_credenciais">🔑 Identidade &amp; Portas Administrativas</option>
+                </select>
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="purple_alvo_registrar" checked class="rounded text-fuchsia-600">
+                <span>Enviar falhas encontradas para o Patch-Bot</span>
+              </label>
+              <button id="btnExecutarPurpleAlvo" type="submit" class="w-full py-2.5 bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-60 text-white font-bold rounded-xl shadow-sm">
+                🚀 Iniciar Simulação em Tempo Real
+              </button>
+            </form>
+            <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+              <div class="font-extrabold text-slate-900 dark:text-white">📺 Console &amp; Aba em Tempo Real</div>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Ao iniciar uma verificação (Alvo, Documento ou E-mail), a aba ao vivo abaixo exibe fase a fase tudo que está sendo executado.</p>
+              <div id="abaTempoRealPurpleBot" class="space-y-3">
+                <div class="p-4 rounded-xl bg-slate-950 text-emerald-300 font-mono text-[11px]">
+                  [Purple-Bot Pronto] Escolha um Alvo, Documento ou E-mail para iniciar a análise em tempo real...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modo 2: Scanner Defensivo de Documento -->
+          <div id="purpleModo_documento" class="hidden grid lg:grid-cols-3 gap-5">
+            <form id="formPurpleDocumento" onsubmit="executarPurpleDocumento(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+              <h4 class="text-sm font-extrabold text-slate-900 dark:text-white">📄 Scanner Estático de Documento / Arquivo</h4>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Analisa o arquivo sem executá-lo: calcula SHA-256/MD5, detecta extensão falsa (magic bytes), macros VBA em Office, JavaScript em PDF, scripts ofuscados e URLs suspeitas.</p>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Selecione o Arquivo (até 5 MB) *</label>
+                <input type="file" id="purple_doc_file" required class="block w-full text-[11px] text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-fuchsia-600 file:text-white hover:file:bg-fuchsia-700 cursor-pointer">
+              </div>
+              <button id="btnExecutarPurpleDoc" type="submit" class="w-full py-2.5 bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-60 text-white font-bold rounded-xl shadow-sm">
+                🔍 Escanear Documento em Tempo Real
+              </button>
+            </form>
+            <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+              <div class="font-extrabold text-slate-900 dark:text-white">📺 Resultado da Análise do Documento</div>
+              <div id="abaTempoRealPurpleDoc" class="space-y-3">
+                <div class="p-4 rounded-xl bg-slate-950 text-emerald-300 font-mono text-[11px]">
+                  [Scanner de Documentos Pronto] Envie um PDF, DOCX, TXT, PS1, JS ou outro arquivo para inspeção estática segura...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modo 3: Verificador de E-mail & Phishing -->
+          <div id="purpleModo_email" class="hidden grid lg:grid-cols-3 gap-5">
+            <form id="formPurpleEmail" onsubmit="executarPurpleEmail(event)" class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 h-fit">
+              <h4 class="text-sm font-extrabold text-slate-900 dark:text-white">📧 Verificador de E-mail, SPF/DMARC &amp; Phishing</h4>
+              <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Valida registros MX, SPF e DMARC do domínio, detecta punycode/spoofing e analisa sinais de phishing no texto/links do e-mail.</p>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">E-mail ou Domínio *</label>
+                <input type="text" id="purple_email_input" required placeholder="Ex: contato@empresa.com.br" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold mb-1">Conteúdo / Links do E-mail Suspeito (opcional)</label>
+                <textarea id="purple_email_conteudo" rows="4" placeholder="Cole aqui o texto ou cabeçalhos do e-mail para análise anti-phishing..." class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none resize-none"></textarea>
+              </div>
+              <button id="btnExecutarPurpleEmail" type="submit" class="w-full py-2.5 bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-60 text-white font-bold rounded-xl shadow-sm">
+                🛡️ Verificar E-mail em Tempo Real
+              </button>
+            </form>
+            <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+              <div class="font-extrabold text-slate-900 dark:text-white">📺 Resultado da Verificação de E-mail</div>
+              <div id="abaTempoRealPurpleEmail" class="space-y-3">
+                <div class="p-4 rounded-xl bg-slate-950 text-emerald-300 font-mono text-[11px]">
+                  [Verificador Anti-Phishing Pronto] Digite um e-mail ou domínio ao lado para validar MX, SPF, DMARC e sinais de golpe...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modo 4: Cenários Didáticos Originais -->
+          <div id="purpleModo_cenarios" class="hidden grid lg:grid-cols-3 gap-5">
+            <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+              <div>
+                <span class="px-2 py-0.5 rounded-full bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 text-[10px] font-extrabold uppercase">Purple Team Didático</span>
+                <h3 class="text-sm font-extrabold text-slate-900 dark:text-white mt-1.5">🎯 Escolha o Vetor de Estudo</h3>
+                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Entenda de forma didática como cada ataque explora falhas, como caçar a vulnerabilidade e como blindar sua rede sem risco destrutivo.</p>
+              </div>
+              <div id="listaCenariosDidaticos" class="space-y-2"></div>
+            </div>
+
+            <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-4">
+              <div id="detalheCenarioDidatico" class="space-y-4"></div>
+              <div id="resultadoSimulacaoDidatica" class="hidden p-4 rounded-xl bg-violet-50/80 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-2.5"></div>
+            </div>
           </div>
         </div>
 
@@ -2563,7 +2666,7 @@
 
   <script src="/static/app.js?v=2.8.6"></script>
   <script src="/static/laudos_ops.js?v=2.8.8"></script>
-  <script src="/static/automation_cyber.js?v=2.8.6"></script>
+  <script src="/static/automation_cyber.js?v=2.8.7"></script>
   <script src="/static/auth_security_ui.js?v=2.8.2"></script>
 </body>
 </html>

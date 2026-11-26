@@ -1,6 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+import base64
+import hashlib
 import html
+import io
 import ipaddress
 import json
 import os
@@ -15,6 +18,7 @@ import urllib.parse
 import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -2516,6 +2520,439 @@ class AutomationCyberService:
             "verificacoes": verificacoes,
             "falhas_detectadas": falhas_detectadas,
             "achados_gerados": criados,
+        }
+
+    def simular_alvo_purple(
+        self,
+        tenant: dict,
+        alvo: str,
+        cenario_id: str = "owasp_web_headers",
+        registrar_plano: bool = False,
+        actor: str = "",
+        user_uid: str = "",
+        user_email: str = "",
+        is_admin: bool = False,
+    ) -> dict[str, Any]:
+        """Executa simulação defensiva Purple-Team (somente-leitura, sem exploração ofensiva) em um alvo autorizado."""
+        gov = tenant.get("cyber_governanca") or {}
+        if not gov.get("permitir_auditoria_rede"):
+            raise PermissionError(
+                "Simulação de alvo bloqueada: o gestor precisa ativar a chave geral na aba Gov-Key."
+            )
+        verificar_operador_autorizado_govkey(
+            tenant, user_uid=user_uid, user_email=user_email, is_admin=is_admin
+        )
+        cenario = next((c for c in CYBER_DIDACTIC_SCENARIOS if c["id"] == cenario_id), CYBER_DIDACTIC_SCENARIOS[0])
+        alvo_limpo = SecurityValidator.sanitizar_texto(alvo)
+        if not alvo_limpo:
+            raise ValueError("Informe um domínio (ex: suaempresa.com.br) ou IP/CIDR privado autorizado.")
+
+        escopo = list(gov.get("escopo_autorizado") or [])
+        timeline: list[dict[str, Any]] = []
+        t_start = time.monotonic()
+
+        def _add_step(fase: str, titulo: str, status: str, detalhe: str) -> None:
+            timeline.append({
+                "fase": fase,
+                "titulo": titulo,
+                "status": status,
+                "detalhe": detalhe,
+                "tempo_ms": max(1, int((time.monotonic() - t_start) * 1000)),
+            })
+
+        _add_step(
+            "Fase 1 • Governança",
+            "Validação Gov-Key & Proteção Anti-SSRF",
+            "ok",
+            f"Operador autorizado. Cenário Purple-Team selecionado: {cenario['nome']} (modo defensivo somente-leitura).",
+        )
+
+        # Detecta se é IP/CIDR privado ou Domínio Web
+        eh_cidr = False
+        try:
+            ipaddress.ip_network(alvo_limpo, strict=False)
+            eh_cidr = True
+        except ValueError:
+            eh_cidr = False
+
+        if eh_cidr:
+            alvo_norm, sub_t = NetworkAuditEngine.validar_alvo_autorizado(alvo_limpo, "protocolos_pacotes", escopo)
+            _add_step("Fase 2 • Reconhecimento Defensivo", f"Mapeamento de portas & protocolos em {alvo_norm}", "info", "Sondando portas padrão e verificando criptografia (TLS/SSH vs Texto Claro) sem payloads ofensivos.")
+            res_scan = NetworkAuditEngine.auditar_protocolos_e_portas(alvo_norm, sub_t)
+            hosts = (res_scan.get("detalhes") or {}).get("hosts") or []
+            portas_abertas = res_scan.get("portas_expostas", 0)
+            _add_step(
+                "Fase 3 • Superfície de Ataque",
+                f"Descoberta concluída: {len(hosts)} host(s) ativo(s), {portas_abertas} porta(s) aberta(s)",
+                "alerta" if portas_abertas > 0 else "ok",
+                " | ".join(
+                    f"{h['ip']}: {', '.join(str(p['porta']) + '/' + p.get('servico', '') + (' [CLARO]' if not p.get('criptografado') else ' [CRIPTO]') for p in h.get('portas', []))}"
+                    for h in hosts[:5]
+                ) or "Nenhuma porta aberta detectada na faixa informada.",
+            )
+            achados_raw = res_scan.get("achados_detectados") or []
+            score = res_scan.get("score", 100)
+        else:
+            url_norm, host_norm = NetworkAuditEngine.validar_alvo_autorizado(alvo_limpo, "web_tls", escopo)
+            _add_step("Fase 2 • Reconhecimento Defensivo", f"Resolução DNS, Handshake TLS & Cabeçalhos em {host_norm}", "info", f"Validando certificado SSL/TLS, headers OWASP e caminhos públicos (HEAD) em {url_norm}.")
+            res_scan = NetworkAuditEngine.auditar_web_tls(url_norm, host_norm)
+            det = res_scan.get("detalhes") or {}
+            tls = det.get("tls") or {}
+            ips_txt = ", ".join(det.get("ips_resolvidos") or []) or "-"
+            _add_step(
+                "Fase 3 • Criptografia & TLS",
+                f"DNS ({ips_txt}) • TLS {tls.get('versao') or 'Erro'}",
+                "critico" if tls.get("erro") else ("alerta" if (tls.get("dias_para_expirar") or 99) <= 15 else "ok"),
+                f"Emissor: {tls.get('emissor') or '-'} • Cifra: {tls.get('cifra') or '-'} • Validade: {tls.get('dias_para_expirar', '-')} dia(s) • HTTP {det.get('http_status', det.get('http_erro', '-'))} ({det.get('tempo_resposta_ms', 0)} ms).",
+            )
+            hdrs = det.get("headers") or {}
+            ausentes = [k for k, v in hdrs.items() if not v or v == "Ausente"]
+            _add_step(
+                "Fase 4 • Headers OWASP",
+                f"{len(hdrs) - len(ausentes)}/{len(hdrs)} cabeçalhos defensivos ativos",
+                "alerta" if ausentes else "ok",
+                f"Headers ausentes: {', '.join(ausentes)}" if ausentes else "Todos os cabeçalhos OWASP verificados estão presentes.",
+            )
+            dirs = det.get("diretorios") or []
+            dirs_exp = [d for d in dirs if d.get("acessivel") and d.get("risco") in {"Crítica", "Alta", "Média"}]
+            _add_step(
+                "Fase 5 • Exposição de Diretórios (HEAD)",
+                f"{len(dirs)} caminhos verificados • {len(dirs_exp)} ponto(s) de atenção",
+                "critico" if any(d.get("risco") == "Crítica" for d in dirs_exp) else ("alerta" if dirs_exp else "ok"),
+                ", ".join(f"{d['caminho']} (HTTP {d['status_http']})" for d in dirs_exp) or "Nenhum arquivo ou diretório sensível (.env, .git, backup) acessível.",
+            )
+            achados_raw = res_scan.get("achados_detectados") or []
+            score = res_scan.get("score", 100)
+            alvo_norm = url_norm
+
+        achados_enr = [
+            _enriquecer_achado_patchbot({**a, "alvo": alvo_norm, "origem": f"Purple-Bot ({cenario['nome']})"})
+            for a in achados_raw
+        ]
+        _add_step(
+            "Fase Final • Análise Purple-Team",
+            f"Diagnóstico finalizado — Nível de Defesa: {score}/100",
+            "ok" if score >= 80 else ("alerta" if score >= 50 else "critico"),
+            f"Total de {len(achados_enr)} ponto(s) de melhoria mapeado(s) com plano de blindagem Blue Team.",
+        )
+
+        criados = 0
+        if registrar_plano and achados_raw:
+            for a in achados_raw[:15]:
+                self.criar_achado(
+                    tenant["id"],
+                    {
+                        **a,
+                        "alvo": alvo_norm,
+                        "status": "Aberto",
+                        "origem": f"Purple-Bot ({cenario['nome']})",
+                    },
+                    actor=actor,
+                )
+                criados += 1
+
+        return {
+            "modo": "alvo",
+            "alvo": alvo_norm,
+            "cenario": cenario,
+            "nivel_defesa_percent": score,
+            "timeline_execucao": timeline,
+            "achados": achados_enr,
+            "achados_gerados": criados,
+            "detalhes": res_scan.get("detalhes") or {},
+        }
+
+    @staticmethod
+    def escanear_documento_purple(filename: str, raw_bytes: bytes) -> dict[str, Any]:
+        """Análise estática defensiva (sem executar o arquivo) para detectar macros, scripts, spoofing de extensão e indicadores de phishing/malware."""
+        if not raw_bytes:
+            raise ValueError("Arquivo vazio.")
+        if len(raw_bytes) > 5 * 1024 * 1024:
+            raise ValueError("O arquivo excede o limite de 5 MB para análise estática.")
+
+        t_start = time.monotonic()
+        timeline: list[dict[str, Any]] = []
+
+        def _add_step(fase: str, titulo: str, status: str, detalhe: str) -> None:
+            timeline.append({
+                "fase": fase,
+                "titulo": titulo,
+                "status": status,
+                "detalhe": detalhe,
+                "tempo_ms": max(1, int((time.monotonic() - t_start) * 1000)),
+            })
+
+        nome_arq = SecurityValidator.sanitizar_texto((filename or "arquivo").rsplit("/", 1)[-1].rsplit("\\", 1)[-1])[:140]
+        ext = nome_arq.rsplit(".", 1)[-1].lower() if "." in nome_arq else ""
+        sha256_h = hashlib.sha256(raw_bytes).hexdigest()
+        md5_h = hashlib.md5(raw_bytes).hexdigest()
+
+        _add_step("Fase 1 • Assinatura & Hashes", f"Arquivo '{nome_arq}' ({len(raw_bytes)} bytes)", "info", f"SHA-256: {sha256_h[:32]}... • MD5: {md5_h}")
+
+        # Identificação por Magic Bytes
+        sig = "Texto / Desconhecido"
+        if raw_bytes.startswith(b"MZ"):
+            sig = "Executável Windows (PE/MZ)"
+        elif raw_bytes.startswith(b"\x7fELF"):
+            sig = "Executável Linux (ELF)"
+        elif raw_bytes.startswith(b"%PDF-"):
+            sig = "Documento PDF"
+        elif raw_bytes.startswith(b"PK\x03\x04"):
+            sig = "Arquivo ZIP / Office OpenXML (DOCX/XLSX/PPTX)"
+        elif raw_bytes.startswith(b"\xd0\xcf\x11\xe0"):
+            sig = "Documento OLE Composto (DOC/XLS antigo)"
+        elif raw_bytes.startswith(b"\x89PNG"):
+            sig = "Imagem PNG"
+        elif raw_bytes.startswith(b"\xff\xd8\xff"):
+            sig = "Imagem JPEG"
+
+        indicadores: list[dict[str, str]] = []
+        risco_pts = 0
+
+        # Checagem de extensão disfarçada (spoofing)
+        if sig.startswith("Executável") and ext not in {"exe", "dll", "msi", "elf", "bin"}:
+            risco_pts += 60
+            indicadores.append({
+                "severidade": "Crítica",
+                "titulo": f"Extensão disfarçada (Masquerading): arquivo '.{ext}' é na verdade {sig}!",
+                "detalhe": "Técnica clássica de malware (MITRE T1036) para enganar usuários fingindo ser documento.",
+            })
+        elif ext in {"exe", "bat", "cmd", "vbs", "scr", "ps1", "hta", "js", "msi"}:
+            risco_pts += 25
+            indicadores.append({
+                "severidade": "Alta",
+                "titulo": f"Extensão executável ou script (.{ext})",
+                "detalhe": "Arquivos executáveis/scripts recebidos por e-mail ou web nunca devem ser abertos sem validação prévia.",
+            })
+
+        _add_step(
+            "Fase 2 • Magic Bytes & Tipo Real",
+            f"Assinatura detectada: {sig}",
+            "critico" if risco_pts >= 50 else ("alerta" if risco_pts > 0 else "ok"),
+            f"Extensão informada: '.{ext or 'sem extensão'}' • Comparação com cabeçalho binário concluída.",
+        )
+
+        # Inspeção estrutural de DOCX/ZIP (Macros VBA e links externos)
+        if raw_bytes.startswith(b"PK\x03\x04"):
+            try:
+                with zipfile.ZipFile(io.BytesIO(raw_bytes), "r") as zf:
+                    nomes_zip = zf.namelist()
+                    tem_macro = any("vbaproject.bin" in n.lower() for n in nomes_zip)
+                    if tem_macro:
+                        risco_pts += 50
+                        indicadores.append({
+                            "severidade": "Crítica",
+                            "titulo": "Macro VBA detectada (vbaProject.bin) dentro do documento Office!",
+                            "detalhe": "Macros VBA podem executar comandos silenciosos ao clicar em 'Habilitar Conteúdo'.",
+                        })
+                    ext_rels = 0
+                    for n in nomes_zip:
+                        if n.lower().endswith(".rels"):
+                            txt_rel = zf.read(n).decode("utf-8", errors="ignore")
+                            if 'TargetMode="External"' in txt_rel and ("http://" in txt_rel or "https://" in txt_rel):
+                                ext_rels += 1
+                    if ext_rels:
+                        risco_pts += 15
+                        indicadores.append({
+                            "severidade": "Média",
+                            "titulo": f"{ext_rels} referência(s) externa(s) encontrada(s) nos relacionamentos XML do documento",
+                            "detalhe": "Verifique se links externos não apontam para templates remotos ou sites de phishing.",
+                        })
+                _add_step("Fase 3 • Estrutura Office/ZIP", "Inspeção de macros VBA e relacionamentos XML", "critico" if tem_macro else "ok", f"{len(nomes_zip)} arquivo(s) interno(s) inspecionado(s).")
+            except zipfile.BadZipFile:
+                _add_step("Fase 3 • Estrutura Office/ZIP", "ZIP inválido ou truncado", "alerta", "Não foi possível abrir o container ZIP.")
+
+        # Inspeção estrutural de PDF (JavaScript / OpenAction / Launch)
+        if raw_bytes.startswith(b"%PDF-"):
+            pdf_tags = [
+                (b"/JavaScript", "Crítica", 45, "Script JavaScript embutido no PDF (/JavaScript)"),
+                (b"/JS", "Alta", 30, "Referência de script no PDF (/JS)"),
+                (b"/OpenAction", "Alta", 30, "Ação automática ao abrir o PDF (/OpenAction)"),
+                (b"/Launch", "Crítica", 50, "Comando de execução externa no PDF (/Launch)"),
+                (b"/EmbeddedFile", "Média", 20, "Arquivo embutido oculto no PDF (/EmbeddedFile)"),
+            ]
+            encontradas_pdf = []
+            for tag_b, sev_p, pts_p, desc_p in pdf_tags:
+                if tag_b in raw_bytes:
+                    risco_pts += pts_p
+                    encontradas_pdf.append(tag_b.decode("ascii"))
+                    indicadores.append({"severidade": sev_p, "titulo": desc_p, "detalhe": "Objetos ativos em PDF podem ser abusados em ataques de phishing."})
+            _add_step(
+                "Fase 3 • Inspeção de Objetos PDF",
+                f"{len(encontradas_pdf)} objeto(s) ativo(s) encontrado(s)",
+                "critico" if any(t in encontradas_pdf for t in ("/JavaScript", "/Launch")) else ("alerta" if encontradas_pdf else "ok"),
+                f"Tags detectadas: {', '.join(encontradas_pdf)}" if encontradas_pdf else "Nenhuma tag de script automático (/JavaScript, /OpenAction, /Launch) detectada.",
+            )
+
+        # Varredura textual de padrões suspeitos e extração de URLs/IPs
+        texto_raw = raw_bytes[:512 * 1024].decode("latin-1", errors="ignore")
+        padroes_suspeitos = [
+            (r"powershell(?:\.exe)?\s+.*(?:-enc|-encodedcommand|-w\s+hidden|-nop)", "Crítica", 45, "Comando PowerShell ofuscado/oculto detectado"),
+            (r"(?:invoke-webrequest|downloadstring|wget\s+http|curl\s+.*\|\s*(?:sh|bash))", "Alta", 30, "Padrão de download remoto automatizado detectado"),
+            (r"(?:cmd\.exe\s+/c|wscript\.shell|eval\s*\(|frombase64string)", "Alta", 25, "Chamada de shell ou avaliação dinâmica de código detectada"),
+        ]
+        for pat, sev_s, pts_s, desc_s in padroes_suspeitos:
+            if re.search(pat, texto_raw, flags=re.IGNORECASE):
+                risco_pts += pts_s
+                indicadores.append({"severidade": sev_s, "titulo": desc_s, "detalhe": "Padrão compatível com dropper ou script suspeito."})
+
+        urls_found = sorted(set(re.findall(r"https?://[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=%-]{4,140}", texto_raw)))[:15]
+        _add_step(
+            "Fase 4 • Indicadores & URLs",
+            f"{len(indicadores)} indicador(es) de risco • {len(urls_found)} URL(s) extraída(s)",
+            "critico" if risco_pts >= 50 else ("alerta" if risco_pts >= 15 else "ok"),
+            f"URLs encontradas: {', '.join(urls_found[:4])}" if urls_found else "Nenhuma URL suspeita extraída do conteúdo textual.",
+        )
+
+        score_seg = max(0, 100 - min(100, risco_pts))
+        nivel = "Seguro" if risco_pts == 0 else ("Atenção" if risco_pts < 30 else ("Alto Risco" if risco_pts < 60 else "Crítico"))
+        recomendacoes = [
+            "Não execute nem clique em 'Habilitar Conteúdo / Macros' se houver qualquer alerta acima.",
+            f"Consulte o hash SHA-256 ({sha256_h}) no VirusTotal ou EDR corporativo para segunda opinião.",
+            "Em caso de suspeita, isole o arquivo em quarentena e avise a equipe de TI.",
+        ] if risco_pts > 0 else [
+            "Nenhum indicador estático malicioso encontrado nesta triagem inicial.",
+            "Mantenha o antivírus/EDR atualizado e confirme sempre o remetente antes de abrir anexos externos.",
+        ]
+
+        return {
+            "modo": "documento",
+            "arquivo": nome_arq,
+            "tamanho_bytes": len(raw_bytes),
+            "assinatura_real": sig,
+            "hashes": {"sha256": sha256_h, "md5": md5_h},
+            "nivel_risco": nivel,
+            "nivel_defesa_percent": score_seg,
+            "indicadores": indicadores,
+            "urls_encontradas": urls_found,
+            "recomendacoes": recomendacoes,
+            "timeline_execucao": timeline,
+        }
+
+    @staticmethod
+    def verificar_email_purple(email_ou_dominio: str, conteudo_email: str = "") -> dict[str, Any]:
+        """Verifica autenticação DNS do domínio (MX, SPF, DMARC) e analisa sinais de phishing/spoofing no conteúdo."""
+        bruto = SecurityValidator.sanitizar_texto(email_ou_dominio).strip().lower()
+        if not bruto:
+            raise ValueError("Informe um endereço de e-mail (ex: suporte@dominio.com.br) ou domínio para verificar.")
+
+        t_start = time.monotonic()
+        timeline: list[dict[str, Any]] = []
+
+        def _add_step(fase: str, titulo: str, status: str, detalhe: str) -> None:
+            timeline.append({
+                "fase": fase,
+                "titulo": titulo,
+                "status": status,
+                "detalhe": detalhe,
+                "tempo_ms": max(1, int((time.monotonic() - t_start) * 1000)),
+            })
+
+        eh_email = "@" in bruto
+        dominio = bruto.split("@", 1)[1].strip(".") if eh_email else _normalizar_dominio_escopo(bruto)
+        if not dominio or "." not in dominio:
+            raise ValueError("E-mail ou domínio inválido. Informe algo como usuario@empresa.com.br.")
+
+        indicadores: list[dict[str, str]] = []
+        risco_pts = 0
+
+        _add_step("Fase 1 • Validação Sintática", f"Analisando '{bruto}' (Domínio: {dominio})", "info", "Verificando formato, punycode (homógrafos) e reputação básica do domínio.")
+
+        if "xn--" in dominio:
+            risco_pts += 35
+            indicadores.append({
+                "severidade": "Alta",
+                "titulo": "Domínio usa Punycode (IDN / possível ataque homógrafo)",
+                "detalhe": f"O domínio '{dominio}' contém caracteres internacionais codificados (xn--), frequentemente usados para imitar marcas legítimas.",
+            })
+
+        def _doh_query(name: str, qtype: str) -> list[str]:
+            try:
+                req = urllib.request.Request(
+                    f"https://dns.google/resolve?name={urllib.parse.quote(name)}&type={urllib.parse.quote(qtype)}",
+                    headers={"User-Agent": "SysFix-MailAuditor/2.9"},
+                )
+                with urllib.request.urlopen(req, timeout=3.5) as resp:
+                    data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                return [str(a.get("data") or "").strip('"') for a in (data.get("Answer") or []) if a.get("data")]
+            except Exception:
+                return []
+
+        mx_recs = _doh_query(dominio, "MX")
+        txt_recs = _doh_query(dominio, "TXT")
+        dmarc_recs = _doh_query(f"_dmarc.{dominio}", "TXT")
+
+        spf_reg = next((r for r in txt_recs if "v=spf1" in r.lower()), "")
+        dmarc_reg = next((r for r in dmarc_recs if "v=dmarc1" in r.lower()), "")
+
+        if not mx_recs:
+            risco_pts += 20
+            indicadores.append({"severidade": "Média", "titulo": f"Nenhum registro MX encontrado para '{dominio}'", "detalhe": "O domínio pode não estar configurado para receber/enviar e-mails legítimos."})
+        _add_step("Fase 2 • DNS & Servidores MX", f"{len(mx_recs)} servidor(es) MX encontrado(s)", "ok" if mx_recs else "alerta", ", ".join(mx_recs[:3]) or "Nenhum registro MX retornado.")
+
+        if not spf_reg:
+            risco_pts += 25
+            indicadores.append({"severidade": "Alta", "titulo": f"Registro SPF ausente em '{dominio}'", "detalhe": "Sem SPF, terceiros podem falsificar e-mails se passando por este domínio (spoofing)."})
+        elif "+all" in spf_reg.lower():
+            risco_pts += 35
+            indicadores.append({"severidade": "Crítica", "titulo": "SPF permissivo demais (+all)", "detalhe": "A diretiva '+all' autoriza qualquer servidor do mundo a enviar e-mails em nome do domínio."})
+        _add_step("Fase 3 • Autenticação SPF", "SPF encontrado" if spf_reg else "SPF ausente!", "ok" if (spf_reg and "+all" not in spf_reg.lower()) else "alerta", spf_reg or "Nenhum registro TXT v=spf1 publicado.")
+
+        if not dmarc_reg:
+            risco_pts += 25
+            indicadores.append({"severidade": "Alta", "titulo": f"Política DMARC ausente (_dmarc.{dominio})", "detalhe": "Sem DMARC, provedores não sabem se devem rejeitar ou colocar em quarentena e-mails falsificados."})
+        elif "p=none" in dmarc_reg.lower():
+            risco_pts += 10
+            indicadores.append({"severidade": "Média", "titulo": "DMARC apenas em modo monitoramento (p=none)", "detalhe": "Recomenda-se evoluir gradualmente para p=quarantine ou p=reject."})
+        _add_step("Fase 4 • Política DMARC", "DMARC ativo" if dmarc_reg else "DMARC ausente!", "ok" if (dmarc_reg and "p=none" not in dmarc_reg.lower()) else "alerta", dmarc_reg or f"Nenhum registro TXT em _dmarc.{dominio}.")
+
+        # Análise opcional do conteúdo/cabeçalhos do e-mail colado
+        corpo = str(conteudo_email or "").strip()
+        links_corpo: list[str] = []
+        if corpo:
+            links_corpo = sorted(set(re.findall(r"https?://[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=%-]{4,160}", corpo)))[:15]
+            termos_phish = [
+                ("urgente", "Urgência artificial"),
+                ("sua conta será bloqueada", "Ameaça de bloqueio de conta"),
+                ("atualize sua senha", "Isca de troca de senha"),
+                ("clique aqui para validar", "Isca de validação de credencial"),
+                ("nota fiscal em anexo", "Isca de anexo/fatura"),
+                ("boleto vencido", "Isca financeira"),
+                ("pix", "Menção financeira/PIX"),
+            ]
+            ach_termos = [lbl for kw, lbl in termos_phish if kw in corpo.lower()]
+            if ach_termos:
+                risco_pts += min(30, len(ach_termos) * 12)
+                indicadores.append({
+                    "severidade": "Alta",
+                    "titulo": f"Sinais de Engenharia Social / Phishing no texto ({', '.join(ach_termos)})",
+                    "detalhe": "Combinação de urgência ou pedido de ação imediata típica de campanhas de phishing.",
+                })
+            for lnk in links_corpo:
+                if re.match(r"^https?://\d{1,3}(?:\.\d{1,3}){3}", lnk):
+                    risco_pts += 30
+                    indicadores.append({"severidade": "Crítica", "titulo": f"Link aponta diretamente para IP: {lnk}", "detalhe": "Links para IPs numéricos sem domínio são forte indicador de phishing/malware."})
+            _add_step("Fase 5 • Inspeção Anti-Phishing do Conteúdo", f"{len(links_corpo)} link(s) analisado(s)", "alerta" if ach_termos else "ok", f"Links: {', '.join(links_corpo[:3])}" if links_corpo else "Conteúdo textual inspecionado.")
+
+        score_seg = max(0, 100 - min(100, risco_pts))
+        nivel = "Confiável / Protegido" if risco_pts == 0 else ("Atenção" if risco_pts < 30 else ("Alto Risco" if risco_pts < 60 else "Crítico (Suspeita de Phishing/Spoofing)"))
+        recomendacoes = [
+            "Publicar/revisar registros DNS SPF (terminando em ~all ou -all), DKIM e DMARC (p=quarantine ou p=reject).",
+            "Nunca clique em links suspeitos nem informe senhas/códigos 2FA por e-mail.",
+            "Confirme solicitações financeiras ou de troca de senha por outro canal oficial (telefone/WhatsApp corporativo).",
+        ]
+
+        return {
+            "modo": "email",
+            "alvo": bruto,
+            "dominio": dominio,
+            "nivel_risco": nivel,
+            "nivel_defesa_percent": score_seg,
+            "autenticacao_dns": {"mx": mx_recs[:5], "spf": spf_reg, "dmarc": dmarc_reg},
+            "indicadores": indicadores,
+            "links_encontrados": links_corpo,
+            "recomendacoes": recomendacoes,
+            "timeline_execucao": timeline,
         }
 
     # ==================================================================

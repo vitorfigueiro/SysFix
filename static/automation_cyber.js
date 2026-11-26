@@ -542,6 +542,9 @@ async function executarAuditoriaCyber(event) {
 }
 
 let ultimaAuditoriaDetalhadaCyber = null;
+let cyberPacotesInspecionadosCache = [];
+let cyberPacoteSelecionadoIdx = -1;
+let cyberPacoteSubAba = 'conteudo';
 
 function abrirDetalheAuditoriaCyber(idx) {
   const lista = Array.isArray(window.cyberAuditoriasCache) ? window.cyberAuditoriasCache : [];
@@ -552,6 +555,152 @@ function abrirDetalheAuditoriaCyber(idx) {
 
 function fecharDetalheAuditoriaCyber() {
   document.getElementById('painelDetalheAuditoriaCyber')?.classList.add('hidden');
+}
+
+function selecionarPacoteRoboCyber(idx) {
+  cyberPacoteSelecionadoIdx = idx;
+  cyberPacoteSubAba = 'conteudo';
+  renderizarEsteiraRobosPacotes();
+  renderizarAbaConteudoPacoteCyber();
+}
+
+function alternarSubAbaPacoteCyber(aba) {
+  cyberPacoteSubAba = aba;
+  renderizarAbaConteudoPacoteCyber();
+}
+
+function fecharAbaConteudoPacoteCyber() {
+  cyberPacoteSelecionadoIdx = -1;
+  renderizarEsteiraRobosPacotes();
+  const box = document.getElementById('abaConteudoPacoteCyber');
+  if (box) box.classList.add('hidden');
+}
+
+function renderizarEsteiraRobosPacotes() {
+  const box = document.getElementById('esteiraRobosPacotesCyber');
+  if (!box) return;
+  if (!cyberPacotesInspecionadosCache.length) {
+    box.innerHTML = '<p class="text-[11px] text-slate-500 dark:text-violet-300/80">Nenhum pacote/porta aberta encontrada para exibir na esteira.</p>';
+    return;
+  }
+
+  box.innerHTML = cyberPacotesInspecionadosCache.map((pk, idx) => {
+    const ativo = idx === cyberPacoteSelecionadoIdx;
+    const cripto = Boolean(pk.criptografado);
+    const corBot = cripto ? '#10B981' : '#F43F5E';
+    const labelPacote = cripto ? 'TLS' : 'OPEN';
+    const cardCls = ativo
+      ? (cripto
+        ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/25 scale-[1.01]'
+        : 'bg-rose-600 text-white border-rose-500 shadow-lg shadow-rose-600/25 scale-[1.01]')
+      : (cripto
+        ? 'bg-emerald-50/70 dark:bg-emerald-950/25 text-slate-900 dark:text-white border-emerald-200 dark:border-emerald-800 hover:border-emerald-400'
+        : 'bg-rose-50/80 dark:bg-rose-950/25 text-slate-900 dark:text-white border-rose-300 dark:border-rose-800 hover:border-rose-500');
+
+    return `
+      <button type="button" onclick="selecionarPacoteRoboCyber(${idx})"
+        class="cyber-bot-card flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all ${cardCls}">
+        <svg class="cyber-bot-svg w-10 h-10 shrink-0" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect class="cyber-packet" x="26" y="3" width="19" height="12" rx="3" fill="${corBot}" stroke="#FFFFFF" stroke-width="1.5"/>
+          <text x="35.5" y="11" text-anchor="middle" font-size="5" font-weight="bold" fill="#FFFFFF">${labelPacote}</text>
+          <rect x="8" y="17" width="20" height="17" rx="5" fill="${ativo ? '#FFFFFF' : '#2E1065'}" stroke="${corBot}" stroke-width="2"/>
+          <circle cx="14.5" cy="25" r="2.2" fill="${ativo ? corBot : '#C4B5FD'}"/>
+          <circle cx="21.5" cy="25" r="2.2" fill="${ativo ? corBot : '#C4B5FD'}"/>
+          <path d="M18 12V17" stroke="${corBot}" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="18" cy="10" r="2.5" fill="${corBot}"/>
+          <path d="M27 21L33 15" stroke="${corBot}" stroke-width="2.2" stroke-linecap="round"/>
+          <rect x="11" y="35" width="4" height="6" rx="1.5" fill="${corBot}"/>
+          <rect x="21" y="35" width="4" height="6" rx="1.5" fill="${corBot}"/>
+        </svg>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center justify-between gap-1">
+            <span class="font-mono font-extrabold text-[11px] truncate">:${escapeHtml(String(pk.porta))}/${escapeHtml(pk.transporte || 'TCP')}</span>
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold ${ativo ? 'bg-white/20 text-white' : (cripto ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-700')}">
+              ${cripto ? '🔒 Cripto' : '🔓 Claro'}
+            </span>
+          </div>
+          <div class="text-[11px] font-bold truncate">${escapeHtml(pk.servico || pk.protocolo_detectado || 'Serviço')}</div>
+          <div class="text-[9.5px] ${ativo ? 'text-white/90' : 'text-slate-500 dark:text-violet-300/80'} truncate">
+            ${escapeHtml(pk.host_ip || '')} • ${escapeHtml(String(pk.bytes_recebidos ?? 0))}B • ${escapeHtml(String(pk.latencia_ms ?? 0))}ms
+          </div>
+        </div>
+      </button>
+    `;
+  }).join('');
+}
+
+function renderizarAbaConteudoPacoteCyber() {
+  const box = document.getElementById('abaConteudoPacoteCyber');
+  if (!box) return;
+  const pk = cyberPacotesInspecionadosCache[cyberPacoteSelecionadoIdx];
+  if (!pk) {
+    box.classList.add('hidden');
+    return;
+  }
+
+  const cripto = Boolean(pk.criptografado);
+  const tabBtn = (id, label) => {
+    const on = cyberPacoteSubAba === id;
+    return `<button type="button" onclick="alternarSubAbaPacoteCyber('${id}')" class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all ${on ? 'bg-violet-600 text-white shadow-sm' : 'bg-white dark:bg-[#141024] text-slate-600 dark:text-violet-200 border border-violet-200 dark:border-violet-800'}">${label}</button>`;
+  };
+
+  let corpoAba = '';
+  if (cyberPacoteSubAba === 'hex') {
+    corpoAba = `
+      <div class="space-y-1.5">
+        <div class="text-[10px] font-bold uppercase text-slate-500 dark:text-violet-300">Primeiros bytes recebidos em Hexadecimal (${pk.bytes_recebidos ?? 0} bytes totais)</div>
+        <pre class="whitespace-pre-wrap break-all font-mono text-[10.5px] p-3 rounded-xl bg-slate-900 text-amber-300 max-h-52 overflow-y-auto">${escapeHtml(pk.pacote_hex || 'Nenhum byte retornado pelo serviço nesta porta.')}</pre>
+      </div>
+    `;
+  } else if (cyberPacoteSubAba === 'seguranca') {
+    corpoAba = `
+      <div class="grid sm:grid-cols-2 gap-2.5 text-[11px]">
+        <div class="p-3 rounded-xl bg-white dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800">
+          <div class="text-[10px] font-bold uppercase text-slate-400">Status de Criptografia</div>
+          <div class="font-extrabold mt-0.5 ${cripto ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${cripto ? '🔒 ' : '🔓 '}${escapeHtml(pk.status_criptografia || (cripto ? 'Criptografado' : 'Texto Claro'))}</div>
+          ${pk.tls_resumo ? `<div class="text-[10px] font-mono text-slate-500 mt-1">${escapeHtml(pk.tls_resumo)}</div>` : ''}
+        </div>
+        <div class="p-3 rounded-xl bg-white dark:bg-[#141024] border border-violet-200/70 dark:border-violet-800">
+          <div class="text-[10px] font-bold uppercase text-slate-400">Severidade &amp; Mitigação</div>
+          <div class="font-bold text-slate-900 dark:text-white mt-0.5">${escapeHtml(pk.severidade || 'Informativa')}</div>
+          <p class="text-[10.5px] text-slate-600 dark:text-violet-200 mt-1">${escapeHtml(pk.recomendacao || 'Manter porta restrita apenas a redes autorizadas.')}</p>
+        </div>
+      </div>
+    `;
+  } else {
+    corpoAba = `
+      <div class="p-2.5 rounded-xl border text-[11px] font-semibold ${cripto ? 'bg-emerald-50/90 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200' : 'bg-rose-50/90 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'}">
+        ${cripto
+          ? `🔒 Tráfego CRIPTOGRAFADO (${escapeHtml(pk.tls_resumo || pk.protocolo_detectado || 'TLS/SSH')}). O conteúdo abaixo refere-se apenas ao cabeçalho/handshake da nossa própria conexão autorizada.`
+          : `🔓 ATENÇÃO: Protocolo em TEXTO CLARO (sem criptografia)! Qualquer equipamento na mesma rota/rede consegue visualizar este conteúdo trafegando.`}
+      </div>
+      <div class="space-y-1">
+        <div class="text-[10px] font-bold uppercase text-slate-500 dark:text-violet-300">Conteúdo Capturado na Porta ${escapeHtml(String(pk.porta))}/${escapeHtml(pk.transporte || 'TCP')} (${escapeHtml(pk.protocolo_detectado || pk.servico || '-')})</div>
+        <pre class="whitespace-pre-wrap break-all font-mono text-[10.5px] p-3 rounded-xl bg-slate-900 text-emerald-300 max-h-56 overflow-y-auto">${escapeHtml(pk.pacote_texto || pk.banner || 'A porta respondeu ao handshake TCP, mas não enviou banner textual espontâneo.')}</pre>
+      </div>
+    `;
+  }
+
+  box.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-200/70 dark:border-violet-800 pb-2.5">
+      <div>
+        <div class="font-extrabold text-xs text-slate-900 dark:text-white">
+          🤖 Pacote Entregue pelo Robô — ${escapeHtml(pk.host_ip || '')}:${escapeHtml(String(pk.porta))} (${escapeHtml(pk.servico || pk.protocolo_detectado || '-')})
+        </div>
+        <div class="text-[10px] text-slate-500 dark:text-violet-300">
+          ${cripto ? '🔒 Criptografado' : '🔓 Sem Criptografia'} • Protocolo: <b>${escapeHtml(pk.protocolo_detectado || '-')}</b> • Latência: ${escapeHtml(String(pk.latencia_ms ?? 0))} ms • ${escapeHtml(String(pk.bytes_recebidos ?? 0))} byte(s)
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 flex-wrap">
+        ${tabBtn('conteudo', '📄 Conteúdo')}
+        ${tabBtn('hex', '🔢 HEX')}
+        ${tabBtn('seguranca', '🛡️ Segurança')}
+        <button type="button" onclick="fecharAbaConteudoPacoteCyber()" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-bold">✕</button>
+      </div>
+    </div>
+    <div class="space-y-2.5">${corpoAba}</div>
+  `;
+  box.classList.remove('hidden');
 }
 
 function renderizarDetalheAuditoriaCyber(a) {
@@ -715,6 +864,93 @@ function renderizarDetalheAuditoriaCyber(a) {
     `;
   }
 
+  const dirs = Array.isArray(det.diretorios) ? det.diretorios : [];
+  const dirsHtml = dirs.length === 0 ? '' : `
+    <div class="space-y-2 pt-2 border-t border-violet-100 dark:border-violet-900/60">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="font-extrabold text-slate-900 dark:text-white">📁 Diretórios &amp; Caminhos Verificados no Domínio (${dirs.length})</div>
+        <span class="text-[10px] font-bold text-slate-500 dark:text-violet-300">
+          ${dirs.filter(d => d.acessivel).length} acessível(is) • Verificação segura somente-HEAD
+        </span>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-violet-200 dark:border-violet-800">
+        <table class="w-full text-left text-[11px] border-collapse">
+          <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold">
+            <tr><th class="p-2">Caminho</th><th class="p-2">Status HTTP</th><th class="p-2">Risco</th><th class="p-2">Categoria &amp; Recomendação</th></tr>
+          </thead>
+          <tbody>
+            ${dirs.map(d => {
+              const stBadge = d.acessivel
+                ? (d.risco === 'Crítica' || d.risco === 'Alta' ? 'bg-rose-600 text-white' : 'bg-amber-100 text-amber-800')
+                : (d.status_http === 403 || d.status_http === 401 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600');
+              return `
+                <tr class="border-b border-violet-100 dark:border-violet-900/50">
+                  <td class="p-2 font-mono font-bold text-violet-700 dark:text-violet-300">${escapeHtml(d.caminho || '-')}</td>
+                  <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${stBadge}">${escapeHtml(d.situacao || '-')}</span></td>
+                  <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${d.risco === 'OK' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : corSev(d.risco || 'Informativa')}">${escapeHtml(d.risco || 'OK')}</span></td>
+                  <td class="p-2 text-[10px] text-slate-600 dark:text-violet-200"><b>${escapeHtml(d.categoria || '')}</b>${d.acessivel && d.recomendacao ? ` — ${escapeHtml(d.recomendacao)}` : ''}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // Monta lista de pacotes para a Esteira Interativa de Robozinhos
+  cyberPacotesInspecionadosCache = [];
+  if (a.tipo === 'web_tls') {
+    const tls = det.tls || {};
+    const hdrTxt = Object.entries(det.todos_headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
+    cyberPacotesInspecionadosCache.push({
+      host_ip: det.host || a.alvo,
+      porta: String(det.url || a.alvo).startsWith('http://') ? 80 : 443,
+      transporte: 'TCP',
+      servico: String(det.url || a.alvo).startsWith('http://') ? 'HTTP' : 'HTTPS',
+      protocolo_detectado: tls.versao || (String(det.url || a.alvo).startsWith('http://') ? 'HTTP' : 'HTTPS/TLS'),
+      criptografado: !tls.erro && !String(det.url || a.alvo).startsWith('http://'),
+      status_criptografia: !tls.erro ? `Criptografado (${tls.versao || 'TLS'} ${tls.cifra || ''})` : 'Texto Claro / Falha TLS',
+      tls_resumo: tls.versao ? `${tls.versao} ${tls.cifra || ''} (${tls.bits || 0} bits)` : (tls.erro || ''),
+      latencia_ms: det.tempo_resposta_ms || 0,
+      bytes_recebidos: hdrTxt.length,
+      banner: `HTTP ${det.http_status || '-'} • ${det.servidor || 'Servidor oculto'}`,
+      pacote_texto: hdrTxt || `HTTP ${det.http_status || det.http_erro || '-'}`,
+      pacote_hex: '',
+      severidade: tls.erro ? 'Alta' : 'Informativa',
+      recomendacao: tls.erro ? 'Corrigir certificado TLS na porta 443.' : 'Manter TLS 1.2/1.3 e cabeçalhos OWASP ativos.',
+    });
+  } else {
+    (Array.isArray(det.hosts) ? det.hosts : []).forEach(h => {
+      (Array.isArray(h.portas) ? h.portas : []).forEach(p => {
+        if (typeof p === 'object' && p !== null) {
+          cyberPacotesInspecionadosCache.push({ ...p, host_ip: h.ip || a.alvo });
+        }
+      });
+    });
+  }
+
+  const idxClaro = cyberPacotesInspecionadosCache.findIndex(pk => !pk.criptografado);
+  cyberPacoteSelecionadoIdx = cyberPacotesInspecionadosCache.length > 0 ? (idxClaro >= 0 ? idxClaro : 0) : -1;
+  cyberPacoteSubAba = 'conteudo';
+
+  const esteiraRobosHtml = cyberPacotesInspecionadosCache.length === 0 ? '' : `
+    <div class="p-3.5 rounded-2xl bg-gradient-to-r from-violet-50 via-fuchsia-50/60 to-sky-50 dark:from-[#1C1633] dark:via-[#231942] dark:to-[#161B33] border border-violet-200 dark:border-violet-800 space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div class="font-extrabold text-slate-900 dark:text-white text-xs">🤖 Menu Interativo de Pacotes &amp; Criptografia (${cyberPacotesInspecionadosCache.length})</div>
+          <div class="text-[10.5px] text-slate-500 dark:text-violet-300/80">Clique em qualquer robozinho carregando um pacote para abrir a aba com o conteúdo trafegado, HEX e status de criptografia.</div>
+        </div>
+        <div class="flex items-center gap-1.5 text-[10px] font-bold">
+          <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">🔒 ${cyberPacotesInspecionadosCache.filter(x => x.criptografado).length} Criptografado(s)</span>
+          <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">🔓 ${cyberPacotesInspecionadosCache.filter(x => !x.criptografado).length} Texto Claro</span>
+        </div>
+      </div>
+      <div id="esteiraRobosPacotesCyber" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+      <div id="abaConteudoPacoteCyber" class="hidden p-3.5 rounded-xl bg-white dark:bg-[#141024] border border-violet-300 dark:border-violet-700 shadow-inner space-y-2.5"></div>
+    </div>
+  `;
+
   const achadosHtml = achados.length === 0
     ? '<p class="text-emerald-700 dark:text-emerald-300 font-semibold">✅ Nenhuma vulnerabilidade crítica ou pendência detectada nesta varredura.</p>'
     : achados.map(item => `
@@ -743,13 +979,17 @@ function renderizarDetalheAuditoriaCyber(a) {
         <button type="button" onclick="fecharDetalheAuditoriaCyber()" class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold">✕ Fechar</button>
       </div>
     </div>
+    ${esteiraRobosHtml}
     ${corpoHtml}
+    ${dirsHtml}
     <div class="space-y-2 pt-2 border-t border-violet-100 dark:border-violet-900/60">
       <div class="font-extrabold text-slate-900 dark:text-white">🐞 Vulnerabilidades &amp; Pontos de Atenção Encontrados (${achados.length})</div>
       <div class="space-y-2">${achadosHtml}</div>
     </div>
   `;
   box.classList.remove('hidden');
+  renderizarEsteiraRobosPacotes();
+  renderizarAbaConteudoPacoteCyber();
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 

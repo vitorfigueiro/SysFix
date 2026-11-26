@@ -1160,6 +1160,11 @@ class NetworkAuditEngine:
                 "recomendacao": "Verificar se o site está online e acessível publicamente.",
             })
 
+        detalhes["diretorios"], ach_dirs, pen_dirs = NetworkAuditEngine.auditar_diretorios_expostos(url, host)
+        if ach_dirs:
+            achados.extend(ach_dirs)
+            score -= min(35, pen_dirs)
+
         detalhes["achados"] = achados
         return {
             "score": max(0, min(100, score)),
@@ -1384,10 +1389,19 @@ class NetworkAuditEngine:
                 else:
                     protocolo_detectado = servico
 
-        hex_preview = " ".join(f"{b:02X}" for b in raw_bytes[:48]) if raw_bytes else ""
+        hex_preview = " ".join(f"{b:02X}" for b in raw_bytes[:64]) if raw_bytes else ""
         banner_curto = SecurityValidator.sanitizar_texto(
             (texto_decod.splitlines()[0] if texto_decod else tls_resumo) or ""
         )[:140]
+
+        portas_cripto = {22, 443, 465, 993, 995, 8443, 8883}
+        is_cripto = bool(tls_resumo) or (porta == 22 and (texto_decod.upper().startswith("SSH-") or not texto_decod)) or (porta in portas_cripto)
+        if is_cripto:
+            status_cripto = f"Criptografado ({tls_resumo or protocolo_detectado or 'TLS/SSH'})"
+        elif raw_bytes:
+            status_cripto = "Texto Claro (Sem Criptografia — Conteúdo Visível)"
+        else:
+            status_cripto = "Sem Criptografia (Porta Aberta)"
 
         return {
             "porta": porta,
@@ -1397,12 +1411,118 @@ class NetworkAuditEngine:
             "severidade": sev,
             "latencia_ms": lat_ms,
             "bytes_recebidos": len(raw_bytes),
+            "criptografado": is_cripto,
+            "status_criptografia": status_cripto,
             "banner": banner_curto,
             "tls_resumo": tls_resumo,
             "pacote_texto": texto_decod,
             "pacote_hex": hex_preview,
             "recomendacao": rec,
         }
+
+    @staticmethod
+    def auditar_diretorios_expostos(
+        url_base: str, host: str
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
+        """Verifica (somente HEAD, sem baixar conteúdo) diretórios e caminhos sensíveis padrão OWASP no domínio."""
+        NetworkAuditEngine._validar_dns_anti_ssrf(host)
+        base = url_base.rstrip("/")
+        if not base.startswith(("http://", "https://")):
+            base = f"https://{base}"
+
+        caminhos_padrao: list[tuple[str, str, str, int, str]] = [
+            ("/.env", "Arquivo de Configuração Sensível", "Crítica", 25, "Bloquear imediatamente acesso público a arquivos '.env' no servidor web/proxy e rotacionar credenciais."),
+            ("/.git/HEAD", "Repositório Git Exposto", "Crítica", 25, "Bloquear pasta '.git' no Nginx/Apache/Cloudflare para impedir vazamento de código-fonte."),
+            ("/phpinfo.php", "Diagnóstico / Info Sensível", "Alta", 15, "Remover arquivo phpinfo.php do ambiente de produção."),
+            ("/backup", "Diretório de Backup", "Alta", 15, "Remover backups públicos da raiz web e mover para armazenamento privado/imutável."),
+            ("/server-status", "Monitoramento Interno Exposto", "Média", 10, "Restringir /server-status apenas ao localhost/IP administrativo."),
+            ("/admin", "Painel Administrativo", "Média", 6, "Proteger painel administrativo com MFA, IP allowlist ou VPN corporativa."),
+            ("/wp-admin", "Painel CMS (WordPress)", "Média", 5, "Restringir /wp-admin por IP/WAF e exigir 2FA."),
+            ("/swagger", "Documentação de API", "Baixa", 4, "Desabilitar Swagger público em produção ou exigir autenticação."),
+            ("/docs", "Documentação Interativa API", "Baixa", 3, "Avaliar se /docs deve ficar restrito ao ambiente interno/homologação."),
+            ("/robots.txt", "Arquivo de Indexação", "Informativa", 0, "Revisar se robots.txt não lista caminhos administrativos internos."),
+            ("/sitemap.xml", "Mapa do Site", "Informativa", 0, "Normal para SEO; garantir que apenas páginas públicas estejam listadas."),
+            ("/.well-known/security.txt", "Política de Divulgação (RFC 9116)", "Informativa", 0, "Boa prática manter contato oficial de segurança em /.well-known/security.txt."),
+        ]
+
+        resultados: list[dict[str, Any]] = []
+        achados_dir: list[dict[str, Any]] = []
+        penalidade_total = 0
+
+        def _check_path(item: tuple[str, str, str, int, str]) -> dict[str, Any]:
+            caminho, categoria, sev_se_exposto, pen, rec = item
+            alvo_url = f"{base}{caminho}"
+            status_code = 0
+            redirect_to = ""
+            erro_txt = ""
+            t0 = time.monotonic()
+            try:
+                req = urllib.request.Request(
+                    alvo_url,
+                    method="HEAD",
+                    headers={"User-Agent": "SysFix-DirAuditor/2.9"},
+                )
+                with urllib.request.urlopen(req, timeout=3.0) as resp:
+                    status_code = int(getattr(resp, "status", 200))
+                    final_u = str(getattr(resp, "geturl", lambda: alvo_url)() or alvo_url)
+                    if final_u.rstrip("/") != alvo_url.rstrip("/"):
+                        redirect_to = final_u[:180]
+            except urllib.error.HTTPError as he:
+                status_code = int(he.code)
+                redirect_to = str(he.headers.get("Location") or "")[:180]
+            except Exception as exc:
+                erro_txt = str(exc)[:100]
+            lat_ms = max(1, int((time.monotonic() - t0) * 1000))
+
+            acessivel = status_code in {200, 206} and not redirect_to
+            if status_code in {200, 206}:
+                situacao = "Acessível (200)" if not redirect_to else f"Redirecionado ({status_code})"
+            elif status_code in {301, 302, 307, 308}:
+                situacao = f"Redirecionado ({status_code})"
+            elif status_code in {401, 403}:
+                situacao = f"Protegido ({status_code})"
+            elif status_code == 404:
+                situacao = "Não encontrado (404)"
+            elif status_code == 0:
+                situacao = "Sem resposta"
+            else:
+                situacao = f"HTTP {status_code}"
+
+            return {
+                "caminho": caminho,
+                "url": alvo_url,
+                "categoria": categoria,
+                "status_http": status_code,
+                "situacao": situacao,
+                "acessivel": acessivel,
+                "risco": sev_se_exposto if acessivel else "OK",
+                "penalidade": pen if acessivel else 0,
+                "redirect": redirect_to,
+                "latencia_ms": lat_ms,
+                "erro": erro_txt,
+                "recomendacao": rec,
+            }
+
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            futs = [pool.submit(_check_path, it) for it in caminhos_padrao]
+            for fut in as_completed(futs):
+                resultados.append(fut.result())
+
+        ordem = {c[0]: idx for idx, c in enumerate(caminhos_padrao)}
+        resultados.sort(key=lambda r: ordem.get(r["caminho"], 99))
+
+        for r in resultados:
+            if r["acessivel"] and r["risco"] in {"Crítica", "Alta", "Média"}:
+                penalidade_total += r["penalidade"]
+                achados_dir.append({
+                    "titulo": f"Diretório/Caminho acessível '{r['caminho']}' em {host} (HTTP {r['status_http']})",
+                    "severidade": r["risco"],
+                    "categoria": "Diretórios & Exposição Web",
+                    "evidencia": f"HEAD {r['url']} -> HTTP {r['status_http']} ({r['latencia_ms']} ms) • {r['categoria']}",
+                    "recomendacao": r["recomendacao"],
+                })
+
+        return resultados, achados_dir, penalidade_total
 
     @classmethod
     def auditar_protocolos_e_portas(
@@ -1482,6 +1602,13 @@ class NetworkAuditEngine:
                         "recomendacao": p_info["recomendacao"],
                     })
 
+        diretorios_res: list[dict[str, Any]] = []
+        if alvo_tipo == "host":
+            diretorios_res, ach_dirs, pen_dirs = cls.auditar_diretorios_expostos(f"https://{alvo}", alvo)
+            if ach_dirs:
+                achados.extend(ach_dirs)
+                penalidade += min(35, pen_dirs)
+
         score = max(0, min(100, 100 - min(85, penalidade)))
         return {
             "score": score,
@@ -1492,6 +1619,7 @@ class NetworkAuditEngine:
                 "portas_verificadas": portas,
                 "hosts_verificados": len(alvos_ips),
                 "hosts": descobertos,
+                "diretorios": diretorios_res,
                 "achados": achados,
             },
             "achados_detectados": achados,
@@ -1566,6 +1694,7 @@ class NetworkAuditEngine:
                     linhas.append(
                         f"  [PORTA {p.get('porta')}/{p.get('transporte', 'TCP')}] "
                         f"Serviço: {p.get('servico', '-')} | Protocolo: {p.get('protocolo_detectado', p.get('servico', '-'))} "
+                        f"| Criptografia: {p.get('status_criptografia', 'Criptografado' if p.get('criptografado') else 'Texto Claro')} "
                         f"| Risco: {p.get('severidade', '-')} | Latência: {p.get('latencia_ms', 0)} ms "
                         f"| Bytes: {p.get('bytes_recebidos', 0)}"
                     )
@@ -1581,6 +1710,15 @@ class NetworkAuditEngine:
                         linhas.append(f"    Hex (primeiros bytes): {p.get('pacote_hex')}")
                     if p.get("recomendacao"):
                         linhas.append(f"    Mitigação      : {p.get('recomendacao')}")
+            linhas.append("")
+
+        dirs = det.get("diretorios") or []
+        if dirs:
+            linhas.append(f"--- DIRETÓRIOS & CAMINHOS VERIFICADOS NO DOMÍNIO ({len(dirs)}) ---")
+            for d in dirs:
+                linhas.append(
+                    f"  {d.get('caminho', '-'):26s} | {d.get('situacao', '-'):20s} | Risco: {d.get('risco', 'OK'):11s} | {d.get('categoria', '')}"
+                )
             linhas.append("")
 
         linhas.append(f"--- ACHADOS E VULNERABILIDADES ({len(achados)}) ---")

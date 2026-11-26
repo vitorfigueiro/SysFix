@@ -316,9 +316,19 @@ function alternarCyberTab(tab) {
   renderizarCyberBotsDock(false);
 }
 
+function alternarCampoPortasByteScanner() {
+  const tipo = document.getElementById('cyb_aud_tipo')?.value || 'protocolos_pacotes';
+  const box = document.getElementById('grupoPortasCustomCyber');
+  if (box) box.classList.toggle('hidden', tipo === 'web_tls');
+}
+
 function autoAjustarModoByteScanner(valor) {
   const sel = document.getElementById('cyb_aud_tipo');
   if (!sel) return;
+  if (sel.value === 'protocolos_pacotes') {
+    alternarCampoPortasByteScanner();
+    return;
+  }
   const txt = String(valor || '').trim().toLowerCase();
   if (!txt) return;
   const pareceIpOuCidr = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/.test(txt);
@@ -327,6 +337,7 @@ function autoAjustarModoByteScanner(valor) {
   } else if (txt.startsWith('http://') || txt.startsWith('https://') || /[a-z]/i.test(txt)) {
     sel.value = 'web_tls';
   }
+  alternarCampoPortasByteScanner();
 }
 
 async function carregarPainelCyber() {
@@ -404,9 +415,10 @@ async function carregarResumoCyber() {
             <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(a.alvo)} <span class="text-[10px] font-semibold text-violet-600">(${escapeHtml(a.tipo)})</span></div>
             <div class="text-[11px] text-slate-500 dark:text-violet-300/80">Hosts: ${a.hosts_ativos} • Portas/Itens: ${a.portas_expostas} • Achados: ${a.achados_count} • Por ${escapeHtml(a.executado_por)}</div>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1.5 flex-wrap">
             <span class="px-2.5 py-1 rounded-full text-xs font-extrabold ${a.score >= 80 ? 'bg-emerald-100 text-emerald-800' : (a.score >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')}">Score ${a.score}/100</span>
-            <button type="button" onclick="abrirDetalheAuditoriaCyber(${idx})" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold transition-all">🔎 Ver Tudo Encontrado</button>
+            <button type="button" onclick="abrirDetalheAuditoriaCyber(${idx})" class="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold transition-all">🔎 Ver Tudo</button>
+            <button type="button" onclick="baixarDocumentoAuditoriaCyber('${escapeHtml(a.id)}', 'txt')" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all">📄 Baixar Doc (.txt)</button>
           </div>
         </div>
       `).join('');
@@ -497,6 +509,7 @@ async function executarAuditoriaCyber(event) {
   event.preventDefault();
   const alvo = document.getElementById('cyb_aud_alvo').value.trim();
   const tipo = document.getElementById('cyb_aud_tipo').value;
+  const portasCustom = document.getElementById('cyb_aud_portas')?.value.trim() || '';
   const registrarAchados = document.getElementById('cyb_aud_gerar_achados').checked;
   const btn = document.getElementById('btnExecutarAuditoriaCyber');
 
@@ -505,7 +518,12 @@ async function executarAuditoriaCyber(event) {
   try {
     const res = await apiFetch('/cyber/auditorias/executar', {
       method: 'POST',
-      body: JSON.stringify({ alvo, tipo_auditoria: tipo, registrar_achados: registrarAchados }),
+      body: JSON.stringify({
+        alvo,
+        tipo_auditoria: tipo,
+        portas_custom: portasCustom,
+        registrar_achados: registrarAchados,
+      }),
     });
     if (!res.ok) {
       mostrarToast(await extrairErroResposta(res, 'Auditoria bloqueada ou inválida.'), 'erro');
@@ -627,15 +645,31 @@ function renderizarDetalheAuditoriaCyber(a) {
       ? '<p class="text-slate-500 dark:text-violet-300/80">Nenhum host ativo com portas abertas encontrado na faixa varrida (se o servidor estiver na nuvem, use o Coletor LAN Local abaixo para redes privadas).</p>'
       : hosts.map(h => {
         const portas = Array.isArray(h.portas) ? h.portas : [];
-        const pRows = portas.map(p => `
-          <tr class="border-b border-violet-100 dark:border-violet-900/50">
-            <td class="p-2 font-mono font-extrabold text-violet-700 dark:text-violet-300">${escapeHtml(String(p.porta ?? p))}</td>
-            <td class="p-2 font-semibold text-slate-800 dark:text-white">${escapeHtml(p.servico || 'Desconhecido')}</td>
-            <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${corSev(p.severidade || 'Informativa')}">${escapeHtml(p.severidade || 'Info')}</span></td>
-            <td class="p-2 font-mono text-[10px] text-slate-600 dark:text-violet-300">${escapeHtml(p.banner || (p.latencia_ms ? `${p.latencia_ms} ms` : '---'))}</td>
-            <td class="p-2 text-[10px] text-slate-600 dark:text-violet-200">${escapeHtml(p.recomendacao || '')}</td>
-          </tr>
-        `).join('');
+        const pRows = portas.map(p => {
+          const pacoteBlock = (p.pacote_texto || p.pacote_hex || p.tls_resumo) ? `
+            <tr class="bg-slate-50/90 dark:bg-[#0B0816] border-b border-violet-100 dark:border-violet-900/50">
+              <td colspan="5" class="p-2.5 space-y-1.5">
+                <div class="flex flex-wrap gap-2 text-[10px] font-bold text-violet-700 dark:text-violet-300">
+                  <span>📡 Protocolo: ${escapeHtml(p.protocolo_detectado || p.servico || '-')}</span>
+                  <span>📦 Bytes: ${escapeHtml(String(p.bytes_recebidos ?? 0))}</span>
+                  ${p.tls_resumo ? `<span>🔐 TLS: ${escapeHtml(p.tls_resumo)}</span>` : ''}
+                </div>
+                ${p.pacote_texto ? `<pre class="whitespace-pre-wrap break-all font-mono text-[10px] p-2 rounded-lg bg-slate-900 text-emerald-300 max-h-40 overflow-y-auto">${escapeHtml(p.pacote_texto)}</pre>` : ''}
+                ${p.pacote_hex ? `<div class="font-mono text-[9.5px] text-slate-500 dark:text-violet-300/70 break-all"><b>HEX:</b> ${escapeHtml(p.pacote_hex)}</div>` : ''}
+              </td>
+            </tr>
+          ` : '';
+          return `
+            <tr class="border-b border-violet-100 dark:border-violet-900/50">
+              <td class="p-2 font-mono font-extrabold text-violet-700 dark:text-violet-300">${escapeHtml(String(p.porta ?? p))}/${escapeHtml(p.transporte || 'TCP')}</td>
+              <td class="p-2 font-semibold text-slate-800 dark:text-white">${escapeHtml(p.servico || 'Desconhecido')}</td>
+              <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${corSev(p.severidade || 'Informativa')}">${escapeHtml(p.severidade || 'Info')}</span></td>
+              <td class="p-2 font-mono text-[10px] text-slate-600 dark:text-violet-300">${escapeHtml(p.banner || (p.latencia_ms ? `${p.latencia_ms} ms` : '---'))}</td>
+              <td class="p-2 text-[10px] text-slate-600 dark:text-violet-200">${escapeHtml(p.recomendacao || '')}</td>
+            </tr>
+            ${pacoteBlock}
+          `;
+        }).join('');
         return `
           <div class="p-3.5 rounded-xl bg-violet-50/50 dark:bg-[#1C1633] border border-violet-200 dark:border-violet-800 space-y-2">
             <div class="flex flex-wrap items-center justify-between gap-2">
@@ -702,8 +736,10 @@ function renderizarDetalheAuditoriaCyber(a) {
         </div>
         <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Modo: <b>${escapeHtml(a.tipo)}</b> • Executado por ${escapeHtml(a.executado_por || 'Sistema')} • ${formatarDataBR(a.executado_em)}</p>
       </div>
-      <div class="flex items-center gap-2">
-        <button type="button" onclick="copiarRelatorioAuditoriaCyber()" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold">📋 Copiar Relatório</button>
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <button type="button" onclick="baixarDocumentoAuditoriaCyber('${escapeHtml(a.id)}', 'txt')" class="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold">📄 Baixar Documento (.txt)</button>
+        <button type="button" onclick="baixarDocumentoAuditoriaCyber('${escapeHtml(a.id)}', 'md')" class="px-2.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">📝 .md</button>
+        <button type="button" onclick="copiarRelatorioAuditoriaCyber()" class="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold">📋 Copiar</button>
         <button type="button" onclick="fecharDetalheAuditoriaCyber()" class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold">✕ Fechar</button>
       </div>
     </div>
@@ -727,6 +763,15 @@ async function copiarRelatorioAuditoriaCyber() {
   } catch (e) {
     mostrarToast('Não foi possível copiar automaticamente.', 'erro');
   }
+}
+
+function baixarDocumentoAuditoriaCyber(auditoriaId, formato = 'txt') {
+  if (!auditoriaId) return;
+  const ext = formato === 'md' ? 'md' : (formato === 'json' ? 'json' : 'txt');
+  baixarArquivoAutenticado(
+    `/cyber/auditorias/${encodeURIComponent(auditoriaId)}/documento?formato=${encodeURIComponent(ext)}`,
+    `relatorio_portas_protocolos_${auditoriaId}.${ext}`
+  );
 }
 
 function baixarColetorCyber(formato) {

@@ -436,19 +436,38 @@ def _enriquecer_achado_patchbot(item: dict[str, Any]) -> dict[str, Any]:
     enr.setdefault("notas_remediacao", "")
     return enr
 
-# Portas avaliadas em auditorias defensivas internas (somente detecção de exposição de serviços)
+# Portas avaliadas em auditorias defensivas internas (somente detecção de exposição de serviços e protocolos)
 _PORTAS_AUDITORIA_DEFENSIVA: dict[int, tuple[str, str, str]] = {
+    21: ("FTP", "Alta", "Protocolo sem criptografia: migrar para SFTP/FTPS e desativar acesso anônimo."),
     22: ("SSH", "Baixa", "Manter autenticação por chave SSH e desabilitar login root por senha."),
     23: ("Telnet", "Crítica", "Protocolo em texto claro: desativar Telnet imediatamente e migrar para SSH."),
+    25: ("SMTP", "Média", "Restringir relay aberto, exigir TLS (STARTTLS) e configurar SPF/DKIM/DMARC."),
+    53: ("DNS", "Média", "Restringir recursão DNS apenas à rede interna e bloquear transferência de zona (AXFR)."),
     80: ("HTTP", "Média", "Redirecionar interface administrativa para HTTPS/TLS com certificado válido."),
+    110: ("POP3", "Alta", "Protocolo de e-mail em texto claro: migrar para POP3S (995) ou IMAPS (993)."),
+    135: ("MSRPC", "Alta", "Restringir RPC do Windows apenas à LAN/VLAN corporativa via firewall."),
+    139: ("NetBIOS", "Alta", "Desativar NetBIOS sobre TCP/IP quando não necessário e isolar na LAN."),
+    143: ("IMAP", "Média", "Exigir STARTTLS ou migrar para IMAPS (porta 993)."),
     443: ("HTTPS", "Informativa", "Verificar validade do certificado TLS, cifras fortes e headers de segurança."),
     445: ("SMB", "Alta", "Restringir SMB/CIFS à rede interna isolada e bloquear SMBv1 para prevenir ransomware."),
+    465: ("SMTPS", "Informativa", "Verificar certificado TLS válido e autenticação SMTP obrigatória."),
     554: ("RTSP (CFTV)", "Alta", "Segmentar câmeras em VLAN isolada, exigir autenticação forte e usar túnel/VPN."),
+    587: ("SMTP Submission", "Informativa", "Exigir STARTTLS e autenticação forte para envio de e-mails."),
+    631: ("IPP (Impressora)", "Baixa", "Restringir painel de impressão à VLAN de escritório e exigir senha admin."),
+    993: ("IMAPS", "Informativa", "Verificar validade do certificado TLS e ativar 2FA nas contas."),
+    995: ("POP3S", "Informativa", "Verificar certificado TLS e preferir IMAPS com MFA."),
+    1433: ("MSSQL", "Crítica", "Nunca expor banco de dados diretamente; restringir apenas aos servidores de aplicação."),
     1883: ("MQTT (IoT)", "Alta", "Ativar autenticação e TLS (MQTTS porta 8883) para dispositivos IoT."),
+    3306: ("MySQL / MariaDB", "Crítica", "Bloquear acesso externo ao banco; permitir apenas localhost/VLAN de aplicação com TLS."),
     3389: ("RDP", "Alta", "Nunca expor RDP diretamente; exigir VPN + MFA + NLA."),
+    5432: ("PostgreSQL", "Crítica", "Restringir pg_hba.conf apenas aos IPs autorizados e exigir SSL."),
+    5900: ("VNC", "Alta", "Nunca expor VNC sem túnel SSH/VPN e senha forte."),
+    6379: ("Redis", "Crítica", "Restringir bind ao localhost/rede privada e exigir ACL/senha forte."),
     8080: ("HTTP Alt / Painel", "Média", "Validar se painel web possui autenticação forte e acesso restrito por firewall."),
     8291: ("Winbox (MikroTik)", "Alta", "Restringir Winbox apenas à VLAN/IP de gerência (Management) e desativar na WAN."),
     8443: ("HTTPS Alt", "Informativa", "Conferir certificado TLS e controle de acesso ao painel administrativo."),
+    8883: ("MQTTS (IoT TLS)", "Informativa", "Verificar certificado TLS e credenciais individuais por dispositivo IoT."),
+    9100: ("JetDirect (Impressora)", "Média", "Isolar impressoras de rede em VLAN própria para evitar abuso de spooler."),
 }
 
 CYBER_KNOWLEDGE_BASE: list[dict[str, Any]] = [
@@ -915,6 +934,42 @@ class NetworkAuditEngine:
                 )
             return url, host
 
+        if tipo_auditoria == "protocolos_pacotes":
+            host_limpo = raw.strip().lower()
+            if host_limpo in {"localhost", "metadata.google.internal"} or host_limpo.endswith(".internal"):
+                raise PermissionError("Alvo proibido pela política anti-SSRF.")
+            try:
+                net = ipaddress.ip_network(host_limpo, strict=False)
+                if net.version != 4 or not net.is_private:
+                    raise PermissionError(
+                        "Para inspeção de portas por IP/CIDR, utilize apenas faixas privadas IPv4 (RFC1918: 10.x, 172.16-31.x, 192.168.x)."
+                    )
+                if any(_is_forbidden_ip(addr) for addr in (net.network_address, net.broadcast_address)):
+                    raise PermissionError("Endereço loopback, link-local ou reservado não é permitido.")
+                if net.prefixlen < 24:
+                    raise ValueError("Use no máximo blocos /24 (até 254 IPs por varredura).")
+                if escopo_limpo:
+                    redes_escopo = []
+                    for entry in escopo_limpo:
+                        try:
+                            allowed_net = ipaddress.ip_network(entry, strict=False)
+                            if allowed_net.version == 4:
+                                redes_escopo.append(allowed_net)
+                        except ValueError:
+                            continue
+                    if not redes_escopo or not any(net.subnet_of(allowed_net) for allowed_net in redes_escopo):
+                        raise PermissionError(f"Sub-rede '{net}' fora da restrição de escopo configurada.")
+                return str(net), "cidr"
+            except ValueError:
+                url = raw if raw.startswith(("http://", "https://")) else f"https://{raw}"
+                parsed = urllib.parse.urlparse(url)
+                host = (parsed.hostname or "").strip().lower().strip(".")
+                if not host or "." not in host or host in {"localhost", "metadata.google.internal"}:
+                    raise ValueError("Informe um IP/CIDR privado (ex: 192.168.1.1) ou domínio válido (ex: empresa.com.br).")
+                if escopo_limpo and not _host_matches_domain_scope(host, escopo_limpo):
+                    raise PermissionError(f"Domínio '{host}' não consta na restrição de escopo definida pelo gestor.")
+                return host, "host"
+
         # tipo_auditoria == "rede_privada"
         host_limpo = raw.strip().lower()
         if host_limpo in {"localhost", "metadata.google.internal"}:
@@ -1227,6 +1282,323 @@ class NetworkAuditEngine:
         }
 
     @staticmethod
+    def _parse_portas_custom(portas_custom: str | None) -> list[int]:
+        raw = str(portas_custom or "").strip()
+        if not raw:
+            return list(_PORTAS_AUDITORIA_DEFENSIVA.keys())
+        portas: list[int] = []
+        vistos: set[int] = set()
+        for token in re.split(r"[\s,;]+", raw):
+            if not token:
+                continue
+            if "-" in token:
+                partes = token.split("-", 1)
+                if partes[0].isdigit() and partes[1].isdigit():
+                    ini, fim = int(partes[0]), int(partes[1])
+                    if 1 <= ini <= fim <= 65535 and (fim - ini) <= 100:
+                        for p in range(ini, fim + 1):
+                            if p not in vistos and len(portas) < 100:
+                                vistos.add(p)
+                                portas.append(p)
+            elif token.isdigit():
+                p = int(token)
+                if 1 <= p <= 65535 and p not in vistos and len(portas) < 100:
+                    vistos.add(p)
+                    portas.append(p)
+        if not portas:
+            raise ValueError("Lista de portas inválida. Use portas entre 1 e 65535 (ex: 22,80,443,3389 ou 8000-8020).")
+        return portas
+
+    @staticmethod
+    def _inspecionar_protocolo_porta(
+        alvo_ip: str, porta: int, server_hostname: str = "", timeout: float = 0.55
+    ) -> dict[str, Any] | None:
+        """Descobre se a porta está aberta e inspeciona respostas/pacotes somente-leitura do protocolo."""
+        t0 = time.monotonic()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            if s.connect_ex((alvo_ip, porta)) != 0:
+                return None
+            lat_ms = max(1, int((time.monotonic() - t0) * 1000))
+            raw_bytes = b""
+            protocolo_detectado = ""
+            tls_resumo = ""
+            try:
+                if porta in {443, 8443, 465, 993, 995, 8883}:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    s.settimeout(1.2)
+                    with ctx.wrap_socket(s, server_hostname=server_hostname or alvo_ip) as ssock:
+                        versao = ssock.version() or "TLS"
+                        cifra = ssock.cipher()
+                        cifra_txt = f"{cifra[0]} ({cifra[2]} bits)" if cifra else ""
+                        tls_resumo = f"{versao} {cifra_txt}".strip()
+                        protocolo_detectado = f"TLS/{versao}"
+                        if porta in {443, 8443}:
+                            host_hdr = server_hostname or alvo_ip
+                            ssock.sendall(f"HEAD / HTTP/1.1\r\nHost: {host_hdr}\r\nUser-Agent: SysFix-Inspector/2.9\r\nConnection: close\r\n\r\n".encode("ascii", errors="ignore"))
+                            raw_bytes = ssock.recv(1024)
+                        else:
+                            raw_bytes = ssock.recv(512)
+                elif porta in {80, 8080, 8000, 8008, 8888}:
+                    host_hdr = server_hostname or alvo_ip
+                    s.settimeout(0.8)
+                    s.sendall(f"HEAD / HTTP/1.1\r\nHost: {host_hdr}\r\nUser-Agent: SysFix-Inspector/2.9\r\nConnection: close\r\n\r\n".encode("ascii", errors="ignore"))
+                    raw_bytes = s.recv(1024)
+                    protocolo_detectado = "HTTP"
+                elif porta == 554:
+                    s.settimeout(0.6)
+                    s.sendall(b"OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: SysFix-Inspector\r\n\r\n")
+                    raw_bytes = s.recv(512)
+                    protocolo_detectado = "RTSP"
+                else:
+                    s.settimeout(0.45)
+                    raw_bytes = s.recv(512)
+            except OSError:
+                pass
+
+        info_def = _PORTAS_AUDITORIA_DEFENSIVA.get(
+            porta, (f"Porta TCP/{porta}", "Informativa", "Verificar se o serviço exposto nesta porta é necessário e restringir acesso por firewall.")
+        )
+        servico, sev, rec = info_def
+        texto_decod = ""
+        if raw_bytes:
+            texto_decod = raw_bytes.decode("utf-8", errors="replace").replace("\r\n", "\n").strip()[:600]
+            if not protocolo_detectado:
+                up = texto_decod.upper()
+                if up.startswith("SSH-"):
+                    protocolo_detectado = "SSH"
+                elif up.startswith("HTTP/"):
+                    protocolo_detectado = "HTTP"
+                elif up.startswith("220 ") and "FTP" in up:
+                    protocolo_detectado = "FTP"
+                elif up.startswith("220 "):
+                    protocolo_detectado = "SMTP"
+                elif up.startswith("+OK"):
+                    protocolo_detectado = "POP3"
+                elif up.startswith("* OK"):
+                    protocolo_detectado = "IMAP"
+                elif up.startswith("RFB "):
+                    protocolo_detectado = "VNC/RFB"
+                else:
+                    protocolo_detectado = servico
+
+        hex_preview = " ".join(f"{b:02X}" for b in raw_bytes[:48]) if raw_bytes else ""
+        banner_curto = SecurityValidator.sanitizar_texto(
+            (texto_decod.splitlines()[0] if texto_decod else tls_resumo) or ""
+        )[:140]
+
+        return {
+            "porta": porta,
+            "transporte": "TCP",
+            "servico": servico,
+            "protocolo_detectado": protocolo_detectado or servico,
+            "severidade": sev,
+            "latencia_ms": lat_ms,
+            "bytes_recebidos": len(raw_bytes),
+            "banner": banner_curto,
+            "tls_resumo": tls_resumo,
+            "pacote_texto": texto_decod,
+            "pacote_hex": hex_preview,
+            "recomendacao": rec,
+        }
+
+    @classmethod
+    def auditar_protocolos_e_portas(
+        cls, alvo: str, alvo_tipo: str, portas_custom: str | None = None
+    ) -> dict[str, Any]:
+        """Descobre portas abertas e inspeciona respostas/pacotes de protocolos de forma defensiva."""
+        portas = cls._parse_portas_custom(portas_custom)
+        alvos_ips: list[tuple[str, str]] = []
+        if alvo_tipo == "cidr":
+            net = ipaddress.ip_network(alvo, strict=False)
+            hosts = [str(h) for h in net.hosts()] if net.num_addresses > 1 else [str(net.network_address)]
+            alvos_ips = [(ip, "") for ip in hosts[:32]]
+        else:
+            cls._validar_dns_anti_ssrf(alvo)
+            try:
+                ip_res = socket.gethostbyname(alvo)
+                alvos_ips = [(ip_res, alvo)]
+            except OSError as exc:
+                raise ValueError(f"Não foi possível resolver o host '{alvo}': {exc}") from exc
+
+        descobertos: list[dict[str, Any]] = []
+        achados: list[dict[str, Any]] = []
+        penalidade = 0
+
+        def _scan_one_host(ip_str: str, host_ref: str) -> dict[str, Any] | None:
+            abertas: list[dict[str, Any]] = []
+            lat_min = 0
+            with ThreadPoolExecutor(max_workers=12) as subpool:
+                futs_p = [
+                    subpool.submit(cls._inspecionar_protocolo_porta, ip_str, p, host_ref)
+                    for p in portas
+                ]
+                for fp in as_completed(futs_p):
+                    info_p = fp.result()
+                    if info_p:
+                        abertas.append(info_p)
+                        if not lat_min or info_p["latencia_ms"] < lat_min:
+                            lat_min = info_p["latencia_ms"]
+            if not abertas:
+                return None
+            abertas.sort(key=lambda x: x["porta"])
+            hostname = host_ref
+            if not hostname:
+                try:
+                    hostname = socket.gethostbyaddr(ip_str)[0][:120]
+                except OSError:
+                    hostname = ""
+            return {
+                "ip": ip_str,
+                "hostname": hostname,
+                "latencia_ms": lat_min,
+                "portas": abertas,
+            }
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futs = [pool.submit(_scan_one_host, ip_s, h_ref) for ip_s, h_ref in alvos_ips]
+            for fut in as_completed(futs):
+                res = fut.result()
+                if res:
+                    descobertos.append(res)
+
+        descobertos.sort(key=lambda h: tuple(int(x) for x in h["ip"].split(".")))
+        total_portas = sum(len(h["portas"]) for h in descobertos)
+
+        for host_info in descobertos:
+            hn = f" ({host_info['hostname']})" if host_info.get("hostname") else ""
+            for p_info in host_info["portas"]:
+                sev = p_info["severidade"]
+                if sev in {"Crítica", "Alta", "Média"}:
+                    penalidade += 20 if sev == "Crítica" else (12 if sev == "Alta" else 5)
+                    bn = f" • Resposta: {p_info['banner']}" if p_info.get("banner") else ""
+                    achados.append({
+                        "titulo": f"Serviço {p_info['servico']} (porta {p_info['porta']}/{p_info['transporte']}) aberta em {host_info['ip']}",
+                        "severidade": sev,
+                        "categoria": "Portas & Protocolos",
+                        "evidencia": f"Host: {host_info['ip']}{hn} • Porta {p_info['transporte']}/{p_info['porta']} • Protocolo: {p_info['protocolo_detectado']} • Latência: {p_info['latencia_ms']} ms • Bytes: {p_info['bytes_recebidos']}{bn}",
+                        "recomendacao": p_info["recomendacao"],
+                    })
+
+        score = max(0, min(100, 100 - min(85, penalidade)))
+        return {
+            "score": score,
+            "hosts_ativos": len(descobertos),
+            "portas_expostas": total_portas,
+            "detalhes": {
+                "alvo": alvo,
+                "portas_verificadas": portas,
+                "hosts_verificados": len(alvos_ips),
+                "hosts": descobertos,
+                "achados": achados,
+            },
+            "achados_detectados": achados,
+        }
+
+    @staticmethod
+    def gerar_documento_auditoria(auditoria: dict[str, Any], formato: str = "txt") -> tuple[bytes, str, str]:
+        """Gera documento completo (.txt, .md ou .json) com todo o conteúdo encontrado na varredura."""
+        fmt = (formato or "txt").strip().lower()
+        aud_id = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(auditoria.get("id") or "auditoria"))
+        if fmt == "json":
+            return (
+                json.dumps(auditoria, ensure_ascii=False, indent=2).encode("utf-8"),
+                "application/json; charset=utf-8",
+                f"relatorio_{aud_id}.json",
+            )
+
+        det = auditoria.get("detalhes") or {}
+        achados = auditoria.get("achados") or det.get("achados") or []
+        linhas: list[str] = [
+            "========================================================================",
+            "SYSFIX CIBERSEGURANÇA — RELATÓRIO COMPLETO DE PORTAS, PROTOCOLOS E PACOTES",
+            "========================================================================",
+            f"ID da Auditoria : {auditoria.get('id', '-')}",
+            f"Alvo Auditado   : {auditoria.get('alvo', '-')}",
+            f"Modo            : {auditoria.get('tipo', '-')}",
+            f"Score           : {auditoria.get('score', 0)}/100",
+            f"Hosts Ativos    : {auditoria.get('hosts_ativos', 0)}",
+            f"Portas Abertas  : {auditoria.get('portas_expostas', 0)}",
+            f"Executado por   : {auditoria.get('executado_por', 'Sistema')}",
+            f"Data / Hora     : {auditoria.get('executado_em', '-')}",
+            "",
+        ]
+
+        if auditoria.get("tipo") == "web_tls":
+            tls = det.get("tls") or {}
+            linhas.append("--- DNS & HTTP ---")
+            linhas.append(f"IPs Resolvidos  : {', '.join(det.get('ips_resolvidos') or []) or '-'}")
+            linhas.append(f"HTTP Status     : {det.get('http_status', det.get('http_erro', '-'))} ({det.get('tempo_resposta_ms', 0)} ms)")
+            linhas.append(f"URL Final       : {det.get('url_final', det.get('url', '-'))}")
+            linhas.append(f"Servidor        : {det.get('servidor') or 'Oculto'}")
+            linhas.append("")
+            linhas.append("--- CERTIFICADO SSL/TLS ---")
+            for k, v in tls.items():
+                linhas.append(f"  {k}: {v}")
+            linhas.append("")
+            linhas.append("--- HEADERS OWASP ---")
+            for k, v in (det.get("headers") or {}).items():
+                linhas.append(f"  {k}: {v}")
+            linhas.append("")
+            linhas.append("--- TODOS OS HEADERS HTTP RECEBIDOS ---")
+            for k, v in (det.get("todos_headers") or {}).items():
+                linhas.append(f"  {k}: {v}")
+            linhas.append("")
+        else:
+            portas_verif = det.get("portas_verificadas") or []
+            if portas_verif:
+                linhas.append(f"Portas verificadas ({len(portas_verif)}): {', '.join(str(p) for p in portas_verif)}")
+                linhas.append("")
+            hosts = det.get("hosts") or []
+            linhas.append(f"--- HOSTS, PORTAS ABERTAS & CONTEÚDO DOS PROTOCOLOS ({len(hosts)} host(s)) ---")
+            if not hosts:
+                linhas.append("Nenhum host com porta aberta encontrado na faixa/alvo verificado.")
+            for h in hosts:
+                hn = f" ({h.get('hostname')})" if h.get("hostname") else ""
+                linhas.append("")
+                linhas.append(f"HOST: {h.get('ip', '-')}{hn} | Latência mín.: {h.get('latencia_ms', 0)} ms")
+                for p in h.get("portas") or []:
+                    if not isinstance(p, dict):
+                        linhas.append(f"  - Porta {p} aberta")
+                        continue
+                    linhas.append(
+                        f"  [PORTA {p.get('porta')}/{p.get('transporte', 'TCP')}] "
+                        f"Serviço: {p.get('servico', '-')} | Protocolo: {p.get('protocolo_detectado', p.get('servico', '-'))} "
+                        f"| Risco: {p.get('severidade', '-')} | Latência: {p.get('latencia_ms', 0)} ms "
+                        f"| Bytes: {p.get('bytes_recebidos', 0)}"
+                    )
+                    if p.get("tls_resumo"):
+                        linhas.append(f"    TLS/Cifra      : {p.get('tls_resumo')}")
+                    if p.get("banner"):
+                        linhas.append(f"    Banner/Resumo  : {p.get('banner')}")
+                    if p.get("pacote_texto"):
+                        linhas.append("    Conteúdo do Pacote / Resposta do Protocolo:")
+                        for ln_p in str(p.get("pacote_texto")).splitlines()[:25]:
+                            linhas.append(f"      | {ln_p}")
+                    if p.get("pacote_hex"):
+                        linhas.append(f"    Hex (primeiros bytes): {p.get('pacote_hex')}")
+                    if p.get("recomendacao"):
+                        linhas.append(f"    Mitigação      : {p.get('recomendacao')}")
+            linhas.append("")
+
+        linhas.append(f"--- ACHADOS E VULNERABILIDADES ({len(achados)}) ---")
+        if not achados:
+            linhas.append("Nenhuma vulnerabilidade crítica ou pendência registrada.")
+        for idx, ach in enumerate(achados, start=1):
+            linhas.append(f"{idx}. [{ach.get('severidade', 'Média')}] {ach.get('titulo', '-')}")
+            if ach.get("evidencia"):
+                linhas.append(f"   Evidência   : {ach.get('evidencia')}")
+            if ach.get("recomendacao"):
+                linhas.append(f"   Recomendação: {ach.get('recomendacao')}")
+
+        texto = "\n".join(linhas) + "\n"
+        ext = "md" if fmt == "md" else "txt"
+        mime = "text/markdown; charset=utf-8" if ext == "md" else "text/plain; charset=utf-8"
+        return texto.encode("utf-8"), mime, f"relatorio_portas_protocolos_{aud_id}.{ext}"
+
+    @staticmethod
     def gerar_script_coletor_local(formato: str, escopo: list[str]) -> tuple[bytes, str, str]:
         escopo_str = ", ".join(escopo) if escopo else "192.168.1.0/24"
         fmt = (formato or "ps1").strip().lower()
@@ -1424,6 +1796,9 @@ class AutomationCyberService:
         rows = self.store.list_items("cyber_auditorias", tenant_id)
         return sorted(rows, key=lambda r: str(r.get("executado_em") or ""), reverse=True)
 
+    def obter_auditoria(self, tenant_id: str, auditoria_id: str) -> dict | None:
+        return self.store.get_item("cyber_auditorias", auditoria_id, tenant_id)
+
     def executar_auditoria_rede(
         self,
         tenant: dict,
@@ -1434,6 +1809,7 @@ class AutomationCyberService:
         user_uid: str = "",
         user_email: str = "",
         is_admin: bool = False,
+        portas_custom: str = "",
     ) -> dict[str, Any]:
         gov = tenant.get("cyber_governanca") or {}
         if not gov.get("permitir_auditoria_rede"):
@@ -1445,14 +1821,18 @@ class AutomationCyberService:
         )
 
         tipo_norm = SecurityValidator.sanitizar_texto(tipo_auditoria).lower() or "web_tls"
-        if tipo_norm not in {"web_tls", "rede_privada"}:
-            raise ValueError("Tipo de auditoria inválido. Use 'web_tls' ou 'rede_privada'.")
+        if tipo_norm not in {"web_tls", "rede_privada", "protocolos_pacotes"}:
+            raise ValueError("Tipo de auditoria inválido. Use 'web_tls', 'rede_privada' ou 'protocolos_pacotes'.")
 
         escopo = list(gov.get("escopo_autorizado") or [])
-        alvo_norm, _ = NetworkAuditEngine.validar_alvo_autorizado(alvo, tipo_norm, escopo)
+        alvo_norm, alvo_subtipo = NetworkAuditEngine.validar_alvo_autorizado(alvo, tipo_norm, escopo)
 
         if tipo_norm == "web_tls":
             resultado = NetworkAuditEngine.auditar_web_tls(alvo_norm, urllib.parse.urlparse(alvo_norm).hostname or alvo_norm)
+        elif tipo_norm == "protocolos_pacotes":
+            resultado = NetworkAuditEngine.auditar_protocolos_e_portas(
+                alvo_norm, alvo_subtipo, portas_custom=portas_custom
+            )
         else:
             resultado = NetworkAuditEngine.auditar_rede_privada(alvo_norm)
 

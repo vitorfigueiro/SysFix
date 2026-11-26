@@ -1229,10 +1229,15 @@
               </div>
               <div>
                 <label class="block text-[11px] font-semibold mb-1">Modo da Auditoria Defensiva</label>
-                <select id="cyb_aud_tipo" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                <select id="cyb_aud_tipo" onchange="alternarCampoPortasByteScanner()" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl bg-white dark:bg-[#1A1430] outline-none">
+                  <option value="protocolos_pacotes">📡 Descoberta de Portas &amp; Inspeção de Protocolos / Pacotes</option>
                   <option value="web_tls">🔒 Web / TLS / Certificados &amp; Headers OWASP</option>
                   <option value="rede_privada">🌐 Varredura Defensiva de Rede / Portas (IP ou CIDR)</option>
                 </select>
+              </div>
+              <div id="grupoPortasCustomCyber">
+                <label class="block text-[11px] font-semibold mb-1">Portas para Descobrir (opcional)</label>
+                <input type="text" id="cyb_aud_portas" placeholder="Vazio = 30 portas padrão (ou ex: 22,80,443,3389,8080 ou 8000-8020)" class="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-xl outline-none">
               </div>
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" id="cyb_aud_gerar_achados" checked class="rounded text-violet-600">
@@ -2554,7 +2559,7 @@
 
   <script src="/static/app.js?v=2.8.6"></script>
   <script src="/static/laudos_ops.js?v=2.8.8"></script>
-  <script src="/static/automation_cyber.js?v=2.8.3"></script>
+  <script src="/static/automation_cyber.js?v=2.8.4"></script>
   <script src="/static/auth_security_ui.js?v=2.8.2"></script>
 </body>
 </html>

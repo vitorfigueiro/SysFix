@@ -539,6 +539,7 @@ class CyberExecutarAuditoriaSchema(BaseModel):
     alvo: str
     tipo_auditoria: str = "web_tls"
     registrar_achados: bool = True
+    portas_custom: Optional[str] = ""
 
 
 class CyberImportarAuditoriaSchema(BaseModel):
@@ -2858,6 +2859,7 @@ def executar_auditoria_cyber_api(
             user_uid=current_user.get("uid") or "",
             user_email=current_user.get("email") or "",
             is_admin=current_user.get("role") == "admin",
+            portas_custom=payload.portas_custom or "",
         )
         return {"sucesso": True, **res}
     except PermissionError as pe:
@@ -2867,6 +2869,29 @@ def executar_auditoria_cyber_api(
     except Exception:
         logger.exception("Erro ao executar auditoria de cibersegurança")
         raise HTTPException(status_code=500, detail="Erro ao executar auditoria defensiva.")
+
+
+@app.get("/api/cyber/auditorias/{auditoria_id}/documento")
+def baixar_documento_auditoria_cyber_api(
+    auditoria_id: str,
+    formato: str = Query("txt"),
+    current_user: dict[str, Any] = Depends(require_permission("ver_ciberseguranca")),
+):
+    from automation_cyber import NetworkAuditEngine
+
+    aud = _get_security_ops_service().obter_auditoria(
+        current_user["tenant_id"], auditoria_id
+    )
+    if not aud:
+        raise HTTPException(status_code=404, detail="Auditoria não encontrada.")
+    conteudo, media_type, filename = NetworkAuditEngine.gerar_documento_auditoria(
+        aud, formato=formato
+    )
+    return Response(
+        content=conteudo,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.post("/api/cyber/auditorias/importar")

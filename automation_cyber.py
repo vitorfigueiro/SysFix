@@ -2463,16 +2463,34 @@ class AutomationCyberService:
         auto_achados = bool(tarefa.get("auto_registrar_achados", True))
         gov = tenant.get("cyber_governanca") or {}
 
-        achados_novos: list[dict[str, str]] = []
+        achados_novos: list[dict[str, Any]] = []
+        itens_afetados: list[dict[str, Any]] = []
+        detalhes_exec: dict[str, Any] = {}
         score = 100
         resumo_exec = ""
+
+        def _montar_plano_resolucao(achados_enr: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            plano: list[dict[str, Any]] = []
+            for idx_p, a in enumerate(achados_enr, start=1):
+                plano.append({
+                    "prioridade": idx_p,
+                    "titulo": a.get("titulo") or "Item a corrigir",
+                    "severidade": a.get("severidade") or "Média",
+                    "sla": a.get("sla_recomendado") or "30 dias",
+                    "cvss_score": a.get("cvss_score"),
+                    "cve_cwe": a.get("cve_cwe") or "",
+                    "o_que_fazer": a.get("recomendacao") or "",
+                    "passos": list(a.get("passos_remediacao") or []),
+                    "comando_validacao": a.get("comando_validacao") or "",
+                })
+            return plano
 
         if tipo in {"monitor_ssl_headers", "varredura_portas_criticas"} and alvo != "Ambiente Interno":
             if not gov.get("permitir_auditoria_rede"):
                 raise PermissionError(
                     "Para rodar varreduras ativas de rede/SSL, o gestor precisa ativar a chave geral no Gov-Key."
                 )
-            modo = "web_tls" if tipo == "monitor_ssl_headers" else "rede_privada"
+            modo = "web_tls" if tipo == "monitor_ssl_headers" else "protocolos_pacotes"
             exec_aud = self.executar_auditoria_rede(
                 tenant=tenant,
                 alvo=alvo,
@@ -2483,45 +2501,108 @@ class AutomationCyberService:
                 user_email=user_email,
                 is_admin=is_admin,
             )
-            score = exec_aud["auditoria"]["score"]
+            aud_obj = exec_aud["auditoria"]
+            score = aud_obj["score"]
             qtd = exec_aud["achados_criados"]
-            resumo_exec = f"Auditoria automática concluída em {alvo}: Score {score}/100 ({qtd} falha(s) registrada(s))."
+            det_aud = aud_obj.get("detalhes") or {}
+            detalhes_exec = det_aud
+            achados_raw = aud_obj.get("achados") or det_aud.get("achados") or []
+            achados_enr = [
+                _enriquecer_achado_patchbot({**a, "alvo": alvo, "origem": f"Auto-Shield ({modo})"})
+                for a in achados_raw
+            ]
+            if modo == "web_tls":
+                tls_d = det_aud.get("tls") or {}
+                itens_afetados.append({
+                    "tipo": "Web / TLS",
+                    "nome": alvo,
+                    "detalhe": f"HTTP {det_aud.get('http_status', det_aud.get('http_erro', '-'))} • TLS: {tls_d.get('versao', tls_d.get('erro', '-'))} • Dias p/ expirar: {tls_d.get('dias_para_expirar', '-')}",
+                    "status": "Alerta" if achados_enr else "Conforme",
+                })
+                for h_k, h_v in (det_aud.get("headers") or {}).items():
+                    if not h_v or h_v == "Ausente":
+                        itens_afetados.append({
+                            "tipo": "Header OWASP Ausente",
+                            "nome": h_k,
+                            "detalhe": f"Cabeçalho defensivo '{h_k}' não encontrado em {alvo}",
+                            "status": "Ausente",
+                        })
+            else:
+                for h_info in det_aud.get("hosts") or []:
+                    for p_info in h_info.get("portas") or []:
+                        itens_afetados.append({
+                            "tipo": f"Porta {p_info.get('porta')}/{p_info.get('transporte', 'TCP')}",
+                            "nome": f"{h_info.get('ip')} ({p_info.get('servico', '-')})",
+                            "detalhe": p_info.get("banner") or f"Protocolo {p_info.get('protocolo_detectado', '-')} • {p_info.get('latencia_ms', 0)} ms",
+                            "status": p_info.get("severidade") or "Aberta",
+                        })
+            plano_res = _montar_plano_resolucao(achados_enr)
+            resumo_exec = f"Auditoria automática concluída em {alvo}: Score {score}/100 ({len(achados_enr)} achado(s) e {len(plano_res)} ação(ões) no plano de resolução)."
             atualizada = self.store.update_item(
                 "cyber_automacoes",
                 item_id,
                 {
                     "ultima_execucao": _now_iso(),
-                    "ultimo_status": "Alerta" if qtd > 0 else "Protegido",
+                    "ultimo_status": "Alerta" if achados_enr else "Protegido",
                     "ultimo_resumo": resumo_exec,
                     "ultimo_score": score,
+                    "ultimos_achados": achados_enr[:25],
+                    "ultimos_itens_afetados": itens_afetados[:40],
+                    "ultimo_plano_resolucao": plano_res[:25],
+                    "ultimo_detalhes": detalhes_exec,
                     "atualizado_em": _now_iso(),
                 },
                 tid,
             )
-            return {"automacao": atualizada, "achados_criados": qtd, "resumo": resumo_exec}
+            return {
+                "automacao": atualizada,
+                "achados_criados": qtd,
+                "resumo": resumo_exec,
+                "achados": achados_enr,
+                "itens_afetados": itens_afetados,
+                "plano_resolucao": plano_res,
+            }
 
         if tipo == "auditoria_contas_2fa_senhas":
             usuarios = users_list or []
             ativos_u = [u for u in usuarios if u.get("ativo", True)]
             sem_2fa = [u for u in ativos_u if not u.get("mfa_enabled")]
             senha_prov = [u for u in ativos_u if u.get("must_change_password")]
+            for u in sem_2fa:
+                itens_afetados.append({
+                    "tipo": "Sem 2FA (TOTP)",
+                    "nome": u.get("nome") or u.get("email") or "Usuário",
+                    "detalhe": f"{u.get('email', '-')} • Perfil: {u.get('role', 'tecnico')}",
+                    "status": "Crítico" if u.get("role") == "admin" else "Alta",
+                })
+            for u in senha_prov:
+                itens_afetados.append({
+                    "tipo": "Senha Provisória",
+                    "nome": u.get("nome") or u.get("email") or "Usuário",
+                    "detalhe": f"{u.get('email', '-')} • Ainda não trocou a senha inicial",
+                    "status": "Média",
+                })
             if sem_2fa:
                 score -= min(45, len(sem_2fa) * 15)
+                lista_emails = ", ".join(str(u.get("email") or u.get("nome") or "-") for u in sem_2fa[:6])
                 achados_novos.append({
                     "titulo": f"[Auto-Shield] {len(sem_2fa)} colaborador(es) ativo(s) sem 2FA habilitado",
                     "severidade": "Alta",
                     "categoria": "Automação IAM / 2FA",
                     "alvo": "Contas da Equipe",
-                    "recomendacao": "Solicitar ativação do 2FA TOTP no menu Minha Segurança de cada colaborador.",
+                    "evidencia": f"Contas sem 2FA ({len(sem_2fa)}/{len(ativos_u)}): {lista_emails}",
+                    "recomendacao": "Solicitar ativação imediata do 2FA TOTP no menu Minha Segurança de cada colaborador listado.",
                 })
             if senha_prov:
                 score -= min(30, len(senha_prov) * 10)
+                lista_prov = ", ".join(str(u.get("email") or u.get("nome") or "-") for u in senha_prov[:6])
                 achados_novos.append({
                     "titulo": f"[Auto-Shield] {len(senha_prov)} conta(s) ainda com senha provisória de 1º acesso",
                     "severidade": "Média",
                     "categoria": "Automação IAM / Senhas",
                     "alvo": "Contas da Equipe",
-                    "recomendacao": "Confirmar conclusão do primeiro login ou revogar contas inativas.",
+                    "evidencia": f"Contas pendentes de troca de senha: {lista_prov}",
+                    "recomendacao": "Confirmar conclusão do primeiro login com troca de senha ou desativar contas não utilizadas.",
                 })
             resumo_exec = (
                 f"Contas verificadas: {len(ativos_u)} ativas • {len(sem_2fa)} sem 2FA • {len(senha_prov)} com senha provisória."
@@ -2535,19 +2616,37 @@ class AutomationCyberService:
                 or not (a.get("checks") or {}).get("senha_padrao_alterada")
                 or not (a.get("checks") or {}).get("rede_segmentada")
             ]
+            for a in falhos:
+                chks = a.get("checks") or {}
+                pend_chks = [
+                    lbl for k, lbl in (
+                        ("senha_padrao_alterada", "Senha padrão não alterada"),
+                        ("firmware_atualizado", "Firmware desatualizado"),
+                        ("rede_segmentada", "Fora de VLAN isolada"),
+                        ("energia_backup_ok", "Sem nobreak/energia backup"),
+                        ("monitoramento_ativo", "Sem monitoramento ativo"),
+                    ) if not chks.get(k)
+                ]
+                itens_afetados.append({
+                    "tipo": AUTOMACAO_PILARES.get(a.get("pilar", ""), a.get("pilar", "Ativo")),
+                    "nome": a.get("nome") or "Dispositivo",
+                    "detalhe": f"IP/MAC: {a.get('ip_mac') or '-'} • VLAN: {a.get('vlan') or '-'} • Falhas: {', '.join(pend_chks) or a.get('status_auditoria')}",
+                    "status": a.get("status_auditoria") or "Alerta",
+                })
             if not ativos:
                 score = 85
                 resumo_exec = "Nenhum dispositivo CFTV/IoT cadastrado ainda para auditoria automática."
             else:
                 score = max(15, 100 - len(falhos) * 18)
                 if falhos:
-                    nomes = ", ".join(str(x.get("nome") or "Ativo") for x in falhos[:4])
+                    nomes = ", ".join(str(x.get("nome") or "Ativo") for x in falhos[:5])
                     achados_novos.append({
                         "titulo": f"[Auto-Shield] {len(falhos)} ativo(s) de CFTV/IoT com falha de hardening ({nomes})",
                         "severidade": "Alta",
                         "categoria": "Automação CFTV & IoT",
                         "alvo": "Parque de Automação",
-                        "recomendacao": "Alterar senhas padrão, atualizar firmware e isolar em VLAN de CFTV/IoT.",
+                        "evidencia": f"Dispositivos com pendência ({len(falhos)}/{len(ativos)}): {nomes}",
+                        "recomendacao": "Alterar senhas padrão de fábrica, atualizar firmware e isolar em VLAN dedicada de CFTV/IoT.",
                     })
                 resumo_exec = f"{len(ativos)} ativo(s) CFTV/IoT inspecionados: {len(falhos)} com falha de segurança."
 
@@ -2555,21 +2654,40 @@ class AutomationCyberService:
             # conformidade_backup_cis ou varredura interna sem CIDR externo
             chk = self.obter_checklist_cyber(tid)
             pendentes = [c for c in chk if c.get("status") in {"Pendente", "Parcial"}]
+            for c in pendentes:
+                itens_afetados.append({
+                    "tipo": c.get("framework") or "CIS v8",
+                    "nome": c.get("controle") or "Controle",
+                    "detalhe": f"Status atual: {c.get('status')} • Responsável: {c.get('responsavel') or 'Não definido'}",
+                    "status": c.get("status") or "Pendente",
+                })
             score = max(10, round(((len(chk) - len(pendentes)) / max(1, len(chk))) * 100))
             if pendentes:
+                lista_ctrl = "; ".join(str(c.get("controle") or "")[:60] for c in pendentes[:4])
                 achados_novos.append({
                     "titulo": f"[Auto-Shield] {len(pendentes)} controle(s) CIS/NIST/LGPD pendentes de conformidade",
-                    "severidade": "Média",
-                    "categoria": "Automação de Conformidade",
+                    "severidade": "Alta" if any("backup" in str(c.get("controle", "")).lower() or "mfa" in str(c.get("controle", "")).lower() for c in pendentes) else "Média",
+                    "categoria": "Automação de Conformidade / Backup",
                     "alvo": "Controles Internos",
+                    "evidencia": f"Controles pendentes ({len(pendentes)}/{len(chk)}): {lista_ctrl}",
                     "recomendacao": f"Priorizar regularização de: {pendentes[0].get('controle', 'controles pendentes')}.",
                 })
-            resumo_exec = f"Checklist CIS/NIST auditado: {len(chk) - len(pendentes)}/{len(chk)} controles Conformes."
+            resumo_exec = f"Checklist CIS/NIST auditado: {len(chk) - len(pendentes)}/{len(chk)} controles Conformes ({len(pendentes)} pendente(s))."
+
+        achados_enr = [
+            _enriquecer_achado_patchbot({**ach, "origem": f"Auto-Shield ({AUTOMACAO_DEFESA_TIPOS.get(tipo, tipo)})"})
+            for ach in achados_novos
+        ]
+        plano_res = _montar_plano_resolucao(achados_enr)
 
         criados = 0
         if auto_achados:
             for ach in achados_novos:
-                self.criar_achado(tid, {**ach, "status": "Aberto"}, actor=actor)
+                self.criar_achado(
+                    tid,
+                    {**ach, "status": "Aberto", "origem": f"Auto-Shield ({AUTOMACAO_DEFESA_TIPOS.get(tipo, tipo)})"},
+                    actor=actor,
+                )
                 criados += 1
 
         atualizada = self.store.update_item(
@@ -2577,14 +2695,25 @@ class AutomationCyberService:
             item_id,
             {
                 "ultima_execucao": _now_iso(),
-                "ultimo_status": "Alerta" if achados_novos else "Protegido",
+                "ultimo_status": "Alerta" if achados_enr else "Protegido",
                 "ultimo_resumo": resumo_exec,
                 "ultimo_score": max(0, min(100, score)),
+                "ultimos_achados": achados_enr[:25],
+                "ultimos_itens_afetados": itens_afetados[:40],
+                "ultimo_plano_resolucao": plano_res[:25],
+                "ultimo_detalhes": detalhes_exec,
                 "atualizado_em": _now_iso(),
             },
             tid,
         )
-        return {"automacao": atualizada, "achados_criados": criados, "resumo": resumo_exec}
+        return {
+            "automacao": atualizada,
+            "achados_criados": criados,
+            "resumo": resumo_exec,
+            "achados": achados_enr,
+            "itens_afetados": itens_afetados,
+            "plano_resolucao": plano_res,
+        }
 
     def excluir_automacao_defesa(self, tenant_id: str, item_id: str) -> bool:
         return self.store.delete_item("cyber_automacoes", item_id, tenant_id)

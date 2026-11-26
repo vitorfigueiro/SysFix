@@ -1348,14 +1348,18 @@
             </div>
           </div>
 
-          <div class="lg:col-span-2 bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3 text-xs">
-            <div class="flex flex-wrap justify-between items-center gap-2">
-              <div>
-                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Robôs &amp; Tarefas de Defesa Configuradas</h3>
-                <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Clique em <b>Rodar Agora</b> para executar a caça por falhas imediatamente e atualizar o score.</p>
+          <div class="lg:col-span-2 space-y-4 text-xs">
+            <div id="painelDetalheAutoShield" class="hidden bg-white dark:bg-[#141024] p-5 rounded-2xl border-2 border-sky-400/80 dark:border-sky-700 shadow-md space-y-4"></div>
+
+            <div class="bg-white dark:bg-[#141024] p-5 rounded-2xl border border-violet-200/80 dark:border-violet-900/70 shadow-sm space-y-3">
+              <div class="flex flex-wrap justify-between items-center gap-2">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900 dark:text-white">Robôs &amp; Tarefas de Defesa Configuradas</h3>
+                  <p class="text-[11px] text-slate-500 dark:text-violet-300/80">Clique em <b>Rodar Busca Agora</b> ou <b>Ver Detalhes &amp; Plano</b> para visualizar tudo que foi encontrado e o plano de resolução passo a passo.</p>
+                </div>
               </div>
+              <div id="listaAutomacoesCyber" class="space-y-2.5"></div>
             </div>
-            <div id="listaAutomacoesCyber" class="space-y-2.5"></div>
           </div>
         </div>
 
@@ -2559,7 +2563,7 @@
 
   <script src="/static/app.js?v=2.8.6"></script>
   <script src="/static/laudos_ops.js?v=2.8.8"></script>
-  <script src="/static/automation_cyber.js?v=2.8.4"></script>
+  <script src="/static/automation_cyber.js?v=2.8.5"></script>
   <script src="/static/auth_security_ui.js?v=2.8.2"></script>
 </body>
 </html>

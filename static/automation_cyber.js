@@ -948,6 +948,173 @@ function ajustarPlaceholderAlvoAutomacao() {
   }
 }
 
+let ultimaAutomacaoDetalhadaCyber = null;
+
+function abrirDetalheAutoShield(idx) {
+  const t = (cyberAutomacoesCache || [])[idx];
+  if (t) renderizarDetalheAutoShield(t);
+}
+
+function fecharDetalheAutoShield() {
+  document.getElementById('painelDetalheAutoShield')?.classList.add('hidden');
+}
+
+function renderizarDetalheAutoShield(t) {
+  const box = document.getElementById('painelDetalheAutoShield');
+  if (!box || !t) return;
+  ultimaAutomacaoDetalhadaCyber = t;
+
+  const itens = Array.isArray(t.ultimos_itens_afetados) ? t.ultimos_itens_afetados : [];
+  const achados = Array.isArray(t.ultimos_achados) ? t.ultimos_achados : [];
+  const plano = Array.isArray(t.ultimo_plano_resolucao) ? t.ultimo_plano_resolucao : [];
+
+  const corSev = (sev) => sev === 'Crítica'
+    ? 'bg-rose-600 text-white'
+    : (sev === 'Alta'
+      ? 'bg-orange-500 text-white'
+      : (sev === 'Média' ? 'bg-amber-400 text-slate-900' : 'bg-sky-100 text-sky-800'));
+
+  const itensHtml = itens.length === 0
+    ? '<p class="text-emerald-700 dark:text-emerald-300 font-semibold">✅ Nenhum item vulnerável ou pendente detectado nesta verificação.</p>'
+    : `
+      <div class="overflow-x-auto rounded-xl border border-violet-200 dark:border-violet-800">
+        <table class="w-full text-left text-[11px] border-collapse">
+          <thead class="bg-violet-50 dark:bg-[#1C1633] text-violet-900 dark:text-violet-200 font-bold">
+            <tr><th class="p-2">Tipo</th><th class="p-2">Item / Alvo</th><th class="p-2">Detalhe Encontrado</th><th class="p-2">Status</th></tr>
+          </thead>
+          <tbody>
+            ${itens.map(it => `
+              <tr class="border-b border-violet-100 dark:border-violet-900/50">
+                <td class="p-2 font-bold text-violet-700 dark:text-violet-300">${escapeHtml(it.tipo || '-')}</td>
+                <td class="p-2 font-semibold text-slate-900 dark:text-white">${escapeHtml(it.nome || '-')}</td>
+                <td class="p-2 text-slate-600 dark:text-violet-200">${escapeHtml(it.detalhe || '-')}</td>
+                <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${corSev(it.status || 'Média')}">${escapeHtml(it.status || 'Alerta')}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+  const achadosHtml = achados.length === 0
+    ? '<p class="text-emerald-700 dark:text-emerald-300 font-semibold">✅ Nenhuma vulnerabilidade aberta nesta rotina.</p>'
+    : achados.map(a => `
+      <div class="p-3 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-1.5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${corSev(a.severidade || 'Média')}">${escapeHtml(a.severidade || 'Média')}</span>
+            ${a.cvss_score ? `<span class="px-2 py-0.5 rounded bg-slate-900 text-amber-300 font-mono text-[10px] font-bold">CVSS ${escapeHtml(String(a.cvss_score))}</span>` : ''}
+            ${a.cve_cwe ? `<span class="px-2 py-0.5 rounded bg-violet-100 dark:bg-violet-900/60 text-violet-800 dark:text-violet-200 text-[10px] font-bold">${escapeHtml(a.cve_cwe)}</span>` : ''}
+            <span class="font-extrabold text-slate-900 dark:text-white">${escapeHtml(a.titulo || 'Achado')}</span>
+          </div>
+          <span class="text-[10px] font-bold text-slate-500 dark:text-violet-300">⏱️ SLA: ${escapeHtml(a.sla_recomendado || '30 dias')}</span>
+        </div>
+        ${a.evidencia ? `<div class="p-2 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[10px] break-all"><b>Evidência:</b> ${escapeHtml(a.evidencia)}</div>` : ''}
+        <div class="grid md:grid-cols-2 gap-2 text-[11px]">
+          <div class="p-2 rounded-lg bg-white dark:bg-[#141024] border border-violet-100 dark:border-violet-900/50">
+            <b class="text-violet-800 dark:text-violet-300 block">📘 Causa Técnica:</b>
+            <span class="text-slate-700 dark:text-violet-100">${escapeHtml(a.descricao_tecnica || '-')}</span>
+          </div>
+          <div class="p-2 rounded-lg bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/50">
+            <b class="text-rose-700 dark:text-rose-300 block">⚠️ Impacto:</b>
+            <span class="text-slate-700 dark:text-rose-100/90">${escapeHtml(a.impacto || '-')}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+  const planoHtml = plano.length === 0
+    ? '<p class="text-emerald-700 dark:text-emerald-300 font-semibold">✅ Ambiente conforme — nenhuma ação corretiva urgente necessária.</p>'
+    : plano.map(p => `
+      <div class="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/60 space-y-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="font-extrabold text-emerald-900 dark:text-emerald-200">
+            Prioridade #${escapeHtml(String(p.prioridade))} — ${escapeHtml(p.titulo)}
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${corSev(p.severidade)}">${escapeHtml(p.severidade)}</span>
+            <span class="px-2 py-0.5 rounded bg-white dark:bg-[#141024] border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold">⏱️ ${escapeHtml(p.sla || '30 dias')}</span>
+          </div>
+        </div>
+        ${p.o_que_fazer ? `<p class="text-[11px] text-slate-700 dark:text-emerald-100"><b>🎯 Ação Direta:</b> ${escapeHtml(p.o_que_fazer)}</p>` : ''}
+        ${(p.passos || []).length ? `
+          <ol class="list-decimal pl-5 space-y-1 text-[11px] text-slate-800 dark:text-emerald-100/95">
+            ${p.passos.map(st => `<li>${escapeHtml(st)}</li>`).join('')}
+          </ol>
+        ` : ''}
+        ${p.comando_validacao ? `
+          <div>
+            <span class="text-[10px] font-bold uppercase text-slate-500 dark:text-emerald-300">💻 Comando / Verificação Pós-Correção:</span>
+            <code class="block mt-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[10px] overflow-x-auto">${escapeHtml(p.comando_validacao)}</code>
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+
+  box.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 dark:border-violet-900/60 pb-3">
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">🛡️ Auto-Shield — Relatório &amp; Plano de Resolução: ${escapeHtml(t.nome)}</h3>
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold ${(t.ultimo_score ?? 100) >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">Score ${t.ultimo_score ?? 100}/100</span>
+        </div>
+        <p class="text-[11px] text-slate-500 dark:text-violet-300/80">${escapeHtml(t.tipo_label || t.tipo)} • Alvo: <b>${escapeHtml(t.alvo)}</b> • ${t.ultima_execucao ? `Executado em ${formatarDataBR(t.ultima_execucao)}` : 'Ainda não executado'}</p>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button type="button" onclick="copiarPlanoAutoShield()" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold">📋 Copiar Plano</button>
+        <button type="button" onclick="fecharDetalheAutoShield()" class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold">✕ Fechar</button>
+      </div>
+    </div>
+
+    ${t.ultimo_resumo ? `<div class="p-2.5 rounded-xl bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 text-[11px] font-semibold text-sky-900 dark:text-sky-200">📊 ${escapeHtml(t.ultimo_resumo)}</div>` : ''}
+
+    <div class="space-y-2">
+      <div class="font-extrabold text-slate-900 dark:text-white">🔎 1. Itens Afetados &amp; Detalhes Encontrados (${itens.length})</div>
+      ${itensHtml}
+    </div>
+
+    <div class="space-y-2 pt-2 border-t border-violet-100 dark:border-violet-900/60">
+      <div class="font-extrabold text-slate-900 dark:text-white">🐞 2. Diagnóstico Detalhado das Falhas (${achados.length})</div>
+      <div class="space-y-2">${achadosHtml}</div>
+    </div>
+
+    <div class="space-y-2 pt-2 border-t border-violet-100 dark:border-violet-900/60">
+      <div class="font-extrabold text-emerald-800 dark:text-emerald-300">🛠️ 3. Plano de Resolução Passo a Passo (${plano.length} ação(ões))</div>
+      <div class="space-y-2.5">${planoHtml}</div>
+    </div>
+  `;
+  box.classList.remove('hidden');
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function copiarPlanoAutoShield() {
+  const t = ultimaAutomacaoDetalhadaCyber;
+  if (!t) return;
+  const linhas = [
+    `=== AUTO-SHIELD — RELATÓRIO E PLANO DE RESOLUÇÃO ===`,
+    `Rotina: ${t.nome} (${t.tipo_label || t.tipo})`,
+    `Alvo: ${t.alvo} | Score: ${t.ultimo_score ?? 100}/100 | Status: ${t.ultimo_status || '-'}`,
+    `Resumo: ${t.ultimo_resumo || '-'}`,
+    '',
+    '--- ITENS ENCONTRADOS ---',
+    ...(t.ultimos_itens_afetados || []).map((it, i) => `${i + 1}. [${it.status}] ${it.tipo} — ${it.nome}: ${it.detalhe}`),
+    '',
+    '--- PLANO DE RESOLUÇÃO PASSO A PASSO ---',
+    ...(t.ultimo_plano_resolucao || []).flatMap(p => [
+      `Prioridade #${p.prioridade} [${p.severidade} | SLA ${p.sla}]: ${p.titulo}`,
+      `  Ação: ${p.o_que_fazer}`,
+      ...(p.passos || []).map((st, idx) => `    ${idx + 1}. ${st}`),
+      p.comando_validacao ? `  Validação: ${p.comando_validacao}` : '',
+    ]).filter(Boolean),
+  ];
+  try {
+    await navigator.clipboard.writeText(linhas.join('\n'));
+    mostrarToast('Relatório e plano de resolução do Auto-Shield copiados!', 'sucesso');
+  } catch (e) {
+    mostrarToast('Não foi possível copiar automaticamente.', 'erro');
+  }
+}
+
 async function carregarAutomacoesCyber() {
   const res = await apiFetch('/cyber/automacoes');
   if (!res.ok) return;
@@ -963,10 +1130,11 @@ async function carregarAutomacoesCyber() {
   const podeExec = temPermissao('executar_auditoria_rede') || temPermissao('gerenciar_auditoria_cyber');
   const podeExcluir = temPermissao('gerenciar_auditoria_cyber');
 
-  box.innerHTML = cyberAutomacoesCache.map(t => {
+  box.innerHTML = cyberAutomacoesCache.map((t, idx) => {
     const stCls = t.ultimo_status === 'Protegido'
       ? 'bg-emerald-100 text-emerald-800'
       : (t.ultimo_status === 'Alerta' ? 'bg-amber-100 text-amber-800' : 'bg-violet-100 text-violet-800');
+    const qtdPlano = (t.ultimo_plano_resolucao || []).length;
     return `
       <div class="p-3.5 rounded-xl bg-violet-50/70 dark:bg-[#1C1633] border border-violet-200/80 dark:border-violet-800/70 space-y-2">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -979,7 +1147,8 @@ async function carregarAutomacoesCyber() {
         ${t.ultimo_resumo ? `<div class="text-[11px] text-slate-600 dark:text-violet-200 bg-white/80 dark:bg-[#141024] p-2 rounded-lg border border-violet-100 dark:border-violet-900/50">${escapeHtml(t.ultimo_resumo)}</div>` : ''}
         <div class="flex flex-wrap items-center justify-between gap-2 pt-0.5">
           <span class="text-[10px] text-slate-400">${t.ultima_execucao ? `Última verificação: ${formatarDataBR(t.ultima_execucao)}` : 'Nunca executada'}</span>
-          <div class="flex gap-1.5">
+          <div class="flex flex-wrap gap-1.5">
+            ${t.ultima_execucao ? `<button type="button" onclick="abrirDetalheAutoShield(${idx})" class="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold">🔎 Ver Detalhes &amp; Plano${qtdPlano ? ` (${qtdPlano})` : ''}</button>` : ''}
             ${podeExec ? `<button type="button" onclick="executarAutomacaoCyber('${escapeHtml(t.id)}')" class="px-3 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold">▶️ Rodar Busca Agora</button>` : ''}
             ${podeExcluir ? `<button type="button" onclick="excluirAutomacaoCyber('${escapeHtml(t.id)}')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-bold">✕</button>` : ''}
           </div>
@@ -1019,6 +1188,9 @@ async function executarAutomacaoCyber(id) {
     }
     const d = await res.json();
     mostrarToast(d.resumo || 'Busca automática de falhas concluída!', 'sucesso');
+    if (d.automacao) {
+      renderizarDetalheAutoShield(d.automacao);
+    }
     await Promise.all([carregarAutomacoesCyber(), carregarAchadosCyber(), carregarResumoCyber()]);
   } finally {
     renderizarCyberBotsDock(false);
